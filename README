@@ -1,0 +1,5 @@
+gnulib-python
+=============
+This is an implementation of gnulib-tool in Python. This version will contain
+all the functions of the old gnulib-tool, but it will be easier to understand
+and change in the future.
