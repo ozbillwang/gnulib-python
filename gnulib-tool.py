@@ -3,10 +3,14 @@
 ####################################################################################################
 # Define global imports
 ####################################################################################################
+import io
 import os
 import re
 import sys
-import subprocess
+import time
+import tempfile as tf
+import subprocess as sp
+
 
 ####################################################################################################
 # Define module information
@@ -18,9 +22,10 @@ __author__ = \
 [
   'Bruno Haible',
   'Simon Josefsson',
-  'Dmitriy Selyutin',
+  #'Dmitriy Selyutin',
 ]
 __version__ = 0.1
+
 
 ####################################################################################################
 # Define global constants
@@ -29,6 +34,7 @@ __version__ = 0.1
 APP = dict() # Application
 DIRS = dict() # Directories
 UTILS = dict() # Utilities
+FILES = dict() # Files
 
 # Set APP dictionary
 APP['name'] = os.path.basename(sys.argv[0])
@@ -43,6 +49,11 @@ DIRS['lib'] = os.path.join(DIRS['root'], 'lib')
 DIRS['m4'] = os.path.join(DIRS['root'], 'm4')
 DIRS['modules'] = os.path.join(DIRS['root'], 'modules')
 DIRS['tests'] = os.path.join(DIRS['root'], 'tests')
+DIRS['git'] = os.path.join(DIRS['root'], '.git')
+DIRS['cvs'] = os.path.join(DIRS['root'], 'CVS')
+
+# Set FILES dictionary
+FILES['changelog'] = os.path.join(DIRS['root'], 'ChangeLog')
 
 # You can set AUTOCONFPATH to empty if autoconf 2.57 is already in your PATH
 AUTOCONFPATH = ''
@@ -128,6 +139,7 @@ del(AUTOMAKEPATH)
 del(GETTEXTPATH)
 del(LIBTOOLPATH)
 
+
 ####################################################################################################
 # Define GNULibInfo class
 ####################################################################################################
@@ -137,7 +149,8 @@ class GNULibInfo(object):
   anywhere else. The return values are not the same as for the module,
   but still depends on them.'''
   
-  def name(self):
+  def package(self):
+    '''Return formatted string which contains name of the package.'''
     result = 'GNU gnulib-tool'
     return(result)
     
@@ -155,18 +168,64 @@ class GNULibInfo(object):
     return(result)
     
   def license(self):
-    result = 'License GPLv3+: GNU GPL version 3 or later <http://gnu.org/licenses/gpl.html>\n'
+    '''Return formatted string which contains license and its description.'''
+    result = 'License GPLv3+: GNU GPL version 3 or later'
+    result += ' <http://gnu.org/licenses/gpl.html>\n'
     result += 'This is free software: you are free to change and redistribute it.\n'
     result += 'There is NO WARRANTY, to the extent permitted by law.'
     return(result)
     
   def copyright(self):
+    '''Return formatted string which contains copyright.
+    The special __copyright__ variable is used (type is str).'''
     result = 'Copyright (C) %s' % __copyright__
     return(result)
+    
+  def date(self):
+    '''Return formatted string which contains date and time in GMT format.'''
+    if os.path.exists(DIRS['git']) and os.path.isdir(DIRS['git']):
+      counter = int() # Create counter
+      result = str() # Create string
+      args = ['git', 'log', FILES['changelog']]
+      proc1 = sp.Popen(args,stdout=sp.PIPE)
+      proc2 = sp.Popen(['head'],
+        stdin=proc1.stdout, stdout=sp.PIPE)
+      proc1.stdout.close()
+      while counter <= 2:
+        result += proc2.stdout.readline()
+        counter += 1
+      pattern = re.compile('Date:[\t ]*(.*?)\n')
+      result = pattern.findall(result)[0]
+      pattern = re.compile('^[^ ]* ([^ ]*) ([0-9]*) ([0-9:]*) ([0-9]*) ')
+      result = pattern.sub('\\1 \\2 \\4 \\3 ', result)
+      args = ['date', '-d', result, '-u', '+%Y-%m-%d %H:%M:%S']
+      proc = sp.check_output(args)
+      result = str(proc)
+      result = result.rstrip(os.linesep)
+      return(result)
+    
+  def version(self):
+    '''Return formatted string which contains git or CVS version.'''
+    if os.path.exists(DIRS['git']) and os.path.isdir(DIRS['git']):
+      version_gen = os.path.join(DIRS['build-aux'], 'git-version-gen')
+      args = [version_gen, DIRS['root']]
+      proc = sp.check_output(args)
+      result = str(proc)
+      result = result.rstrip(os.linesep)
+      return(result)
 
+
+####################################################################################################
+# Run the main part
+####################################################################################################
 if __name__ == '__main__':
   info = GNULibInfo()
   message = \
-    '%s (here will be gnulib-tool version)\n%s\n%s\n\n%s' % \
-    (info.name(), info.copyright(), info.license(), info.authors())
+    '%s (%s %s) %s\n%s\n%s\n\nWritten by %s' % \
+    (
+      APP['name'], info.package(), info.date(), info.version(),
+      info.copyright(), info.license(), info.authors()
+    )
   print(message)
+  #print(repr(info.date()))
+  #print(info.version())
