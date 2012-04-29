@@ -1,0 +1,43 @@
+30 Apr 2012, Dmitriy Selyutin
+Just a small fix with strings to obtain backward-compatibility with Python 2
+from Python 3. Now you can either run (python2 gnulib-tool.py) or (python3
+gnulib-tool.py). I remind that you must copy gnulib-tool.py file to directory
+with the original gnulib-tool.
+
+28 Apr 2012, Dmitriy Selyutin
+New variable was added, called FILES. It is a dictionary like DIRS variable,
+but it will store some paths to neccessary files. The first such file is
+ChangeLog file, which is used in (git log ChangeLog) command. Two new methods
+were added to GNULibInfo class: date and version (the last one is now available
+only for git, I will add support for CVS later). Note that name method inside
+GNULibInfo class was renamed to package, because it's more correct. If you type
+(python gnulib.py), you will receive the same output as from (gnulib-tool
+--version) command (however the first line will say that name of application is
+gnulib-tool.py until you rename it). However to test this feature you have to
+place new gnulib-tool in folder where the old one is placed.
+I've also added two new files to root: architecture.odg and functions.odt just
+to have their copies. However it may be useful to have these files online.
+
+27 Apr 2012, Dmitriy Selyutin
+APPS variable is now called UTILS. Some variables like __appname__, __appath__
+and __appdir__ were replaced to global APP dictionary, which now contains args
+'name' and 'path'. New global variable DIRS was created to store full paths of
+the main directory and subdirectories. New GNULibInfo class was created; it
+contains some useful methods like name, authors, license and copyright. Don't be
+confused with some similar variables like __author__, __license__, etc. The new
+methods and variables are similar, but they are not the same: methods will
+provide user information which will be mostly used in stdout messages. Later I
+am going to add version method, which will extract versions of script and from
+git (or CVS if we will use it in the future). You can see almost completed
+stdout message which you can get from (gnulib-tool.sh --version). To see it
+just run (python gnulib-tool.py).
+
+26 Apr 2012, Dmitriy Selyutin
+Some global variables were added. Variables that contain paths of neccessary
+applications (AUTOCONF, AUTORECONF, AUTOHEADER, AUTOMAKE, ACLOCAL, AUTOPOINT,
+LIBTOOLIZE, MAKE) were combined into one dict object (APPS), so in the furure I
+have to use e.g. APP['autoconf'] instead of AUTOCONF. I know that this style is
+longer, but I think it is a good idea to combinate similar variables into
+dictionaries and lists. While it seems that some variables (AUTOCONFPATH,
+AUTOMAKEPATH, GETTEXTPATH and LIBTOOLPATH) won't be used later, I've decided to
+delete them using del() statement to free memory and just to be consistent.

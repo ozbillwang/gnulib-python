@@ -1,8 +1,8 @@
 #!/usr/bin/python3
 
-####################################################################################################
+################################################################################
 # Define global imports
-####################################################################################################
+################################################################################
 import io
 import os
 import re
@@ -12,9 +12,9 @@ import tempfile as tf
 import subprocess as sp
 
 
-####################################################################################################
+################################################################################
 # Define module information
-####################################################################################################
+################################################################################
 __all__ = ['GNULibInfo']
 __license__ = 'GNU GPLv3+'
 __copyright__ = '2012 Free Software Foundation, Inc.'
@@ -22,18 +22,25 @@ __author__ = \
 [
   'Bruno Haible',
   'Simon Josefsson',
-  #'Dmitriy Selyutin',
+  'Dmitriy Selyutin',
 ]
 __version__ = 0.1
 
 
-####################################################################################################
+################################################################################
 # Define global constants
-####################################################################################################
+################################################################################
+# Create string compatibility
+if sys.version_info.major == 2: # Using Python 2
+  string = unicode
+else: # Using Python 3 (PY3K)
+  string = str
+
 # Declare neccessary variables
 APP = dict() # Application
 DIRS = dict() # Directories
 UTILS = dict() # Utilities
+ENCS = dict() # Encodings
 FILES = dict() # Files
 
 # Set APP dictionary
@@ -54,6 +61,11 @@ DIRS['cvs'] = os.path.join(DIRS['root'], 'CVS')
 
 # Set FILES dictionary
 FILES['changelog'] = os.path.join(DIRS['root'], 'ChangeLog')
+
+# Set ENCS dictionary
+ENCS['system'] = sys.getfilesystemencoding()
+ENCS['default'] = sys.getdefaultencoding()
+ENCS['shell'] = sys.stdout.encoding
 
 # You can set AUTOCONFPATH to empty if autoconf 2.57 is already in your PATH
 AUTOCONFPATH = ''
@@ -140,10 +152,10 @@ del(GETTEXTPATH)
 del(LIBTOOLPATH)
 
 
-####################################################################################################
+################################################################################
 # Define GNULibInfo class
-####################################################################################################
-class GNULibInfo(object):
+################################################################################
+class GNULibInfo:
   '''This class is used to get fromatted information about gnulib-tool.
   This information is mainly used in stdout messages, but can be used
   anywhere else. The return values are not the same as for the module,
@@ -157,7 +169,7 @@ class GNULibInfo(object):
   def authors(self):
     '''Return formatted string which contains authors.
     The special __author__ variable is used (type is list).'''
-    result = str() # Empty string
+    result = string() # Empty string
     for item in __author__:
       if item == __author__[-2]:
         result += '%s ' % item
@@ -171,7 +183,8 @@ class GNULibInfo(object):
     '''Return formatted string which contains license and its description.'''
     result = 'License GPLv3+: GNU GPL version 3 or later'
     result += ' <http://gnu.org/licenses/gpl.html>\n'
-    result += 'This is free software: you are free to change and redistribute it.\n'
+    result += 'This is free software: you are free'
+    result += ' to change and redistribute it.\n'
     result += 'There is NO WARRANTY, to the extent permitted by law.'
     return(result)
     
@@ -185,14 +198,14 @@ class GNULibInfo(object):
     '''Return formatted string which contains date and time in GMT format.'''
     if os.path.exists(DIRS['git']) and os.path.isdir(DIRS['git']):
       counter = int() # Create counter
-      result = str() # Create string
+      result = string() # Create string
       args = ['git', 'log', FILES['changelog']]
       proc1 = sp.Popen(args,stdout=sp.PIPE)
       proc2 = sp.Popen(['head'],
         stdin=proc1.stdout, stdout=sp.PIPE)
       proc1.stdout.close()
       while counter <= 2:
-        result += proc2.stdout.readline()
+        result += string(proc2.stdout.readline(), ENCS['shell'])
         counter += 1
       pattern = re.compile('Date:[\t ]*(.*?)\n')
       result = pattern.findall(result)[0]
@@ -200,7 +213,7 @@ class GNULibInfo(object):
       result = pattern.sub('\\1 \\2 \\4 \\3 ', result)
       args = ['date', '-d', result, '-u', '+%Y-%m-%d %H:%M:%S']
       proc = sp.check_output(args)
-      result = str(proc)
+      result = string(proc, ENCS['shell'])
       result = result.rstrip(os.linesep)
       return(result)
     
@@ -210,14 +223,14 @@ class GNULibInfo(object):
       version_gen = os.path.join(DIRS['build-aux'], 'git-version-gen')
       args = [version_gen, DIRS['root']]
       proc = sp.check_output(args)
-      result = str(proc)
+      result = string(proc, ENCS['shell'])
       result = result.rstrip(os.linesep)
       return(result)
 
 
-####################################################################################################
+################################################################################
 # Run the main part
-####################################################################################################
+################################################################################
 if __name__ == '__main__':
   info = GNULibInfo()
   message = \
@@ -227,5 +240,3 @@ if __name__ == '__main__':
       info.copyright(), info.license(), info.authors()
     )
   print(message)
-  #print(repr(info.date()))
-  #print(info.version())
