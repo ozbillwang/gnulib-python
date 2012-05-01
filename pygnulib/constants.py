@@ -32,6 +32,7 @@ if sys.version_info.major == 2: # Using Python 2
   string = unicode
 else: # Using Python 3 (PY3K)
   string = str
+NoneType = type(None)
 
 
 ################################################################################

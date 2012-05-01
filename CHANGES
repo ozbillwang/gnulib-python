@@ -1,3 +1,8 @@
+2 May 2012, Dmitriy Selyutin
+The delevelopment of GNULibMode has started. I think I'll separate this module
+in the future, but the main concept will remain unchanged. Just to let you know
+that development still continues.
+
 1 May 2012, Dmitriy Selyutin
 Paul Eggert was added to the list of authors (see __author__ variable). Method
 date from GNULibInfo was commented to help developers understand how the date
