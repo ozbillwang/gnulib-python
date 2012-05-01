@@ -1,3 +1,17 @@
+1 May 2012, Dmitriy Selyutin
+Paul Eggert was added to the list of authors (see __author__ variable). Method
+date from GNULibInfo was commented to help developers understand how the date
+is calculated. Module is now separated for better maintainability. Instead of
+single gnulib-tool.py you get pygnulib package and two modules: constants.py
+and utilities.py.
+constants module now contains all date which user or developers can change (e.g.
+paths for automake, autoconf utilities, authors, application name, etc.). To 
+understand how to use constants look inside the utilities.py module (see 'Define
+module information' and 'Define global constants' sections). All the future
+parts of pygnulib module will use the same model to define constants.
+utilities module now contains GNULibInfo class. I think the most part of classes
+will be placed here; however some modules can be separated in the future.
+
 30 Apr 2012, Dmitriy Selyutin
 Just a small fix with strings to obtain backward-compatibility with Python 2
 from Python 3. Now you can either run (python2 gnulib-tool.py) or (python3

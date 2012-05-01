@@ -1,3 +1,6 @@
 # Ignore Python byte-code files
 *.pyc
 *.pyo
+
+# Ignore Python cache files
+*__pycache__*
