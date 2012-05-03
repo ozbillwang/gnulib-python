@@ -1,3 +1,11 @@
+3 May 2012, Dmitriy Selyutin
+GNULibMode functionality was reimplemented and redone from zero. Now GNULibMode
+is the parent for all the other modes, and the first one is GNULibImport class,
+which is used to provide methods for --import, --add-import, --remove-import
+and --update actions. New constant MODES was added to constants.py to handle
+types of tests and minimal/maximal value for verbosity level. It seems that
+there will be much more constants in this section in the future.
+
 2 May 2012, Dmitriy Selyutin
 The delevelopment of GNULibMode has started. I think I'll separate this module
 in the future, but the main concept will remain unchanged. Just to let you know

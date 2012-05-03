@@ -44,6 +44,7 @@ DIRS = dict() # Directories
 UTILS = dict() # Utilities
 ENCS = dict() # Encodings
 FILES = dict() # Files
+MODES = dict() # Modes
 
 # Set APP dictionary
 APP['name'] = os.path.basename(sys.argv[0])
@@ -68,6 +69,20 @@ FILES['changelog'] = os.path.join(DIRS['root'], 'ChangeLog')
 ENCS['system'] = sys.getfilesystemencoding()
 ENCS['default'] = sys.getdefaultencoding()
 ENCS['shell'] = sys.stdout.encoding
+
+# Set MODES dictionary
+MODES['verbose-min'] = -2
+MODES['verbose-max'] = 2
+MODES['tests'] = \
+{
+  'default': 1,
+  'obsolete': 2,
+  'cxx': 4, 'c++': 4,
+  'longrunning': 8,
+  'privileged': 16,
+  'unportable': 32,
+  'all': 63,
+} 
 
 # You can set AUTOCONFPATH to empty if autoconf 2.57 is already in your PATH
 AUTOCONFPATH = ''

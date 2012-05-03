@@ -341,8 +341,8 @@ Copyright (C) $year Free Software Foundation, Inc.
 License GPLv3+: GNU GPL version 3 or later <http://gnu.org/licenses/gpl.html>
 This is free software: you are free to change and redistribute it.
 There is NO WARRANTY, to the extent permitted by law.
-
-Written by" "Bruno Haible" "and" "Simon Josefsson"
+"
+  printf "Written by %s, %s, and %s.\n" "Bruno Haible" "Paul Eggert" "Simon Josefsson"
 }
 
 # func_emit_copyright_notice
@@ -1302,19 +1302,6 @@ fi
       echo "Try 'gnulib-tool --help' for more information." 1>&2
       func_exit 1
     fi
-  fi
-  # This code helps migrating from --import to --add-import or --update. It can
-  # be removed on 2012-01-01.
-  if test "$mode" = import && test $# = 0; then
-    echo "gnulib-tool: cowardly refusing to erase the module list." 1>&2
-    echo "The meaning of the option '--import' has changed." 1>&2
-    echo "See the documentation at" 1>&2
-    echo "<http://www.gnu.org/software/gnulib/manual/html_node/Modified-imports.html>." 1>&2
-    echo "For updating to a newer version of gnulib, use" 1>&2
-    echo "  gnulib-tool --add-import" 1>&2
-    echo "For restoring files that were omitted from version control, use" 1>&2
-    echo "  gnulib-tool --update" 1>&2
-    func_exit 1
   fi
   if test "$mode" = update; then
     if test $# != 0; then
