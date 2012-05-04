@@ -1,3 +1,22 @@
+5 May 2012, Dmitriy Selyutin
+Some new methods were added to GNULibImport. Check for '\r' as endline marker
+in the testing section was deleted, because no system exists which supports
+this type on endline.
+
+4 May 2012, Dmitriy Selyutin
+New module testing.py was added to compare gnulib-tool.sh and gnulib-tool.py.
+At this time there are two functions: version and help, which compares outputs
+after running gnulib-tool with --version or --help argument respectively. All
+the difference between outputs is printed using difflib module. If outputs were
+exactly the same, test was completed successfully. In the future there will be
+much more functions, so they will be combined into classes (e.g. one class to
+test --add-import mode with different modules, other to test a --list mode,
+third to test --remove-import with different modules, etc.).
+GNULibInfo class received new method, help, which allows to get help message
+like if you execute gnulib-tool with --help parameter. I think I'll leave it,
+because it is hard (if even possible) to make argparse print exactly the same.
+Some methods were added to GNULibImport module.
+
 3 May 2012, Dmitriy Selyutin
 GNULibMode functionality was reimplemented and redone from zero. Now GNULibMode
 is the parent for all the other modes, and the first one is GNULibImport class,

@@ -15,8 +15,8 @@ import sys
 __author__ = \
 [
   'Bruno Haible',
-  'Simon Josefsson',
   'Paul Eggert',
+  'Simon Josefsson',
   'Dmitriy Selyutin',
 ]
 __license__ = 'GNU GPLv3+'
@@ -81,8 +81,7 @@ MODES['tests'] = \
   'longrunning': 8,
   'privileged': 16,
   'unportable': 32,
-  'all': 63,
-} 
+}
 
 # You can set AUTOCONFPATH to empty if autoconf 2.57 is already in your PATH
 AUTOCONFPATH = ''

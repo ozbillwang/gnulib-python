@@ -25,6 +25,7 @@
 ################################################################################
 from pygnulib import constants
 from pygnulib import utilities
+from pygnulib import testing
 APP = constants.APP
 
 
@@ -32,11 +33,6 @@ APP = constants.APP
 # Define global constants
 ################################################################################
 if __name__ == '__main__':
-  info = utilities.GNULibInfo()
-  message = \
-    '%s (%s %s) %s\n%s\n%s\n\nWritten by %s' % \
-    (
-      APP['name'], info.package(), info.date(), info.version(),
-      info.copyright(), info.license(), info.authors()
-    )
-  print(message)
+  testing.version()
+  testing.help()
+

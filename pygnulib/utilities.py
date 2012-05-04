@@ -44,7 +44,7 @@ class GNULibInfo:
   
   def package(self):
     '''Return formatted string which contains name of the package.'''
-    result = 'GNU gnulib-tool'
+    result = 'GNU gnulib'
     return(result)
     
   def authors(self):
@@ -101,6 +101,184 @@ class GNULibInfo:
       result = result.rstrip(os.linesep)
       return(result)
     
+  def help(self):
+    '''Show help message.'''
+    result = '''\
+Usage: gnulib-tool --list
+       gnulib-tool --find filename
+       gnulib-tool --import [module1 ... moduleN]
+       gnulib-tool --add-import [module1 ... moduleN]
+       gnulib-tool --remove-import [module1 ... moduleN]
+       gnulib-tool --update
+       gnulib-tool --create-testdir --dir=directory [module1 ... moduleN]
+       gnulib-tool --create-megatestdir --dir=directory [module1 ... moduleN]
+       gnulib-tool --test --dir=directory module1 ... moduleN
+       gnulib-tool --megatest --dir=directory [module1 ... moduleN]
+       gnulib-tool --extract-description module
+       gnulib-tool --extract-comment module
+       gnulib-tool --extract-status module
+       gnulib-tool --extract-notice module
+       gnulib-tool --extract-applicability module
+       gnulib-tool --extract-filelist module
+       gnulib-tool --extract-dependencies module
+       gnulib-tool --extract-autoconf-snippet module
+       gnulib-tool --extract-automake-snippet module
+       gnulib-tool --extract-include-directive module
+       gnulib-tool --extract-link-directive module
+       gnulib-tool --extract-license module
+       gnulib-tool --extract-maintainer module
+       gnulib-tool --extract-tests-module module
+       gnulib-tool --copy-file file [destination]
+
+Operation modes:
+
+      --list                print the available module names
+      --find                find the modules which contain the specified file
+      --import              import the given modules into the current package
+      --add-import          augment the list of imports from gnulib into the
+                            current package, by adding the given modules;
+                            if no modules are specified, update the current
+                            package from the current gnulib
+      --remove-import       reduce the list of imports from gnulib into the
+                            current package, by removing the given modules
+      --update              update the current package, restore files omitted
+                            from version control
+      --create-testdir      create a scratch package with the given modules
+                            (pass --with-tests to include the unit tests)
+      --create-megatestdir  create a mega scratch package with the given modules
+                            one by one and all together
+                            (pass --with-tests to include the unit tests)
+      --test                test the combination of the given modules
+                            (pass --with-tests to include the unit tests)
+                            (recommended to use CC=\"gcc -Wall\" here)
+      --megatest            test the given modules one by one and all together
+                            (pass --with-tests to include the unit tests)
+                            (recommended to use CC=\"gcc -Wall\" here)
+      --extract-description        extract the description
+      --extract-comment            extract the comment
+      --extract-status             extract the status (obsolete etc.)
+      --extract-notice             extract the notice or banner
+      --extract-applicability      extract the applicability
+      --extract-filelist           extract the list of files
+      --extract-dependencies       extract the dependencies
+      --extract-autoconf-snippet   extract the snippet for configure.ac
+      --extract-automake-snippet   extract the snippet for library makefile
+      --extract-include-directive  extract the #include directive
+      --extract-link-directive     extract the linker directive
+      --extract-license            report the license terms of the source files
+                                   under lib/
+      --extract-maintainer         report the maintainer(s) inside gnulib
+      --extract-tests-module       report the unit test module, if it exists
+      --copy-file                  copy a file that is not part of any module
+      --help                Show this help text.
+      --version             Show version and authorship information.
+
+General options:
+
+      --dir=DIRECTORY       Specify the target directory.
+                            For --import, this specifies where your
+                            configure.ac can be found.  Defaults to current
+                            directory.
+      --local-dir=DIRECTORY  Specify a local override directory where to look
+                            up files before looking in gnulib's directory.
+      --cache-modules       Enable module caching optimization.
+      --no-cache-modules    Disable module caching optimization.
+      --verbose             Increase verbosity. May be repeated.
+      --quiet               Decrease verbosity. May be repeated.
+
+Options for --import, --add/remove-import, --update:
+
+      --dry-run             Only print what would have been done.
+
+Options for --import, --add/remove-import,
+            --create-[mega]testdir, --[mega]test:
+
+      --with-tests          Include unit tests for the included modules.
+      --with-obsolete       Include obsolete modules when they occur among the
+                            dependencies. By default, dependencies to obsolete
+                            modules are ignored.
+      --with-c++-tests      Include even unit tests for C++ interoperability.
+      --with-longrunning-tests
+                            Include even unit tests that are long-runners.
+      --with-privileged-tests
+                            Include even unit tests that require root
+                            privileges.
+      --with-unportable-tests
+                            Include even unit tests that fail on some platforms.
+      --with-all-tests      Include all kinds of problematic unit tests.
+      --avoid=MODULE        Avoid including the given MODULE. Useful if you
+                            have code that provides equivalent functionality.
+                            This option can be repeated.
+      --conditional-dependencies
+                            Support conditional dependencies (may save configure
+                            time and object code).
+      --no-conditional-dependencies
+                            Don't use conditional dependencies.
+      --libtool             Use libtool rules.
+      --no-libtool          Don't use libtool rules.
+
+Options for --import, --add/remove-import:
+
+      --lib=LIBRARY         Specify the library name.  Defaults to 'libgnu'.
+      --source-base=DIRECTORY
+                            Directory relative to --dir where source code is
+                            placed (default \"lib\").
+      --m4-base=DIRECTORY   Directory relative to --dir where *.m4 macros are
+                            placed (default \"m4\").
+      --po-base=DIRECTORY   Directory relative to --dir where *.po files are
+                            placed (default \"po\").
+      --doc-base=DIRECTORY  Directory relative to --dir where doc files are
+                            placed (default \"doc\").
+      --tests-base=DIRECTORY
+                            Directory relative to --dir where unit tests are
+                            placed (default \"tests\").
+      --aux-dir=DIRECTORY   Directory relative to --dir where auxiliary build
+                            tools are placed (default comes from configure.ac).
+      --lgpl[=2|=3]         Abort if modules aren't available under the LGPL.
+                            Also modify license template from GPL to LGPL.
+                            The version number of the LGPL can be specified;
+                            the default is currently LGPLv3.
+      --makefile-name=NAME  Name of makefile in automake syntax in the
+                            source-base and tests-base directories
+                            (default \"Makefile.am\").
+      --macro-prefix=PREFIX  Specify the prefix of the macros 'gl_EARLY' and
+                            'gl_INIT'. Default is 'gl'.
+      --po-domain=NAME      Specify the prefix of the i18n domain. Usually use
+                            the package name. A suffix '-gnulib' is appended.
+      --witness-c-macro=NAME  Specify the C macro that is defined when the
+                            sources in this directory are compiled or used.
+      --vc-files            Update version control related files.
+      --no-vc-files         Don't update version control related files
+                            (.gitignore and/or .cvsignore).
+      --no-changelog        Don't update or create ChangeLog files.
+
+Options for --create-[mega]testdir, --[mega]test:
+
+      --without-c++-tests   Exclude unit tests for C++ interoperability.
+      --without-longrunning-tests
+                            Exclude unit tests that are long-runners.
+      --without-privileged-tests
+                            Exclude unit tests that require root privileges.
+      --without-unportable-tests
+                            Exclude unit tests that fail on some platforms.
+      --single-configure    Generate a single configure file, not a separate
+                            configure file for the tests directory.
+
+Options for --import, --add/remove-import, --update,
+            --create-[mega]testdir, --[mega]test:
+
+  -s, --symbolic, --symlink Make symbolic links instead of copying files.
+      --local-symlink       Make symbolic links instead of copying files, only
+                            for files from the local override directory.
+
+Options for --import, --add/remove-import, --update:
+
+  -S, --more-symlinks       Make symbolic links instead of copying files, and
+                            don't replace copyright notices.
+
+Report bugs to <bug-gnulib@gnu.org>.'''
+    return(result)
+    
   def version(self):
     '''Return formatted string which contains git or CVS version.'''
     if os.path.exists(DIRS['git']) and os.path.isdir(DIRS['git']):
@@ -123,27 +301,27 @@ class GNULibMode:
   
   def __init__(self):
     '''Create GNULibMode instance.'''
-    self.mode = None
-    self.destdir = os.getcwd()
-    if type(self.destdir) is bytes:
-      self.destdir = string(os.getcwd(), ENCS['system'])
-    self.localdir = string()
-    self.modcache = True
-    self.verbose = int()
+    self._mode_ = None
+    self._destdir_ = os.getcwd()
+    if type(self._destdir_) is bytes:
+      self._destdir_ = string(os.getcwd(), ENCS['system'])
+    self._localdir_ = string()
+    self._modcache_ = True
+    self._verbose_ = int()
     
   def getDestDir(self):
     '''Return the target directory. For --import, this specifies where your
     configure.ac can be found. Defaults to current directory.'''
-    return(self.destdir)
+    return(self._destdir_)
     
   def setDestDir(self, directory):
     '''Specify the target directory. For --import, this specifies where your
     configure.ac can be found. Defaults to current directory.'''
     if type(directory) is bytes or type(directory) is string:
       if type(directory) is bytes:
-        self.destdir = string(directory, ENCS['shell'])
+        self._destdir_ = string(directory, ENCS['shell'])
       elif type(directory) is string:
-        self.destdir = directory
+        self._destdir_ = directory
     else:
       raise(TypeError(
         'argument must be a string, not %s' % type(directory).__name__))
@@ -151,45 +329,45 @@ class GNULibMode:
   def getLocalDir(self):
     '''Return a local override directory where to look up files before looking
     in gnulib's directory.'''
-    return(self.localdir)
+    return(self._localdir_)
     
   def setLocalDir(self, directory):
     '''Specify a local override directory where to look up files before looking
     in gnulib's directory.'''
     if type(directory) is bytes or type(directory) is string:
       if type(directory) is bytes:
-        self.localdir = string(directory, ENCS['shell'])
+        self._localdir_ = string(directory, ENCS['shell'])
       elif type(directory) is string:
-        self.localdir = directory
+        self._localdir_ = directory
     else:
       raise(TypeError(
         'argument must be a string, not %s' % type(directory).__name__))
     
   def checkModuleCaching(self):
     '''Get status of module caching optimization.'''
-    return(self.modcache)
+    return(self._modcache_)
     
   def enableModuleCaching(self):
     '''Enable module caching optimization.'''
-    self.modcache = True
+    self._modcache_ = True
     
   def disableModuleCaching(self):
     '''Disable module caching optimization.'''
-    self.modcache = False
+    self._modcache_ = False
     
   def getVerbosity(self):
     '''Get verbosity level.'''
-    return(self.verbose)
+    return(self._verbose_)
     
   def decreaseVerbosity(self):
     '''Decrease verbosity level.'''
-    if self.verbose > MODES['verbose-min']:
-      self.verbose -= 1
+    if self._verbose_ > MODES['verbose-min']:
+      self._verbose_ -= 1
     
   def increaseVerbosity(self):
     '''Increase verbosity level.'''
-    if self.verbose < MODES['verbose-max']:
-      self.verbose += 1
+    if self._verbose_ < MODES['verbose-max']:
+      self._verbose_ += 1
     
   def setVerbosity(self, verbose):
     '''Set verbosity level to verbose, where -2 <= verbose <= 2.
@@ -197,44 +375,61 @@ class GNULibMode:
     If verbosity level is greater than 2, verbosity level will be set to 2.'''
     if type(verbose) is int:
       if MODES['verbose-min'] <= verbose <= MODES['verbose-max']:
-        self.verbose = verbose
+        self._verbose_ = verbose
       elif verbose < MODES['verbose-min']:
-        self.verbose = MODES['verbose-min']
+        self._verbose_ = MODES['verbose-min']
       elif verbose > MODES['verbose-max']:
-        self.verbose = MODES['verbose-max']
+        self._verbose_ = MODES['verbose-max']
     else:
       raise(TypeError(
         'argument must be a string, not %s' % type(module).__name__))
 
 
 ################################################################################
-# Define GNULibMode class
+# Define GNULibList class
+################################################################################
+class GNULibList(GNULibMode):
+  '''GNULibList class is used to get list of all modules.'''
+  
+  def run(self):
+    '''Execute GNULibList.'''
+    args = ['find', 'modules', '-type', 'f', '-print']
+    proc = sp.check_output(args)
+    result = string(proc, ENCS['shell'])
+
+
+################################################################################
+# Define GNULibImport class
 ################################################################################
 class GNULibImport(GNULibMode):
-  '''GNULibImport class is used to provide methods for --import, --add-import,
-  --remove-import and --update actions.'''
+  '''GNULibImport class is used to provide methods for --import, --add-import
+  and --remove-import actions.'''
   
   def __init__(self):
     '''Create GNULibImport instance.'''
-    self.mode = None
-    self.destdir = os.getcwd()
-    if type(self.destdir) is bytes:
-      self.destdir = string(os.getcwd(), ENCS['system'])
-    self.localdir = string()
-    self.modcache = True
-    self.verbose = int()
-    self.modules = list()
-    self.dryrun = bool()
-    self.tests = int()
+    self._mode_ = None
+    self._destdir_ = os.getcwd()
+    if type(self._destdir_) is bytes:
+      self._destdir_ = string(os.getcwd(), ENCS['system'])
+    self._localdir_ = string()
+    self._modcache_ = True
+    self._verbose_ = int()
+    self._imports_ = list()
+    self._dryrun_ = bool()
+    self._testflags_ = list()
+    self._testflags_.append(1)
+    self._avoids_ = list()
+    self._dependencies_ = False
+    self._libtool_ = False
+    self._library_ = 'libgnu'
+    self._sourcebase_ = 
     
   def addImport(self, module):
     '''Import the given module into the current package.'''
     if type(module) is bytes or type(module) is string:
       if type(module) is bytes:
         module = string(module, ENCS['shell'])
-      elif type(module) is string:
-        module = module
-      self.modules.append(module)
+      self._imports_.append(module)
     else:
       raise(TypeError(
         'argument must be a string, not %s' % type(module).__name__))
@@ -244,16 +439,14 @@ class GNULibImport(GNULibMode):
     if type(module) is bytes or type(module) is string:
       if type(module) is bytes:
         module = string(module, ENCS['shell'])
-      elif type(module) is string:
-        module = module
-      self.modules.remove(module)
+      self._imports_.remove(module)
     else:
       raise(TypeError(
         'argument must be a string, not %s' % type(module).__name__))
     
   def getImports(self):
     '''Return the list of the modules from the current package.'''
-    return(self.modules)
+    return(self._imports_)
     
   def setImports(self, modules):
     '''Specify the modules which will be imported into the current package.'''
@@ -262,29 +455,136 @@ class GNULibImport(GNULibMode):
         if type(module) is not string:
           raise(TypeError(
             'every module must be a string, not %s' % type(module).__name__))
-      self.modules = modules
+      self._imports_ = modules
     else:
       raise(TypeError(
-        'modules must be a list, not %s' % type(modules).__name__))
+        'modules must be a list or a tuple, not %s' % type(modules).__name__))
     
   def resetImports(self):
     '''Reset the list of the modules.'''
-    self.modules = list()
+    self._imports_ = list()
     
   def checkDryRun(self):
-    '''Check whether user enabled dry run mode.'''
-    return(self.dryrun)
+    '''Check if user enabled dry run mode.'''
+    return(self._dryrun_)
     
   def enableDryRun(self):
     '''Only print what would have been done.'''
-    self.dryrun = True
+    self._dryrun_ = True
     
   def disableDryRun(self):
     '''Really execute what shall be done.'''
-    self.dryrun = False
+    self._dryrun_ = False
+    
+  def enableTestFlag(self, flag):
+    '''Enable test flag. You can get flags from MODES['tests'] variable.'''
+    if flag in MODES['tests'].keys():
+      if flag not in self._testflags_:
+        self._testflags_.append(flag)
+    else:
+      raise(TypeError('unknown flag: %s' % repr(flag)))
+    
+  def disableTestFlag(self, flag):
+    '''Disable test flag. You can get flags from MODES['tests'] variable.'''
+    if flag in MODES['tests'].keys():
+      if flag in self._testflags_:
+        self._testflags_.remove(flag)
+    else:
+      raise(TypeError('unknown flag: %s' % repr(flag)))
     
   def setTestFlags(self, flags):
-    '''Set test flags. You can get all flags from MODES['tests'] variable.'''
-    if type(flags) is int:
-      self.tests = flags
+    if type(flags) is list or type(flags) is tuple:
+      for flag in flags:
+        if type(flag) is not string:
+          raise(TypeError(
+            'every flag must be an int, not %s' % type(flag).__name__))
+        elif flag not in MODES['tests'].keys():
+          raise(TypeError('unknown flag: %s' % repr(flag)))
+      self._testflags_ = flags
+    else:
+      raise(TypeError(
+        'flags must be a list or a tuple, not %s' % type(flags).__name__))
+    
+  def resetTestFlags(self):
+    '''Reset test flags (only default flag will be enabled).'''
+    self._testflags_ = list([1])
+    
+  def addAvoid(self, module):
+    '''Avoid including the given module. Useful if you have code that provides
+    equivalent functionality.'''
+    if type(module) is bytes or type(module) is string:
+      if type(module) is bytes:
+        module = string(module, ENCS['shell'])
+      self._avoids_.append(module)
+    else:
+      raise(TypeError(
+        'argument must be a string, not %s' % type(module).__name__))
+    
+  def removeAvoid(self, module):
+    '''Remove the given module from the list of avoided modules.'''
+    if type(module) is bytes or type(module) is string:
+      if type(module) is bytes:
+        module = string(module, ENCS['shell'])
+      self._avoids_.remove(module)
+    else:
+      raise(TypeError(
+        'argument must be a string, not %s' % type(module).__name__))
+    
+  def getAvoids(self):
+    '''Return the list of the avoided modules.'''
+    return(self._avoids_)
+    
+  def setAvoids(self, modules):
+    '''Specify the modules which will be avoided.'''
+    if type(modules) is list or type(modules) is tuple:
+      for module in modules:
+        if type(module) is not string:
+          raise(TypeError(
+            'every module must be a string, not %s' % type(module).__name__))
+      self._avoids_ = modules
+    else:
+      raise(TypeError(
+        'modules must be a list or a tuple, not %s' % type(modules).__name__))
+    
+  def resetAvoids(self):
+    '''Reset the list of the avoided modules.'''
+    self._avoids_ = list()
+    
+  def checkDependencies(self):
+    '''Check if user enabled cond. dependencies.'''
+    return(self._dependencies_)
+    
+  def enableDependencies(self):
+    '''Enable cond. dependencies (may save configure time and object code).'''
+    self._dependencies_ = True
+    
+  def disableDependencies(self):
+    '''Disable cond. dependencies (may save configure time and object code).'''
+    self._dependencies_ = False
+    
+  def checkLibtool(self):
+    '''Check if user enabled libtool rules.'''
+    return(self._libtool_)
+    
+  def enableLibtool(self):
+    '''Enable libtool rules.'''
+    self._libtool_ = True
+    
+  def disableLibtool(self):
+    '''Disable libtool rules.'''
+    self._libtool_ = False
+    
+  def getLibName(self):
+    '''Return the library name. Defaults to 'libgnu'.'''
+    return(self._library_)
+    
+  def setLibName(self, library):
+    '''Specify the library name.  Defaults to 'libgnu'.'''
+    if type(library) is bytes or type(library) is string:
+      if type(library) is bytes:
+        library = string(library, ENCS['shell'])
+      self._library_ = library
+    else:
+      raise(TypeError(
+        'argument must be a string, not %s' % type(module).__name__))
 
