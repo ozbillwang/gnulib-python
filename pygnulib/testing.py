@@ -1,6 +1,7 @@
 #!/usr/bin/python
 '''This script is a part of PyGNULib module for gnulib.'''
 
+from __future__ import unicode_literals
 ################################################################################
 # Define global imports
 ################################################################################

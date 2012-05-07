@@ -1,3 +1,48 @@
+7 May 2012, Dmitriy Selyutin
+Support for bytes and string types was improved: some source code was added to
+check what type variables have from the beginning (bytes or unicode/str). That
+was done to provide support for Python 2. unicode_literals function doesn't
+provide support for sys.argv and most of os.path functions, which return
+bytes type in Python 2, while some system (first of all Windows) need unicode
+strings for filenames. However, we have to check only basic filenames, because
+all other functions return type basing on input type (i.e. if function gets
+bytes type, it will return bytes type, otherwise it will return unicode in
+Python 2). This is neccessary only in Python 2, but I think we need to support
+Python 2 at least at first stages. The most common way is to check a string if
+it has bytes type; if yes, convert it to string type, which is equal to unicode
+type for Python 2 and to str type for Python 3. Maybe in future I'll create a
+class for this purpose. I know this may be overkilling, but I hope to provide
+full support for people who still use Python 2.
+To look at pretty handling for string type, you can run several commands inside
+Python's interperter (you must run it from directory where gnulib-tool.py is
+placed):
+>>> from pygnulib import constants
+>>> from pprint import pprint
+>>> pprint(constants.__dict__)
+As you can see all the variables which are needed by gnulib-tool now have
+unicode or str type depending on current Python version. Some methods that
+touch encodings were changed, too (now they depend on ENCS['system'] variable).
+Section where global variables are deleted from constants.py was removed.
+Method setDestDir, which was inherited from GNULibMode class, was added to
+GNULibImport class to update _*base_ variables after _destdir_ variable was
+set. To make it easy, it uses super function to operate with the parent class.
+GNULibMode now inherits from object type to make super function work.
+Several methods were added to GNULibImport class. I'm going to make this class
+immutable just to prevent a situation like GNULibImport._destdir_ = 'strange
+value for variable _destdir_ may cause errors!'.
+Methods addImport, removeImport, setImports, getImports inside GNULibImport
+class were renamed to addModule, removeModule, setModules, getModules not to
+confuse users. Description of these methods was changed, too. The name of the
+self._imports_ variable was changed to self._modules_.
+A lot of methods was added to GNULibImport class.
+The sequence of actions with GNULibImport class will be represented in the
+following way:
+  1. User creates GNULibImport class, defines modules which will be used in
+--import, --add-import, --remove-import actions, sets options and variables.
+  2. User runs functions which correspond to --import, --add-import,
+--remove-import actions and they get all the neccessary information from
+GNULibImport class.
+
 5 May 2012, Dmitriy Selyutin
 Some new methods were added to GNULibImport. Check for '\r' as endline marker
 in the testing section was deleted, because no system exists which supports

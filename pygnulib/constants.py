@@ -1,7 +1,7 @@
 #!/usr/bin/python
 '''This script is a part of PyGNULib module for gnulib.'''
 
-
+from __future__ import unicode_literals
 ################################################################################
 # Define global imports
 ################################################################################
@@ -32,7 +32,6 @@ if sys.version_info.major == 2: # Using Python 2
   string = unicode
 else: # Using Python 3 (PY3K)
   string = str
-NoneType = type(None)
 
 
 ################################################################################
@@ -46,9 +45,18 @@ ENCS = dict() # Encodings
 FILES = dict() # Files
 MODES = dict() # Modes
 
+# Set ENCS dictionary
+ENCS['system'] = sys.getfilesystemencoding()
+ENCS['default'] = sys.getdefaultencoding()
+ENCS['shell'] = sys.stdout.encoding
+
 # Set APP dictionary
 APP['name'] = os.path.basename(sys.argv[0])
 APP['path'] = os.path.realpath(sys.argv[0])
+if type(APP['name']) is bytes:
+  APP['name'] = string(APP['name'], ENCS['system'])
+if type(APP['path']) is bytes:
+  APP['path'] = string(APP['path'], ENCS['system'])
 
 # Set DIRS dictionary
 DIRS['root'] = os.path.dirname(APP['path'])
@@ -64,11 +72,6 @@ DIRS['cvs'] = os.path.join(DIRS['root'], 'CVS')
 
 # Set FILES dictionary
 FILES['changelog'] = os.path.join(DIRS['root'], 'ChangeLog')
-
-# Set ENCS dictionary
-ENCS['system'] = sys.getfilesystemencoding()
-ENCS['default'] = sys.getdefaultencoding()
-ENCS['shell'] = sys.stdout.encoding
 
 # Set MODES dictionary
 MODES['verbose-min'] = -2
@@ -160,12 +163,4 @@ if os.getenv('MAKE'):
   UTILS['make'] = os.getenv('MAKE')
 else:
   UTILS['make'] = 'make'
-
-# Delete temporary variables
-del(os)
-del(sys)
-del(AUTOCONFPATH)
-del(AUTOMAKEPATH)
-del(GETTEXTPATH)
-del(LIBTOOLPATH)
 

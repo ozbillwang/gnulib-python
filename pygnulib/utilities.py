@@ -1,6 +1,7 @@
 #!/usr/bin/python
 '''This script is a part of PyGNULib module for gnulib.'''
 
+from __future__ import unicode_literals
 ################################################################################
 # Define global imports
 ################################################################################
@@ -293,7 +294,7 @@ Report bugs to <bug-gnulib@gnu.org>.'''
 ################################################################################
 # Define GNULibMode class
 ################################################################################
-class GNULibMode:
+class GNULibMode(object):
   '''GNULibMode class is used to create basic mode instance. All the methods
   which can be applied to GNULibMode can be applied to any other mode.
   GNULibMode is the parent for all the other modes, so every new mode must be
@@ -319,7 +320,7 @@ class GNULibMode:
     configure.ac can be found. Defaults to current directory.'''
     if type(directory) is bytes or type(directory) is string:
       if type(directory) is bytes:
-        self._destdir_ = string(directory, ENCS['shell'])
+        self._destdir_ = string(directory, ENCS['system'])
       elif type(directory) is string:
         self._destdir_ = directory
     else:
@@ -336,7 +337,7 @@ class GNULibMode:
     in gnulib's directory.'''
     if type(directory) is bytes or type(directory) is string:
       if type(directory) is bytes:
-        self._localdir_ = string(directory, ENCS['shell'])
+        self._localdir_ = string(directory, ENCS['system'])
       elif type(directory) is string:
         self._localdir_ = directory
     else:
@@ -386,19 +387,6 @@ class GNULibMode:
 
 
 ################################################################################
-# Define GNULibList class
-################################################################################
-class GNULibList(GNULibMode):
-  '''GNULibList class is used to get list of all modules.'''
-  
-  def run(self):
-    '''Execute GNULibList.'''
-    args = ['find', 'modules', '-type', 'f', '-print']
-    proc = sp.check_output(args)
-    result = string(proc, ENCS['shell'])
-
-
-################################################################################
 # Define GNULibImport class
 ################################################################################
 class GNULibImport(GNULibMode):
@@ -414,7 +402,7 @@ class GNULibImport(GNULibMode):
     self._localdir_ = string()
     self._modcache_ = True
     self._verbose_ = int()
-    self._imports_ = list()
+    self._modules_ = list()
     self._dryrun_ = bool()
     self._testflags_ = list()
     self._testflags_.append(1)
@@ -422,47 +410,61 @@ class GNULibImport(GNULibMode):
     self._dependencies_ = False
     self._libtool_ = False
     self._library_ = 'libgnu'
-    self._sourcebase_ = 
+    self._sourcebase_ = os.path.join(self._destdir_, 'lib')
+    self._m4base_ = os.path.join(self._destdir_, 'm4')
+    self._pobase_ = os.path.join(self._destdir_, 'po')
+    self._docbase_ = os.path.join(self._destdir_, 'doc')
+    self._testsbase_ = os.path.join(self._destdir_, 'tests')
     
-  def addImport(self, module):
-    '''Import the given module into the current package.'''
+  def setDestDir(self, directory):
+    '''Specify the target directory. For --import, this specifies where your
+    configure.ac can be found. Defaults to current directory.'''
+    super(GNULibImport, self).setDestDir(directory)
+    self._sourcebase_ = os.path.join(self._destdir_, 'lib')
+    self._m4base_ = os.path.join(self._destdir_, 'm4')
+    self._pobase_ = os.path.join(self._destdir_, 'po')
+    self._docbase_ = os.path.join(self._destdir_, 'doc')
+    self._testsbase_ = os.path.join(self._destdir_, 'tests')
+    
+  def addModule(self, module):
+    '''Add the module to the modules list.'''
     if type(module) is bytes or type(module) is string:
       if type(module) is bytes:
-        module = string(module, ENCS['shell'])
-      self._imports_.append(module)
+        module = string(module, ENCS['system'])
+      self._modules_.append(module)
     else:
       raise(TypeError(
         'argument must be a string, not %s' % type(module).__name__))
     
-  def removeImport(self, module):
-    '''Remove the given module from the current package.'''
+  def removeModule(self, module):
+    '''Remove the module from the modules list.'''
     if type(module) is bytes or type(module) is string:
       if type(module) is bytes:
-        module = string(module, ENCS['shell'])
-      self._imports_.remove(module)
+        module = string(module, ENCS['system'])
+      self._modules_.remove(module)
     else:
       raise(TypeError(
         'argument must be a string, not %s' % type(module).__name__))
     
-  def getImports(self):
-    '''Return the list of the modules from the current package.'''
-    return(self._imports_)
+  def getModules(self):
+    '''Return the modules list.'''
+    return(self._modules_)
     
-  def setImports(self, modules):
-    '''Specify the modules which will be imported into the current package.'''
+  def setModules(self, modules):
+    '''Set the modules list.'''
     if type(modules) is list or type(modules) is tuple:
       for module in modules:
         if type(module) is not string:
           raise(TypeError(
             'every module must be a string, not %s' % type(module).__name__))
-      self._imports_ = modules
+      self._modules_ = modules
     else:
       raise(TypeError(
         'modules must be a list or a tuple, not %s' % type(modules).__name__))
     
   def resetImports(self):
     '''Reset the list of the modules.'''
-    self._imports_ = list()
+    self._modules_ = list()
     
   def checkDryRun(self):
     '''Check if user enabled dry run mode.'''
@@ -514,7 +516,7 @@ class GNULibImport(GNULibMode):
     equivalent functionality.'''
     if type(module) is bytes or type(module) is string:
       if type(module) is bytes:
-        module = string(module, ENCS['shell'])
+        module = string(module, ENCS['system'])
       self._avoids_.append(module)
     else:
       raise(TypeError(
@@ -524,7 +526,7 @@ class GNULibImport(GNULibMode):
     '''Remove the given module from the list of avoided modules.'''
     if type(module) is bytes or type(module) is string:
       if type(module) is bytes:
-        module = string(module, ENCS['shell'])
+        module = string(module, ENCS['system'])
       self._avoids_.remove(module)
     else:
       raise(TypeError(
@@ -582,9 +584,119 @@ class GNULibImport(GNULibMode):
     '''Specify the library name.  Defaults to 'libgnu'.'''
     if type(library) is bytes or type(library) is string:
       if type(library) is bytes:
-        library = string(library, ENCS['shell'])
+        library = string(library, ENCS['system'])
       self._library_ = library
     else:
       raise(TypeError(
         'argument must be a string, not %s' % type(module).__name__))
+    
+  def getSourceBase(self):
+    '''Return directory relative to destdir where source code is placed.
+    Default value for this variable is 'lib').'''
+    return(self._sourcebase_)
+    
+  def setSourceBase(self, directory):
+    '''Specify directory relative to destdir where source code is placed.
+    Default value for this variable is 'lib').'''
+    if type(directory) is bytes or type(directory) is string:
+      if type(directory) is bytes:
+        self._sourcebase_ = string(directory, ENCS['system'])
+      elif type(directory) is string:
+        self._sourcebase_ = directory
+    else:
+      raise(TypeError(
+        'argument must be a string, not %s' % type(directory).__name__))
+    
+  def resetSourceBase(self):
+    '''Return directory relative to destdir where source code is placed.
+    Default value for this variable is 'lib').'''
+    self._sourcebase_ = os.path.join(self._destdir_, 'lib')
+    
+  def getM4Base(self):
+    '''Return directory relative to destdir where *.m4 macros are placed.
+    Default value for this variable is 'm4').'''
+    return(self._m4base_)
+    
+  def setM4Base(self, directory):
+    '''Specify directory relative to destdir where *.m4 macros are placed.
+    Default value for this variable is 'm4').'''
+    if type(directory) is bytes or type(directory) is string:
+      if type(directory) is bytes:
+        self._m4base_ = string(directory, ENCS['system'])
+      elif type(directory) is string:
+        self._m4base_ = directory
+    else:
+      raise(TypeError(
+        'argument must be a string, not %s' % type(directory).__name__))
+    
+  def resetM4Base(self):
+    '''Reset directory relative to destdir where *.m4 macros are placed.
+    Default value for this variable is 'm4').'''
+    self._m4base_ = os.path.join(self._destdir_, 'm4')
+    
+  def getPoBase(self):
+    '''Return directory relative to destdir where *.po files are placed.
+    Default value for this variable is 'po').'''
+    return(self._pobase_)
+    
+  def setPoBase(self, directory):
+    '''Specify directory relative to destdir where *.po files are placed.
+    Default value for this variable is 'po').'''
+    if type(directory) is bytes or type(directory) is string:
+      if type(directory) is bytes:
+        self._pobase_ = string(directory, ENCS['system'])
+      elif type(directory) is string:
+        self._pobase_ = directory
+    else:
+      raise(TypeError(
+        'argument must be a string, not %s' % type(directory).__name__))
+    
+  def resetPoBase(self):
+    '''Reset directory relative to destdir where *.po files are placed.
+    Default value for this variable is 'po').'''
+    self._pobase_ = os.path.join(self._destdir_, 'po')
+    
+  def getDocBase(self):
+    '''Return directory relative to destdir where doc files are placed.
+    Default value for this variable is 'doc').'''
+    return(self._docbase_)
+    
+  def setDocBase(self, directory):
+    '''Specify directory relative to destdir where doc files are placed.
+    Default value for this variable is 'doc').'''
+    if type(directory) is bytes or type(directory) is string:
+      if type(directory) is bytes:
+        self._docbase_ = string(directory, ENCS['system'])
+      elif type(directory) is string:
+        self._docbase_ = directory
+    else:
+      raise(TypeError(
+        'argument must be a string, not %s' % type(directory).__name__))
+    
+  def resetDocBase(self):
+    '''Reset directory relative to destdir where doc files are placed.
+    Default value for this variable is 'doc').'''
+    self._docbase_ = os.path.join(self._destdir_, 'doc')
+    
+  def getTestsBase(self):
+    '''Return directory relative to destdir where unit tests are placed.
+    Default value for this variable is 'tests').'''
+    return(self._testsbase_)
+    
+  def setTestsBase(self, directory):
+    '''Specify directory relative to destdir where unit tests are placed.
+    Default value for this variable is 'tests').'''
+    if type(directory) is bytes or type(directory) is string:
+      if type(directory) is bytes:
+        self._testsbase_ = string(directory, ENCS['system'])
+      elif type(directory) is string:
+        self._testsbase_ = directory
+    else:
+      raise(TypeError(
+        'argument must be a string, not %s' % type(directory).__name__))
+    
+  def resetTestsBase(self):
+    '''Reset directory relative to destdir where unit tests are placed.
+    Default value for this variable is 'tests').'''
+    self._testsbase_ = os.path.join(self._destdir_, 'tests')
 
