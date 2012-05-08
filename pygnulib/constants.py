@@ -60,6 +60,9 @@ if type(APP['path']) is bytes:
 
 # Set DIRS dictionary
 DIRS['root'] = os.path.dirname(APP['path'])
+DIRS['cwd'] = os.getcwd()
+if type(DIRS['cwd']) is bytes:
+  DIRS['cwd'] = string(DIRS['cwd'], ENCS['system'])
 DIRS['build-aux'] = os.path.join(DIRS['root'], 'build-aux')
 DIRS['config'] = os.path.join(DIRS['root'], 'config')
 DIRS['doc'] = os.path.join(DIRS['root'], 'doc')

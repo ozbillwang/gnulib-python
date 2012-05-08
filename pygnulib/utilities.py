@@ -300,15 +300,57 @@ class GNULibMode(object):
   GNULibMode is the parent for all the other modes, so every new mode must be
   based on this class.'''
   
-  def __init__(self):
-    '''Create GNULibMode instance.'''
-    self._mode_ = None
-    self._destdir_ = os.getcwd()
-    if type(self._destdir_) is bytes:
-      self._destdir_ = string(os.getcwd(), ENCS['system'])
-    self._localdir_ = string()
-    self._modcache_ = True
-    self._verbose_ = int()
+  def __init__\
+  (
+    self,
+    destdir=None,
+    localdir=None,
+    modcache=False,
+    verbose=0,
+  ):
+    '''Create GNULibMode instance. There are some variables which can be
+    used in __init__ section. However you can set them later using methods
+    inside GNULibImport class. Here are the types for variables:
+      destdir: string; default is current directory;
+      NOTE: localdir: string; default is ;
+      modcache: bool; default is False;
+      verbose: -2 <= int <= 2; default is 0;'''
+    # destdir => self._destdir_
+    if type(destdir) is NoneType:
+      self._destdir_ = DIRS['cwd']
+    else: # type(destdir) is not NoneType:
+      if type(destdir) is bytes or type(destdir) is string:
+        if type(destdir) is bytes:
+          self._destdir_ = string(destdir, ENCS['system'])
+        elif type(destdir) is string:
+          self._destdir_ = destdir
+      else:
+        raise(TypeError(
+          'destdir must be a string, not %s' % type(destdir).__name__))
+    # localdir => self._localdir_
+    if type(localdir) is NoneType:
+      self._localdir_ = string()
+    else: # if type(localdir) is not NoneType
+      if type(localdir) is bytes or type(localdir) is string:
+        if type(localdir) is bytes:
+          self._localdir_ = string(localdir, ENCS['system'])
+        elif type(localdir) is string:
+          self._localdir_ = localdir
+      else:
+        raise(TypeError(
+          'localdir must be a string, not %s' % type(localdir).__name__))
+    # modcache => self._modcache_
+    if type(modcache) is bool:
+      self._modcache_ = modcache
+    else:
+      raise(TypeError(
+        'modcache must be a bool, not %s' % type(modcache).__name__))
+    # verbose => self._verbose_
+    if type(verbose) is int:
+      self._verbose_ = verbose
+    else:
+      raise(TypeError(
+        'verbose must be an int, not %s' % type(verbose).__name__))
     
   def getDestDir(self):
     '''Return the target directory. For --import, this specifies where your
@@ -393,28 +435,176 @@ class GNULibImport(GNULibMode):
   '''GNULibImport class is used to provide methods for --import, --add-import
   and --remove-import actions.'''
   
-  def __init__(self):
-    '''Create GNULibImport instance.'''
-    self._mode_ = None
-    self._destdir_ = os.getcwd()
-    if type(self._destdir_) is bytes:
-      self._destdir_ = string(os.getcwd(), ENCS['system'])
-    self._localdir_ = string()
-    self._modcache_ = True
-    self._verbose_ = int()
-    self._modules_ = list()
-    self._dryrun_ = bool()
-    self._testflags_ = list()
-    self._testflags_.append(1)
-    self._avoids_ = list()
-    self._dependencies_ = False
-    self._libtool_ = False
-    self._library_ = 'libgnu'
-    self._sourcebase_ = os.path.join(self._destdir_, 'lib')
-    self._m4base_ = os.path.join(self._destdir_, 'm4')
-    self._pobase_ = os.path.join(self._destdir_, 'po')
-    self._docbase_ = os.path.join(self._destdir_, 'doc')
-    self._testsbase_ = os.path.join(self._destdir_, 'tests')
+  def __init__\
+  (
+    # Don't confuse with those None values; such values will be obtained basing
+    # on the values of the previous variables; the another reason is to provide
+    # support for Python 2 str type.
+    self,
+    destdir=None,
+    localdir=None,
+    modcache=False,
+    verbose=0,
+    modules=list(),
+    avoids=list(),
+    tests=list([1]),
+    dryrun=False,
+    library=None,
+    sourcebase=None,
+    m4base=None,
+    pobase=None,
+    docbase=None,
+    testsbase=None,
+    dependencies=bool(),
+    libtool=bool(),
+  ):
+    '''Create GNULibImport instance. There are some variables which can be
+    used in __init__ section. However you can set them later using methods
+    inside GNULibImport class. Here are the types for variables:
+      destdir: string; default is current directory;
+      NOTE: localdir: string; default is ;
+      modcache: bool; default is False;
+      verbose: -2 <= int <= 2; default is 0;
+      modules: list of modules which will be imported; default is empty list;
+      avoids: list of modules which will be avoided; default is empty list;
+      sourcebase: string; default is destdir + '/lib'; relative;
+      m4base: string; default is destdir + '/m4'; relative;
+      docbase: string; default is destdir + '/doc'; relative;
+      testsbase: string; default is destdir + '/tests'; relative;
+      tests: list which contains test codes; default is list([1]);
+        you can get all the codes from MODES['tests'] dict;
+      NOTE: dependencies: bool; default is received from Makefile.am;'''
+    # Create the parent class; this is done because during __init__ part it is
+    # impossible to get the default values of attributes.
+    parent = GNULibMode\
+    (
+      destdir=destdir,
+      localdir=localdir,
+      modcache=modcache,
+      verbose=verbose,
+    )
+    self._destdir_ = parent._destdir_
+    self._localdir_ = parent._localdir_
+    self._modcache_ = parent._modcache_
+    self._verbose_ = parent._verbose_
+    # dryrun => self._dryrun_
+    if type(dryrun) is bool:
+      self._dryrun_ = dryrun
+    else: # type(dryrun) is not bool
+      raise(TypeError(
+        'dryrun must be an int, not %s' % type(dryrun).__name__))
+    # library => self._library_
+    if type(library) is NoneType:
+      self._library_ = 'libgnu'
+    else: # if type(library) is not NoneType
+      if type(library) is bytes or type(library) is string:
+        if type(library) is bytes:
+          self._library_ = string(library, ENCS['system'])
+        elif type(library) is string:
+          self._library_ = library
+      else:
+        raise(TypeError(
+          'library must be a string, not %s' % type(library).__name__))
+    # sourcebase => self._sourcebase_
+    if type(sourcebase) is NoneType:
+      self._sourcebase_ = os.path.join(self._destdir_, 'lib')
+    else: # if type(sourcebase) is not NoneType
+      if type(sourcebase) is bytes or type(sourcebase) is string:
+        if type(sourcebase) is bytes:
+          self._sourcebase_ = string(sourcebase, ENCS['system'])
+        elif type(sourcebase) is string:
+          self._sourcebase_ = sourcebase
+      else:
+        raise(TypeError(
+          'sourcebase must be a string, not %s' % type(sourcebase).__name__))
+    # m4base => self._m4base_
+    if type(m4base) is NoneType:
+      self._m4base_ = os.path.join(self._destdir_, 'm4')
+    else: # if type(m4base) is not NoneType
+      if type(m4base) is bytes or type(m4base) is string:
+        if type(m4base) is bytes:
+          self._m4base_ = string(m4base, ENCS['system'])
+        elif type(m4base) is string:
+          self._m4base_ = m4base
+      else:
+        raise(TypeError(
+          'm4base must be a string, not %s' % type(m4base).__name__))
+    # pobase => self._pobase_
+    if type(pobase) is NoneType:
+      self._pobase_ = os.path.join(self._destdir_, 'po')
+    else: # if type(pobase) is not NoneType
+      if type(pobase) is bytes or type(pobase) is string:
+        if type(pobase) is bytes:
+          self._pobase_ = string(pobase, ENCS['system'])
+        elif type(pobase) is string:
+          self._pobase_ = pobase
+      else:
+        raise(TypeError(
+          'pobase must be a string, not %s' % type(pobase).__name__))
+    # docbase => self._docbase_
+    if type(docbase) is NoneType:
+      self._docbase_ = os.path.join(self._destdir_, 'doc')
+    else: # if type(docbase) is not NoneType
+      if type(docbase) is bytes or type(docbase) is string:
+        if type(docbase) is bytes:
+          self._docbase_ = string(docbase, ENCS['system'])
+        elif type(docbase) is string:
+          self._docbase_ = docbase
+      else:
+        raise(TypeError(
+          'docbase must be a string, not %s' % type(docbase).__name__))
+    # testsbase => self._testsbase_
+    if type(testsbase) is NoneType:
+      self._testsbase_ = os.path.join(self._destdir_, 'tests')
+    else: # if type(testsbase) is not NoneType
+      if type(testsbase) is bytes or type(testsbase) is string:
+        if type(testsbase) is bytes:
+          self._testsbase_ = string(testsbase, ENCS['system'])
+        elif type(testsbase) is string:
+          self._testsbase_ = testsbase
+      else:
+        raise(TypeError(
+          'testsbase must be a string, not %s' % type(testsbase).__name__))
+    # dependencies => self._dependencies_
+    if type(dependencies) is bool:
+      self._dependencies_ = dependencies
+    else: # type(dryrun) is not bool
+      raise(TypeError(
+        'dependencies must be a bool, not %s' % type(testsbase).__name__))
+    # libtool => self._libtool_
+    if type(libtool) is bool:
+      self._libtool_ = libtool
+    else: # type(dryrun) is not bool
+      raise(TypeError(
+        'libtool must be a bool, not %s' % type(testsbase).__name__))
+    # modules => self._modules_
+    if type(modules) is list or type(modules) is tuple:
+      self._modules_ = list()
+      for module in modules:
+        if type(module) is not bytes and type(module) is not string:
+          raise(TypeError(
+            'every module must be a string, not %s' % type(module).__name__))
+        else: # type(module) is bytes or type(module) is string
+          if type(module) is bytes:
+            module = string(module, ENCS['system'])
+          self._modules_.append(module)
+    else:
+      raise(TypeError(
+        'modules must be a list or a tuple, not %s' % type(modules).__name__))
+    # avoids => self._avoids_
+    if type(avoids) is list or type(avoids) is tuple:
+      self._avoids_ = list()
+      for module in avoids:
+        if type(module) is not bytes and type(module) is not string:
+          raise(TypeError(
+            'every module must be a string, not %s' % type(module).__name__))
+        else: # type(module) is bytes or type(module) is string
+          if type(module) is bytes:
+            module = string(module, ENCS['system'])
+          self._avoids_.append(module)
+    else:
+      raise(TypeError(
+        'avoids must be a list or a tuple, not %s' % type(avoids).__name__))
     
   def setDestDir(self, directory):
     '''Specify the target directory. For --import, this specifies where your
@@ -454,15 +644,21 @@ class GNULibImport(GNULibMode):
     '''Set the modules list.'''
     if type(modules) is list or type(modules) is tuple:
       for module in modules:
-        if type(module) is not string:
+        old_modules = self._modules_
+        self._modules_ = list()
+        if type(module) is not bytes and type(module) is not string:
           raise(TypeError(
             'every module must be a string, not %s' % type(module).__name__))
-      self._modules_ = modules
+          self._modules_ = old_modules
+        else: # type(module) is bytes or type(module) is string
+          if type(module) is bytes:
+            module = string(module, ENCS['system'])
+          self._modules_.append(module)
     else:
       raise(TypeError(
         'modules must be a list or a tuple, not %s' % type(modules).__name__))
     
-  def resetImports(self):
+  def resetModules(self):
     '''Reset the list of the modules.'''
     self._modules_ = list()
     
@@ -539,11 +735,17 @@ class GNULibImport(GNULibMode):
   def setAvoids(self, modules):
     '''Specify the modules which will be avoided.'''
     if type(modules) is list or type(modules) is tuple:
+      old_avoids = self._avoids_
+      self._avoids_ = list()
       for module in modules:
-        if type(module) is not string:
+        if type(module) is not bytes and type(module) is not string:
           raise(TypeError(
             'every module must be a string, not %s' % type(module).__name__))
-      self._avoids_ = modules
+          self._avoids_ = old_avoids
+        else: # type(module) is bytes or type(module) is string
+          if type(module) is bytes:
+            module = string(module, ENCS['system'])
+          self._avoids_.append(module)
     else:
       raise(TypeError(
         'modules must be a list or a tuple, not %s' % type(modules).__name__))

@@ -1,3 +1,28 @@
+8 May 2012, Dmitriy Selyutin
+A lot of methods inside GNULibMode and GNULibImport classes were rewritten to
+handle different errors (first of all to catch errors when user sets wrong type
+of value to attribute). Almost all attributes have got their default values
+(for example, self._destdir_ now has value of current dir, if it was not set by
+user); you can see full a full list of the default values by running:
+>>> from pygnulib import utilities
+>>> help(utilities.GNULibImport)
+That also means that now you can set almost all initial attributes immediately
+when you create a new class instance. This is a very good change, because you
+can just set some parameters from the __init__ and don't have to touch the
+other parameters. That requires only one string in script, so it can save a lot
+of time. For example compare these two scripts:
+>>> # Old style
+>>> importobj = utilities.GNULibImport()
+>>> importobj.setDestDir('/new/directory')
+>>> importobj.enableDryRun()
+>>> # New style
+>>> importobj = utilities.GNULibImport(destdir='/new/directory', dryrun=True)
+New key was added to DIRS variable to store current directory when pygnulib was
+called. To get current working directory without problems with unicode/str,
+type DIRS['cwd']. This DIRS variable will be used later to calculate relative
+pathname easy; I think there is a lot of other situations where it can be
+useful, so I think this is one of the most necessary variables.
+
 7 May 2012, Dmitriy Selyutin
 Support for bytes and string types was improved: some source code was added to
 check what type variables have from the beginning (bytes or unicode/str). That
@@ -7,7 +32,7 @@ bytes type in Python 2, while some system (first of all Windows) need unicode
 strings for filenames. However, we have to check only basic filenames, because
 all other functions return type basing on input type (i.e. if function gets
 bytes type, it will return bytes type, otherwise it will return unicode in
-Python 2). This is neccessary only in Python 2, but I think we need to support
+Python 2). This is necessary only in Python 2, but I think we need to support
 Python 2 at least at first stages. The most common way is to check a string if
 it has bytes type; if yes, convert it to string type, which is equal to unicode
 type for Python 2 and to str type for Python 3. Maybe in future I'll create a
@@ -40,7 +65,7 @@ following way:
   1. User creates GNULibImport class, defines modules which will be used in
 --import, --add-import, --remove-import actions, sets options and variables.
   2. User runs functions which correspond to --import, --add-import,
---remove-import actions and they get all the neccessary information from
+--remove-import actions and they get all the necessary information from
 GNULibImport class.
 
 5 May 2012, Dmitriy Selyutin
@@ -97,7 +122,7 @@ with the original gnulib-tool.
 
 28 Apr 2012, Dmitriy Selyutin
 New variable was added, called FILES. It is a dictionary like DIRS variable,
-but it will store some paths to neccessary files. The first such file is
+but it will store some paths to necessary files. The first such file is
 ChangeLog file, which is used in (git log ChangeLog) command. Two new methods
 were added to GNULibInfo class: date and version (the last one is now available
 only for git, I will add support for CVS later). Note that name method inside
@@ -124,7 +149,7 @@ stdout message which you can get from (gnulib-tool.sh --version). To see it
 just run (python gnulib-tool.py).
 
 26 Apr 2012, Dmitriy Selyutin
-Some global variables were added. Variables that contain paths of neccessary
+Some global variables were added. Variables that contain paths of necessary
 applications (AUTOCONF, AUTORECONF, AUTOHEADER, AUTOMAKE, ACLOCAL, AUTOPOINT,
 LIBTOOLIZE, MAKE) were combined into one dict object (APPS), so in the furure I
 have to use e.g. APP['autoconf'] instead of AUTOCONF. I know that this style is
