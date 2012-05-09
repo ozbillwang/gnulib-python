@@ -38,7 +38,7 @@ MODES = constants.MODES
 # The main part of the module
 ################################################################################
 gnulib_bash = os.path.join(DIRS['root'], 'gnulib-tool')
-def version():
+def testVersion():
   '''Test and compare output from gnulib-tool.sh and gnulib-tool.py with
   --version option enabled. Prints difference between outputs, else prints
   that test was completed successfully.'''
@@ -64,14 +64,14 @@ def version():
   message_py = message_py.splitlines()
   message_sh = message_sh.splitlines()
   # Compare using difflib
-  diff = difflib.Differ().compare(message_sh, message_py)
+  diff = difflib.unified_diff(message_sh, message_py)
   if message_sh != message_py:
     for line in list(diff):
       print(line)
   else: # message_sh == message_py:
     print('Test was completed successfully.\n')
 
-def help():
+def testHelp():
   '''Test and compare output from gnulib-tool.sh and gnulib-tool.py with
   --help option enabled. Prints difference between outputs, else prints
   that test was completed successfully.'''
@@ -90,7 +90,33 @@ def help():
   message_py = message_py.splitlines()
   message_sh = message_sh.splitlines()
   # Compare using difflib
-  diff = difflib.Differ().compare(message_sh, message_py)
+  diff = difflib.unified_diff(message_sh, message_py)
+  if message_sh != message_py:
+    for line in list(diff):
+      print(line)
+  else: # message_sh == message_py:
+    print('Test was completed successfully.\n')
+
+def testList():
+  '''Test and compare output from gnulib-tool.sh and gnulib-tool.py with
+  --list option enabled. Prints difference between outputs, else prints
+  that test was completed successfully.'''
+  print('#' *80)
+  print('Begin testing of the --list output...')
+  print('#' *80)
+  data = utilities.GNULibImport()
+  message_py = list(data.getAvailableModules())
+  message_sh = sp.check_output([gnulib_bash, '--list'])
+  message_sh = string(message_sh, ENCS['shell'])
+  # Edit endline symbols
+  if message_sh[-2:] == '\r\n':
+    message_sh = message_sh.replace('\r\n', '\n')
+  if message_sh[-1] == '\n':
+    message_sh = message_sh[:-1]
+  # Separate into lines
+  message_sh = message_sh.splitlines()
+  # Compare using difflib
+  diff = difflib.unified_diff(message_py, message_sh)
   if message_sh != message_py:
     for line in list(diff):
       print(line)

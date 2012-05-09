@@ -1,3 +1,16 @@
+10 May 2012, Dmitriy Selyutin
+New getAvailableModules method was added to GNULibMode class. This method will
+return a tuple which contains lists of modules. I've used the original code,
+because find command works much faster than usual cycle. However I've added
+to testing.py a new function which tests list which can be gotten with the list
+which user get after running original gnulib-tool with --list version.
+ENCS['shell'] returned None value if user redirected stdout to file. That gave
+an error where we used subprocess module to get stdout and then converted
+stdout to string type. That gave a decode error, because there is no encoding
+which has None type. Now if shell redirects output the console encoding is
+'UTF-8'. I need to test this behaviour under different platforms, however.
+Functions from testing.py were renamed to use unique names.
+
 8 May 2012, Dmitriy Selyutin
 A lot of methods inside GNULibMode and GNULibImport classes were rewritten to
 handle different errors (first of all to catch errors when user sets wrong type

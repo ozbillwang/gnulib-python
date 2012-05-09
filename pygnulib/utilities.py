@@ -8,9 +8,9 @@ from __future__ import unicode_literals
 import os
 import re
 import sys
+import locale
 import subprocess as sp
 from . import constants
-
 
 ################################################################################
 # Define module information
@@ -81,14 +81,12 @@ class GNULibInfo:
     if os.path.exists(DIRS['git']) and os.path.isdir(DIRS['git']):
       counter = int() # Create counter
       result = string() # Create string
-      args = ['git', 'log', FILES['changelog']]
-      proc1 = sp.Popen(args,stdout=sp.PIPE)
-      proc2 = sp.Popen(['head'],
-        stdin=proc1.stdout, stdout=sp.PIPE)
-      proc1.stdout.close()
-      while counter <= 2:
-        result += string(proc2.stdout.readline(), ENCS['shell'])
-        counter += 1
+      args1 = ['git', 'log', FILES['changelog']]
+      args2 = ['head', '-n', '3']
+      proc1 = sp.Popen(args1, stdout=sp.PIPE)
+      proc2 = sp.Popen(args2, stdin=proc1.stdout, stdout=sp.PIPE)
+      proc1.stdout.close() # Close the first shell pipe
+      result = string(proc2.stdout.read(), ENCS['shell'])
       # Get date as "Fri Mar 21 07:16:51 2008 -0600" from string
       pattern = re.compile('Date:[\t ]*(.*?)\n')
       result = pattern.findall(result)[0]
@@ -352,6 +350,52 @@ class GNULibMode(object):
       raise(TypeError(
         'verbose must be an int, not %s' % type(verbose).__name__))
     
+  def getAvailableModules(self):
+    '''Return the available module names as tuple. We could use a combination
+    of os.walk() function and re module. However, it takes too much time to
+    complete, so this version uses subprocess to run shell commands.'''
+    args1 = ['find', 'modules', '-type', 'f', '-print']
+    args2 = \
+    [
+      'sed',
+      '-e', r's,^modules/,,',
+      '-e', r'/^CVS\//d',
+      '-e', r'/\/CVS\//d',
+      '-e', r'/^ChangeLog$/d',
+      '-e', r'/\/ChangeLog$/d',
+      '-e', r'/^COPYING$/d',
+      '-e', r'/\/COPYING$/d',
+      '-e', r'/^README$/d',
+      '-e', r'/\/README$/d',
+      '-e', r'/^TEMPLATE$/d',
+      '-e', r'/^TEMPLATE-EXTENDED$/d',
+      '-e', r'/^TEMPLATE-TESTS$/d',
+      '-e', r'/^\..*/d',
+      '-e', r'/~$/d',
+      '-e', r'/-tests$/d',
+    ]
+    if all( # If all conditions inside are True
+    [ # If localdir was set and contains 'modules' directory
+      self._localdir_,
+      os.path.exists(os.path.join(self._localdir_, 'modules')),
+      os.path.isdir(os.path.join(self._localdir_, 'modules')),
+    ]):
+      os.chdir(self._localdir_)
+      args2.append('-e')
+      args2.append(r's,\.diff$,,')
+    proc1 = sp.Popen(args1, stdout=sp.PIPE)
+    proc2 = sp.Popen(args2, stdin=proc1.stdout, stdout=sp.PIPE)
+    proc1.stdout.close() # Close the first shell pipe
+    result = string(proc2.stdout.read(), ENCS['shell'])
+    if result[-2:] == '\r\n':
+      result = result.replace('\r\n', '\n')
+    if result[-1] == '\n':
+      result = result[:-1]
+    listing = result.splitlines(); listing.sort()
+    listing = tuple(listing)
+    os.chdir(DIRS['cwd'])
+    return(listing)
+    
   def getDestDir(self):
     '''Return the target directory. For --import, this specifies where your
     configure.ac can be found. Defaults to current directory.'''
@@ -474,8 +518,7 @@ class GNULibImport(GNULibMode):
       tests: list which contains test codes; default is list([1]);
         you can get all the codes from MODES['tests'] dict;
       NOTE: dependencies: bool; default is received from Makefile.am;'''
-    # Create the parent class; this is done because during __init__ part it is
-    # impossible to get the default values of attributes.
+    # Get attributes from the parent class
     parent = GNULibMode\
     (
       destdir=destdir,

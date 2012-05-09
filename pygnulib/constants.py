@@ -49,6 +49,8 @@ MODES = dict() # Modes
 ENCS['system'] = sys.getfilesystemencoding()
 ENCS['default'] = sys.getdefaultencoding()
 ENCS['shell'] = sys.stdout.encoding
+if ENCS['shell'] == None:
+  ENCS['shell'] = 'UTF-8'
 
 # Set APP dictionary
 APP['name'] = os.path.basename(sys.argv[0])

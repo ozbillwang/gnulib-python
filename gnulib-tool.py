@@ -33,6 +33,7 @@ APP = constants.APP
 # Define global constants
 ################################################################################
 if __name__ == '__main__':
-  testing.version()
-  testing.help()
+  testing.testVersion()
+  testing.testHelp()
+  testing.testList()
 
