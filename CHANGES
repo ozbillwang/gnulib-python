@@ -1,3 +1,7 @@
+16 May 2012, Dmitriy Selyutin
+Some small changes were added to GNULibImport class. New method copyright_notice
+was added to GNULibInfo module. Now working on how to get cached values.
+
 10 May 2012, Dmitriy Selyutin
 New getAvailableModules method was added to GNULibMode class. This method will
 return a tuple which contains lists of modules. I've used the original code,
@@ -10,6 +14,10 @@ stdout to string type. That gave a decode error, because there is no encoding
 which has None type. Now if shell redirects output the console encoding is
 'UTF-8'. I need to test this behaviour under different platforms, however.
 Functions from testing.py were renamed to use unique names.
+I've also added modules directory, because it allows to use getAvailableModules
+function. However, you have to place pygnulib and gnulib-tool.py to directory
+where old gnulib-tool is placed to make testVersion work. All other functions
+will work without moving to another directory.
 
 8 May 2012, Dmitriy Selyutin
 A lot of methods inside GNULibMode and GNULibImport classes were rewritten to
