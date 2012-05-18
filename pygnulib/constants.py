@@ -28,10 +28,16 @@ __version__ = 0.1
 #===============================================================================
 # Backward compatibility
 #===============================================================================
+# Check for Python version
+if sys.version_info.major == 2:
+  PYTHON3 = False
+else:
+  PYTHON3 = True
+
 # Create string compatibility
-if sys.version_info.major == 2: # Using Python 2
+if not PYTHON3:
   string = unicode
-else: # Using Python 3 (PY3K)
+else: # if PYTHON3
   string = str
 
 
@@ -47,8 +53,12 @@ FILES = dict() # Files
 MODES = dict() # Modes
 
 # Set ENCS dictionary
+import __main__ as interpreter
+if not hasattr(interpreter, '__file__'):
+  ENCS['default'] = sys.stdout.encoding
+else: # if hasattr(interpreter, '__file__'):
+  ENCS['default'] = 'UTF-8'
 ENCS['system'] = sys.getfilesystemencoding()
-ENCS['default'] = sys.getdefaultencoding()
 ENCS['shell'] = sys.stdout.encoding
 if ENCS['shell'] == None:
   ENCS['shell'] = 'UTF-8'
@@ -80,7 +90,12 @@ DIRS['cvs'] = os.path.join(DIRS['root'], 'CVS')
 FILES['changelog'] = os.path.join(DIRS['root'], 'ChangeLog')
 
 # Set MODES dictionary
+MODES['import'] = 0
+MODES['add-import'] = 1
+MODES['remove-import'] = 2
+MODES['update'] = 3
 MODES['verbose-min'] = -2
+MODES['verbose-default'] = 0
 MODES['verbose-max'] = 2
 MODES['tests'] = \
 {

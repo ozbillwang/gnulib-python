@@ -1,3 +1,34 @@
+18 May 2012, Dmitriy Selyutin
+GNULibError class was created to handle all errors which are specific for
+pygnulib module. The first error ('no configure file was found') already was
+added; there will be much more errors in the future.
+The key 'verbose-default' was added to MODES list to store default value for
+verbose. So when user is going to write his own script based on pygnulib, he
+can import constants.py and use values from this module. This is something like
+how the most part of users use QtCore module from PyQt4 package. New keys for
+different modes were added: 'import', 'add-import', 'remove-import', 'update'.
+GNULibImport now has its own attribute self.mode, which is not hidden like
+other attributes, but is left to represent current mode. This is necessary
+attribute, so user has to set it when he creates new GNULibImport instance.
+Mode can be integer from 0 to 3. You can get all the modes from constants.py:
+>>> from pygnulib import constants
+>>> from pygnulib import utilities
+>>> MODES = constants.MODES
+>>> obj_import = utilities.GNULibImport(MODES['import'])
+>>> obj_add_import = utilities.GNULibImport(MODES['add-import'])
+>>> obj_remove_import = utilities.GNULibImport(MODES['remove-import'])
+>>> obj_update = utilities.GNULibImport(MODES['update'])
+Now almost all attributes inside __init__ part of GNULibImport are set using
+GNULibImport methods. This way allows to delete a lot of puplicated code and
+definitely helps maintainability. I think that the size of the GNULibImport was
+decreased by one third.
+New method for getting cached values from configure.ac/configure.in and
+gnulib-cache.m4 files was added to GNULibImport section. Now all the values are
+set from their cached version by default.
+PYTHON3 constant was added to constants.py to contain boolean value if Python 3
+is used. That was done to add re.UNICODE flag for Python 2 and don't delete it
+for Python 3; it can be also useful in the future.
+
 16 May 2012, Dmitriy Selyutin
 Some small changes were added to GNULibImport class. New method copyright_notice
 was added to GNULibInfo module. Now working on how to get cached values.
