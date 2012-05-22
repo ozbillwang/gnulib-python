@@ -1,3 +1,22 @@
+22 May 2012, Dmitriy Selyutin
+All the class variables of the GNULibImport class which must store relative
+paths now REALLY will store relative paths. They also set these relative paths
+through couple of set* methods. I wanted to do it a long time ago. All these
+set* methods become a bit shorter after removing of two unuseful lines.
+Some necessary changes inside places where local files must be read to get some
+variables (I mean configure.ac/in and Makefile.am).
+Some good changes were also done inside methods of the GNULibImport class. For
+example, reset* methods now simply get the default values from cache. I think
+this is the best way to get default values. As you may see some variables now
+have two values: the one is an attribute (self._sourcebase_) and the other is a
+cached value inside self._cached_ dictionary.
+About one half of heuristics needed to get m4base for other modes was done. New
+compiler and cleaner functions were added to constants.py to do all the similar
+actions at all results of the search. They were tested at GNU Hello (I had to
+craete some files like aclocal.m4, m4/gnulib-cache.m4, however).
+New compiler and cleaner functions were added to constants.py to do all the
+similar actions at all results of the search.
+
 18 May 2012, Dmitriy Selyutin
 GNULibError class was created to handle all errors which are specific for
 pygnulib module. The first error ('no configure file was found') already was

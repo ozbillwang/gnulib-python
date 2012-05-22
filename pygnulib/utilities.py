@@ -27,6 +27,8 @@ __version__ = constants.__version__
 #===============================================================================
 PYTHON3 = constants.PYTHON3
 NoneType = type(None)
+compiler = constants.compiler
+cleaner = constants.cleaner
 string = constants.string
 APP = constants.APP
 DIRS = constants.DIRS
@@ -52,7 +54,10 @@ class GNULibError(Exception):
   def __str__(self):
     errors = \
     [ # Begin list of errors
-      "%s does not exist or is not a file" % self.errinfo,
+      "path does not exist or is not a directory: %s" % self.errinfo,
+      "path does not exist or is not a file: %s" % self.errinfo,
+      "invalid LGPL version number: %s" % self.errinfo,
+      "file can not be found: %s" % self.errinfo,
     ] # Complete list of errors
     if not PYTHON3:
       self.message = (b'[Errno %d] %s' % \
@@ -582,6 +587,8 @@ class GNULibImport(GNULibMode):
       testsbase: string; default is destdir + '/tests'; relative;
       tests: list which contains test codes; default is list([1]);
         you can get all the codes from MODES['tests'] dict;
+      macro_prefix: string; the prefix of the macros 'gl_EARLY' and 'gl_INIT';
+        default value of macro_prefix is 'gl';
       NOTE: dependencies: bool; default is received from Makefile.am;
       makefile: string; default is 'Makefile.am'; '''
     # Initialization from the parent class
@@ -598,120 +605,96 @@ class GNULibImport(GNULibMode):
       raise(TypeError(
         'unknown mode: %s' % repr(mode)))
     self._cached_ = dict()
-    self.updateCache()
     
     # auxdir => self._auxdir_
     if type(auxdir) is NoneType:
-      self._auxdir_ = self._cached_['auxdir']
+      # Get auxdir and libtool from configure.ac/in
+      path = os.path.relpath('configure.ac', self._destdir_)
+      if not os.path.isfile(path):
+        path = os.path.relpath('configure.in', self._destdir_)
+        if not os.path.isfile(path):
+          raise(GNULibError(2, repr(path.replace('.in', '.ac/in'))))
+      with codecs.open(path, 'rb', 'UTF-8') as file:
+        textdata = file.read()
+      # Set cached dictionary
+      pattern = compiler(r'^AC_CONFIG_AUX_DIR\((.*?)\)$')
+      self._cached_['auxdir'] = cleaner(pattern.findall(textdata))[0]
+      pattern = compiler(r'A[CM]_PROG_LIBTOOL')
+      self._cached_['libtool'] = bool(pattern.findall(textdata))
+      # Set auxdir from cache
+      self._auxdir_ = os.path.relpath(self._cached_['auxdir'], self._destdir_)
     else: # if type(auxdir) is not NoneType
-      self.setAuxDir(auxdir)
+      if os.path.isdir(auxdir):
+        self._cached_['auxdir'] = tempdict['AC_CONFIG_AUX_DIR']
+        self.setAuxDir(auxdir)
+      else: # if auxdir does not exist or not a directory
+        raise(GNULibError(1, repr(auxdir)))
     
-    # m4base => self._m4base_
-    if type(m4base) is NoneType:
-      self._m4base_ = self._cached_['m4base']
-    else: # if type(m4base) is not NoneType
-      self.setM4Base(m4base)
+    # Set default values for different modes
+    if self._mode_ == MODES['import']:
+      # sourcebase => self._sourcebase_
+      if type(sourcebase) is NoneType:
+        self.setSourceBase('lib')
+      else: # if type(sourcebase) is not NoneType
+        self.setSourceBase(sourcebase)
+      # m4base => self._m4base_
+      if type(m4base) is NoneType:
+        self.setSourceBase('m4')
+      else: # if type(m4base) is not NoneType
+        self.setSourceBase(m4base)
+      # docbase => self._docbase_
+      if type(docbase) is NoneType:
+        self.setSourceBase('doc')
+      else: # if type(docbase) is not NoneType
+        self.setSourceBase(docbase)
+      # testsbase => self._testsbase_
+      if type(docbase) is NoneType:
+        self.setSourceBase('tests')
+      else: # if type(docbase) is not NoneType
+        self.setSourceBase(docbase)
+      if type(macro_prefix) is NoneType:
+        self.setMacroPrefix('gl')
+      else: # type(macro_prefix) is not NoneType:
+        self.setMacroPrefix(macro_prefix)
     
-    # dryrun => self._dryrun_
-    if type(dryrun) is bool:
-      self._dryrun_ = dryrun
-    else: # type(dryrun) is not bool
-      raise(TypeError(
-        'dryrun must be an int, not %s' % type(dryrun).__name__))
+    else: # if self._mode_ != MODES['import']
+      m4dirs = list() # List of available directories
+      dirisnext = bool() # If the next is a directory
+      # Get ACLOCAL_AMFLAGS from Makefile.am
+      path = os.path.join(self._destdir_, 'Makefile.am')
+      if os.path.isfile(path):
+        with codecs.open(path, 'rb', 'UTF-8') as file:
+          textdata = file.read()
+          result = dict(re.findall(r'^(ACLOCAL_AMFLAGS).*?=.*?(.*?)$',
+            textdata, re.MULTILINE | re.DOTALL))
+        pattern = compiler(r'^ACLOCAL_AMFLAGS.*?=.*?(.*?)$')
+        result = cleaner(pattern.findall(textdata))[0]
+        # Get all relative directories
+        for item in result.split():
+          if not os.path.isabs(item) and dirisnext:
+            m4cache = os.path.join(self._destdir_, item, 'gnulib-cache.m4')
+            if os.path.isfile(m4cache):
+              m4dirs.append(item)
+          if item == '-I':
+            dirisnext = True
+          else: # if item != '-I'
+            dirisnext = False
+        print(m4dirs)
+      else: # Makefile.am does not exist or is not a file
+        # Get m4_include from aclocal.m4
+        path = os.path.join(self._destdir_, 'aclocal.m4')
+        if os.path.isfile(path):
+          with codecs.open(path, 'rb', 'UTF-8') as file:
+            textdata = file.read()
+          pattern = compiler(r'^m4_include\((.*?)\)$')
+          result = cleaner(pattern.findall(textdata))
+          result.sort()
+      if len(m4dirs) == 1:
+        self._cached_['m4base'] = m4dirs[0]
     
-    # lib => self._lib_
-    if type(lib) is NoneType:
-      self._lib_ = self._cached_['lib']
-    else: # if type(lib) is not NoneType
-      self.setLibName(lib)
-    
-    # sourcebase => self._sourcebase_
-    if type(sourcebase) is NoneType:
-      self._sourcebase_ = self._cached_['sourcebase']
-    else: # if type(sourcebase) is not NoneType
-      self.setSourceBase(sourcebase)
-    
-    # pobase => self._pobase_
-    if type(pobase) is NoneType:
-      self._pobase_ = self._cached_['pobase']
-    else: # if type(pobase) is not NoneType
-      self.setPoBase(pobase)
-    
-    # docbase => self._docbase_
-    if type(docbase) is NoneType:
-      self._docbase_ = self._cached_['docbase']
-    else: # if type(docbase) is not NoneType
-      self.setDocBase(docbase)
-    
-    # testsbase => self._testsbase_
-    if type(testsbase) is NoneType:
-      self._testsbase_ = self._cached_['tests']
-    else: # if type(testsbase) is not NoneType
-      self.setTestsBase(testsbase)
-    
-    # dependencies => self._dependencies_
-    if type(dependencies) is bool:
-      self._dependencies_ = self._cached_['dependencies']
-    else: # if type(dryrun) is not bool
-      raise(TypeError(
-        'dependencies must be a bool, not %s' % type(testsbase).__name__))
-    
-    # libtool => self._libtool_
-    if type(libtool) is bool:
-      self._libtool_ = libtool
-    else: # type(dryrun) is not bool
-      raise(TypeError(
-        'libtool must be a bool, not %s' % type(testsbase).__name__))
-    
-    # modules => self._modules_
-    if type(modules) is NoneType:
-      self.setModules(list())
-    else: # if type(modules) is not NoneType
-      self.setModules(modules)
-    
-    # avoids => self._avoids_
-    self.setAvoids(avoids)
-    
-    # lgpl => self._lgpl_
-    if (type(lgpl) is int and 2 <= lgpl <= 3) or \
-      (type(lgpl) is bool and lgpl == False):
-        self._lgpl_ = lgpl
-    else:
-      raise(TypeError(
-        'lgpl must be False, 2 or 3, not %s' % type(lgpl).__name__))
-  
   def updateCache(self):
     '''Update all cache to get initial values for variables from it.'''
     self._cached_ = dict()
-    # Analize configure.ac and get auxdir and libtool
-    if os.path.exists(os.path.join(self._destdir_, 'configure.ac')) and \
-      os.path.isfile(os.path.join(self._destdir_, 'configure.ac')):
-        configure_path = os.path.join(self._destdir_, 'configure.ac')
-    else: # if no configure.ac file
-      if os.path.exists(os.path.join(self._destdir_, 'configure.in')) and \
-        os.path.isfile(os.path.join(self._destdir_, 'configure.in')):
-          configure_path = os.path.join(self._destdir_, 'configure.in')
-      else: # if no configure file at all
-        relpath = os.path.relpath(
-          os.path.join(self._destdir_, 'configure.ac/in'), './')
-        raise(GNULibError(1, repr(relpath)))
-    with codecs.open(configure_path, 'rb', 'UTF-8') as file:
-      textdata = file.read()
-    if not PYTHON3:
-      result = dict(re.findall(r'^(.*?)\((.*?)\)$',
-        textdata, re.UNICODE | re.MULTILINE | re.DOTALL))
-    else: # if PYTHON3
-      result = dict(re.findall(r'^(.*?)\((.*?)\)$',
-        textdata, re.MULTILINE | re.DOTALL))
-    keys = ['AC_CONFIG_AUX_DIR']
-    values = [result.get(key, '') for key in keys]
-    values = [value.replace('[', '').replace(']', '') for value in values]
-    values = [value.replace('(', '').replace(')', '') for value in values]
-    values = [False if value == 'false' else value for value in values]
-    values = [True if value == 'true' else value for value in values]
-    configure_dict = dict(zip(keys, values))
-    if 'AC_PROG_LIBTOOL' in textdata or 'AM_PROG_LIBTOOL' in textdata:
-      configure_dict['AC_PROG_LIBTOOL'] = True
     # Get other cached settings
     cache_path = os.path.join(self._m4base_, 'gnulib-cache.m4')
     if not os.path.exists(cache_path) and os.path.isfile(cache_path):
@@ -789,13 +772,6 @@ class GNULibImport(GNULibMode):
         self._cached_['tests'].append(MODES['tests']['privileged'])
       if cache_dict['gl_WITH_UNPORTABLE_TESTS']:
         self._cached_['tests'].append(MODES['tests']['unportable'])
-    # Overwrite some cached values for import mode
-    if self._mode_ == MODES['import']:
-      self._cached_['sourcebase'] = os.path.join(self._destdir_, 'lib')
-      self._cached_['m4base'] = os.path.join(self._destdir_, 'm4')
-      self._cached_['docbase'] = os.path.join(self._destdir_, 'doc')
-      self._cached_['testsbase'] = os.path.join(self._destdir_, 'tests')
-      self._cached_['macro_prefix'] = 'gl'
     # Set some values that were not set
     if not self._cached_['makefile']:
       self._cached_['makefile'] = 'Makefile.am'
@@ -804,11 +780,6 @@ class GNULibImport(GNULibMode):
     '''Specify the target directory. For --import, this specifies where your
     configure.ac can be found. Defaults to current directory.'''
     super(GNULibImport, self).setDestDir(directory)
-    self._sourcebase_ = os.path.join(self._destdir_, 'lib')
-    self._m4base_ = os.path.join(self._destdir_, 'm4')
-    self._pobase_ = os.path.join(self._destdir_, 'po')
-    self._docbase_ = os.path.join(self._destdir_, 'doc')
-    self._testsbase_ = os.path.join(self._destdir_, 'tests')
     
   def addModule(self, module):
     '''Add the module to the modules list.'''
@@ -986,6 +957,10 @@ class GNULibImport(GNULibMode):
       raise(TypeError(
         'argument must be a string, not %s' % type(module).__name__))
     
+  def resetLibName(self):
+    '''Specify the library name.  Defaults to 'libgnu'.'''
+    self.setLibName(self._cached_['lib'])
+    
   def getSourceBase(self):
     '''Return directory relative to destdir where source code is placed.
     Default value for this variable is 'lib').'''
@@ -996,9 +971,8 @@ class GNULibImport(GNULibMode):
     Default value for this variable is 'lib').'''
     if type(directory) is bytes or type(directory) is string:
       if type(directory) is bytes:
-        self._sourcebase_ = string(directory, ENCS['system'])
-      elif type(directory) is string:
-        self._sourcebase_ = directory
+        directory = string(directory, ENCS['system'])
+      self._sourcebase_ = os.path.relpath(directory, self._destdir_)
     else:
       raise(TypeError(
         'argument must be a string, not %s' % type(directory).__name__))
@@ -1006,7 +980,7 @@ class GNULibImport(GNULibMode):
   def resetSourceBase(self):
     '''Return directory relative to destdir where source code is placed.
     Default value for this variable is 'lib').'''
-    self._sourcebase_ = os.path.join(self._destdir_, 'lib')
+    self.setSourceBase(self._cached_['sourcebase'])
     
   def getM4Base(self):
     '''Return directory relative to destdir where *.m4 macros are placed.
@@ -1018,9 +992,8 @@ class GNULibImport(GNULibMode):
     Default value for this variable is 'm4').'''
     if type(directory) is bytes or type(directory) is string:
       if type(directory) is bytes:
-        self._m4base_ = string(directory, ENCS['system'])
-      elif type(directory) is string:
-        self._m4base_ = directory
+        directory = string(directory, ENCS['system'])
+      self._m4base_ = os.path.relpath(directory, self._destdir_)
     else:
       raise(TypeError(
         'argument must be a string, not %s' % type(directory).__name__))
@@ -1028,7 +1001,7 @@ class GNULibImport(GNULibMode):
   def resetM4Base(self):
     '''Reset directory relative to destdir where *.m4 macros are placed.
     Default value for this variable is 'm4').'''
-    self._m4base_ = os.path.join(self._destdir_, 'm4')
+    self.setM4Base(self._cached_['m4base'])
     
   def getPoBase(self):
     '''Return directory relative to destdir where *.po files are placed.
@@ -1040,9 +1013,8 @@ class GNULibImport(GNULibMode):
     Default value for this variable is 'po').'''
     if type(directory) is bytes or type(directory) is string:
       if type(directory) is bytes:
-        self._pobase_ = string(directory, ENCS['system'])
-      elif type(directory) is string:
-        self._pobase_ = directory
+        directory = string(directory, ENCS['system'])
+      self._pobase_ = os.path.relpath(directory, self._destdir_)
     else:
       raise(TypeError(
         'argument must be a string, not %s' % type(directory).__name__))
@@ -1050,7 +1022,7 @@ class GNULibImport(GNULibMode):
   def resetPoBase(self):
     '''Reset directory relative to destdir where *.po files are placed.
     Default value for this variable is 'po').'''
-    self._pobase_ = os.path.join(self._destdir_, 'po')
+    self.setPoBase(self._cached_['pobase'])
     
   def getDocBase(self):
     '''Return directory relative to destdir where doc files are placed.
@@ -1062,9 +1034,8 @@ class GNULibImport(GNULibMode):
     Default value for this variable is 'doc').'''
     if type(directory) is bytes or type(directory) is string:
       if type(directory) is bytes:
-        self._docbase_ = string(directory, ENCS['system'])
-      elif type(directory) is string:
-        self._docbase_ = directory
+        directory = string(directory, ENCS['system'])
+      self._docbase_ = os.path.relpath(directory, self._destdir_)
     else:
       raise(TypeError(
         'argument must be a string, not %s' % type(directory).__name__))
@@ -1072,7 +1043,7 @@ class GNULibImport(GNULibMode):
   def resetDocBase(self):
     '''Reset directory relative to destdir where doc files are placed.
     Default value for this variable is 'doc').'''
-    self._docbase_ = os.path.join(self._destdir_, 'doc')
+    self.setDocBase(self._cached_['docbase'])
     
   def getTestsBase(self):
     '''Return directory relative to destdir where unit tests are placed.
@@ -1084,9 +1055,8 @@ class GNULibImport(GNULibMode):
     Default value for this variable is 'tests').'''
     if type(directory) is bytes or type(directory) is string:
       if type(directory) is bytes:
-        self._testsbase_ = string(directory, ENCS['system'])
-      elif type(directory) is string:
-        self._testsbase_ = directory
+        directory = string(directory, ENCS['system'])
+      self._testsbase_ = os.path.relpath(directory, self._destdir_)
     else:
       raise(TypeError(
         'argument must be a string, not %s' % type(directory).__name__))
@@ -1094,7 +1064,7 @@ class GNULibImport(GNULibMode):
   def resetTestsBase(self):
     '''Reset directory relative to destdir where unit tests are placed.
     Default value for this variable is 'tests').'''
-    self._testsbase_ = os.path.join(self._destdir_, 'tests')
+    self.setTestsBase(self._cached_['tests'])
     
   def getAuxDir(self):
     '''Return directory relative to --dir where auxiliary build tools are
@@ -1107,8 +1077,7 @@ class GNULibImport(GNULibMode):
     if type(auxdir) is bytes or type(auxdir) is string:
       if type(auxdir) is bytes:
         self._auxdir_ = string(auxdir, ENCS['system'])
-      elif type(auxdir) is string:
-        self._auxdir_ = auxdir
+      self._auxdir_ = os.path.relpath(directory, self._destdir_)
     else:
       raise(TypeError(
         'auxdir must be a string, not %s' % type(auxdir).__name__))
@@ -1116,7 +1085,7 @@ class GNULibImport(GNULibMode):
   def resetAuxDir(self):
     '''Reset directory relative to --dir where auxiliary build tools are
     placed. Default comes from configure.ac or configure.in.'''
-    
+    self.setAuxDir(self._cached_['auxdir'])
     
   def getLGPL(self):
     '''Check for abort if modules aren't available under the LGPL.'''
@@ -1133,5 +1102,21 @@ class GNULibImport(GNULibMode):
     
   def resetLGPL(self):
     '''Disable abort if modules aren't available under the LGPL.'''
-    self._lgpl_ = False
+    self.setLGPL(self._cached_['lgpl'])
+    
+  def getMacroPrefix(self):
+    '''Return the prefix of the macros 'gl_EARLY' and 'gl_INIT'.
+    Default is 'gl'.'''
+    return(self._macro_prefix_)
+    
+  def setMacroPrefix(self):
+    '''Specify the prefix of the macros 'gl_EARLY' and 'gl_INIT'.
+    Default is 'gl'.'''
+    if type(macro_prefix) is bytes or type(macro_prefix) is string:
+      if type(macro_prefix) is bytes:
+        self._macro_prefix_ = string(macro_prefix, ENCS['system'])
+      self._macro_prefix_ = os.path.relpath(directory, self._destdir_)
+    else:
+      raise(TypeError(
+        'macro_prefix must be a string, not %s' % type(macro_prefix).__name__))
 

@@ -185,3 +185,24 @@ if os.getenv('MAKE'):
 else:
   UTILS['make'] = 'make'
 
+
+#===============================================================================
+# Define global functions
+#===============================================================================
+def compiler(pattern):
+  '''Compile regex pattern depending on version of Python.'''
+  if not PYTHON3:
+    pattern = re.compile(pattern, re.UNICODE | re.MULTILINE | re.DOTALL)
+  else: # if PYTHON3
+    pattern = re.compile(pattern, re.MULTILINE | re.DOTALL)
+  return(pattern)
+  
+def cleaner(values):
+  '''Clean all items inside listing just not to use complex regex.'''
+  values = [value.replace('[', '').replace(']', '') for value in values]
+  values = [value.replace('(', '').replace(')', '') for value in values]
+  values = [False if value == 'false' else value for value in values]
+  values = [True if value == 'true' else value for value in values]
+  values = [value.strip() for value in values]
+  return(values)
+

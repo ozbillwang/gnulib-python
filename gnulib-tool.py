@@ -33,7 +33,6 @@ APP = constants.APP
 # Define global constants
 ################################################################################
 if __name__ == '__main__':
-  testing.testVersion()
-  testing.testHelp()
-  testing.testList()
+  gnulibapp = utilities.GNULibImport(1)
+  print(repr(gnulibapp._auxdir_))
 
