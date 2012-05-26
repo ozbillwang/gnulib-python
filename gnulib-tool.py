@@ -20,6 +20,7 @@
 # modules from gnulib into their packages.
 
 
+from __future__ import unicode_literals
 ################################################################################
 # Define global imports
 ################################################################################
@@ -33,6 +34,8 @@ APP = constants.APP
 # Define global constants
 ################################################################################
 if __name__ == '__main__':
-  gnulibapp = utilities.GNULibImport(1)
-  print(repr(gnulibapp._auxdir_))
+  gnulibapp = utilities.GNULibImport(1,
+    auxdir='./build-aux1',
+    pobase='../mypobase',
+    docbase='../../doc')
 

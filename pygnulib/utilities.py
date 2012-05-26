@@ -12,6 +12,7 @@ import locale
 import codecs
 import subprocess as sp
 from . import constants
+from pprint import pprint
 
 #===============================================================================
 # Define module information
@@ -36,6 +37,13 @@ ENCS = constants.ENCS
 UTILS = constants.UTILS
 FILES = constants.FILES
 MODES = constants.MODES
+TESTS = constants.TESTS
+isabs = os.path.isabs
+isdir = os.path.isdir
+isfile = os.path.isfile
+joinpath = os.path.join
+normpath = os.path.normpath
+relpath = os.path.relpath
 
 
 #===============================================================================
@@ -44,7 +52,7 @@ MODES = constants.MODES
 class GNULibError(Exception):
   '''Exception handler for GNULib classes.'''
   
-  def __init__(self, errno, errinfo):
+  def __init__(self, errno, errinfo=None):
     ''' Each error has following parameters:
     errno: code of error; used to catch error type
       1: configure: path does not exist or not a file'''
@@ -54,9 +62,10 @@ class GNULibError(Exception):
   def __str__(self):
     errors = \
     [ # Begin list of errors
+      "auxdir: configure file does not exist: %s" % self.errinfo,
+      "auxdir: path does not exist or is not a dir: %s" % self.errinfo,
       "path does not exist or is not a directory: %s" % self.errinfo,
       "path does not exist or is not a file: %s" % self.errinfo,
-      "invalid LGPL version number: %s" % self.errinfo,
       "file can not be found: %s" % self.errinfo,
     ] # Complete list of errors
     if not PYTHON3:
@@ -137,7 +146,7 @@ class GNULibInfo:
     
   def date(self):
     '''Return formatted string which contains date and time in GMT format.'''
-    if os.path.exists(DIRS['git']) and os.path.isdir(DIRS['git']):
+    if isdir(DIRS['git']):
       counter = int() # Create counter
       result = string() # Create string
       args1 = ['git', 'log', FILES['changelog']]
@@ -339,8 +348,8 @@ Report bugs to <bug-gnulib@gnu.org>.'''
     
   def version(self):
     '''Return formatted string which contains git or CVS version.'''
-    if os.path.exists(DIRS['git']) and os.path.isdir(DIRS['git']):
-      version_gen = os.path.join(DIRS['build-aux'], 'git-version-gen')
+    if isdir(DIRS['git']):
+      version_gen = joinpath(DIRS['build-aux'], 'git-version-gen')
       args = [version_gen, DIRS['root']]
       proc = sp.check_output(args)
       result = string(proc, ENCS['shell'])
@@ -360,10 +369,10 @@ class GNULibMode(object):
   def __init__\
   (
     self,
+    verbose=0,
     destdir=None,
     localdir=None,
     modcache=False,
-    verbose=0,
   ):
     '''Create GNULibMode instance. There are some variables which can be
     used in __init__ section. However you can set them later using methods
@@ -408,12 +417,6 @@ class GNULibMode(object):
     else:
       raise(TypeError(
         'verbose must be an int, not %s' % type(verbose).__name__))
-    # Go to destdir directory
-    if os.path.exists(self._destdir_) and os.path.isdir(self._destdir_):
-      os.chdir(self._destdir_)
-    else:
-      raise(TypeError(
-        'Directory does not exist: %s' % repr(self._destdir_)))
     
   def getAvailableModules(self):
     '''Return the available module names as tuple. We could use a combination
@@ -439,12 +442,7 @@ class GNULibMode(object):
       '-e', r'/~$/d',
       '-e', r'/-tests$/d',
     ]
-    if all( # If all conditions inside are True
-    [ # If localdir was set and contains 'modules' directory
-      self._localdir_,
-      os.path.exists(os.path.join(self._localdir_, 'modules')),
-      os.path.isdir(os.path.join(self._localdir_, 'modules')),
-    ]):
+    if all([self._localdir_, isdir(joinpath(self._localdir_, 'modules'))]):
       os.chdir(self._localdir_)
       args2.append('-e')
       args2.append(r's,\.diff$,,')
@@ -548,25 +546,25 @@ class GNULibImport(GNULibMode):
   (
     self,
     mode,
+    verbose=0,
     destdir=None,
     localdir=None,
     modcache=False,
-    verbose=0,
-    modules=None,
-    dryrun=False,
-    tests=list([1]),
-    avoids=None,
-    dependencies=None,
-    libtool=None,
-    library=None,
     auxdir=None,
+    modules=None,
+    avoids=None,
     sourcebase=None,
     m4base=None,
     pobase=None,
-    podomain=None,
     docbase=None,
     testsbase=None,
-    lgpl=False,
+    tests=None,
+    lgpl=None,
+    podomain=None,
+    dryrun=False,
+    dependencies=None,
+    libtool=None,
+    libname=None,
     makefile=None,
     macro_prefix=None,  
     vc_files=None,
@@ -574,23 +572,27 @@ class GNULibImport(GNULibMode):
     '''Create GNULibImport instance. There are some variables which can be
     used in __init__ section. However you can set them later using methods
     inside GNULibImport class. Here are the types for variables:
-      mode: int; from 0 to 3; required argument;
-      destdir: string; default is current directory;
-      NOTE: localdir: string; default is cached one;
-      modcache: bool; default is False;
-      verbose: -2 <= int <= 2; default is 0;
-      modules: list of modules which will be imported; default is empty list;
-      avoids: list of modules which will be avoided; default is empty list;
-      sourcebase: string; default is destdir + '/lib'; relative;
-      m4base: string; default is destdir + '/m4'; relative;
-      docbase: string; default is destdir + '/doc'; relative;
-      testsbase: string; default is destdir + '/tests'; relative;
+      mode: int; from 0 to 3; required argument.
+      destdir: string; default is current directory.
+      localdir: string; default is cached one.
+      modcache: bool; default is False.
+      verbose: -2 <= int <= 2; default is 0.
+      auxdir: directory relative to destdir where auxiliary build tools are
+        placed; default comes from configure.ac.
+      modules: list of modules which will be imported; default is cached one.
+      avoids: list of modules which will be avoided; default is cached one.
+      sourcebase: string; default is 'lib' or cached one; relative.
+      m4base: string; default is 'm4' or cached one; relative.
+      docbase: string; default is 'doc' or cached one; relative.
+      testsbase: string; default is 'tests' or cached one; relative.
       tests: list which contains test codes; default is list([1]);
-        you can get all the codes from MODES['tests'] dict;
+        you can get all the codes from MODES['tests'] dict.
+      lgpl: abort if modules aren't available under the LGPL; also modify
+        license template from GPL to LGPL; the version number of the LGPL can
+        be specified; the default is currently LGPLv3.
       macro_prefix: string; the prefix of the macros 'gl_EARLY' and 'gl_INIT';
-        default value of macro_prefix is 'gl';
-      NOTE: dependencies: bool; default is received from Makefile.am;
-      makefile: string; default is 'Makefile.am'; '''
+        default value of macro_prefix is 'gl' or cached one;
+      makefile: string; default is 'Makefile.am'.'''
     # Initialization from the parent class
     super(GNULibImport, self).__init__\
     ( # Begin __init__ method
@@ -604,177 +606,250 @@ class GNULibImport(GNULibMode):
     else: # if unknown mode
       raise(TypeError(
         'unknown mode: %s' % repr(mode)))
+    
+    # Initialize cache dictionary and set some values.
+    # For mode == MODES['import'], most of these values are default.
+    # For other modes, pygnulib will get them from different files.
     self._cached_ = dict()
+    self._cached_['modules'] = list()
+    self._cached_['avoids'] = list()
+    self._cached_['sourcebase'] = normpath(joinpath(self._destdir_, 'lib'))
+    self._cached_['pobase'] = normpath(joinpath(self._destdir_, 'po'))
+    self._cached_['m4base'] = normpath(joinpath(self._destdir_, 'm4'))
+    self._cached_['docbase'] = normpath(joinpath(self._destdir_, 'doc'))
+    self._cached_['testsbase'] = normpath(joinpath(self._destdir_, 'tests'))
+    self._cached_['makefile'] = 'Makefile.am'
+    self._cached_['macro_prefix'] = 'gl'
+    self._cached_['libname'] = 'libgnu'
+    self._cached_['lgpl'] = 3
     
-    # auxdir => self._auxdir_
-    if type(auxdir) is NoneType:
-      # Get auxdir and libtool from configure.ac/in
-      path = os.path.relpath('configure.ac', self._destdir_)
-      if not os.path.isfile(path):
-        path = os.path.relpath('configure.in', self._destdir_)
-        if not os.path.isfile(path):
-          raise(GNULibError(2, repr(path.replace('.in', '.ac/in'))))
-      with codecs.open(path, 'rb', 'UTF-8') as file:
-        textdata = file.read()
-      # Set cached dictionary
-      pattern = compiler(r'^AC_CONFIG_AUX_DIR\((.*?)\)$')
-      self._cached_['auxdir'] = cleaner(pattern.findall(textdata))[0]
-      pattern = compiler(r'A[CM]_PROG_LIBTOOL')
-      self._cached_['libtool'] = bool(pattern.findall(textdata))
-      # Set auxdir from cache
-      self._auxdir_ = os.path.relpath(self._cached_['auxdir'], self._destdir_)
-    else: # if type(auxdir) is not NoneType
-      if os.path.isdir(auxdir):
-        self._cached_['auxdir'] = tempdict['AC_CONFIG_AUX_DIR']
-        self.setAuxDir(auxdir)
-      else: # if auxdir does not exist or not a directory
-        raise(GNULibError(1, repr(auxdir)))
+    # Get default auxdir and libtool from configure.ac/in
+    path = relpath('configure.ac', self._destdir_)
+    if not isfile(path):
+      path = relpath('configure.in', self._destdir_)
+      if not isfile(path):
+        raise(GNULibError(1, repr(path)))
+    with codecs.open(path, 'rb', 'UTF-8') as file:
+      textdata = file.read()
+    pattern = compiler(r'^AC_CONFIG_AUX_DIR\((.*?)\)$')
+    self._cached_['auxdir'] = \
+      relpath(cleaner(pattern.findall(textdata))[0], self._destdir_)
+    pattern = compiler(r'A[CM]_PROG_LIBTOOL')
+    self._cached_['libtool'] = bool(pattern.findall(textdata))
     
-    # Set default values for different modes
-    if self._mode_ == MODES['import']:
-      # sourcebase => self._sourcebase_
-      if type(sourcebase) is NoneType:
-        self.setSourceBase('lib')
-      else: # if type(sourcebase) is not NoneType
-        self.setSourceBase(sourcebase)
-      # m4base => self._m4base_
-      if type(m4base) is NoneType:
-        self.setSourceBase('m4')
-      else: # if type(m4base) is not NoneType
-        self.setSourceBase(m4base)
-      # docbase => self._docbase_
-      if type(docbase) is NoneType:
-        self.setSourceBase('doc')
-      else: # if type(docbase) is not NoneType
-        self.setSourceBase(docbase)
-      # testsbase => self._testsbase_
-      if type(docbase) is NoneType:
-        self.setSourceBase('tests')
-      else: # if type(docbase) is not NoneType
-        self.setSourceBase(docbase)
-      if type(macro_prefix) is NoneType:
-        self.setMacroPrefix('gl')
-      else: # type(macro_prefix) is not NoneType:
-        self.setMacroPrefix(macro_prefix)
+    # Set self._m4base_ for 
     
-    else: # if self._mode_ != MODES['import']
+    # Set default values for other modes
+    if self._mode_ != MODES['import']:
       m4dirs = list() # List of available directories
       dirisnext = bool() # If the next is a directory
       # Get ACLOCAL_AMFLAGS from Makefile.am
-      path = os.path.join(self._destdir_, 'Makefile.am')
-      if os.path.isfile(path):
+      path = joinpath(self._destdir_, 'Makefile.am')
+      if isfile(path):
         with codecs.open(path, 'rb', 'UTF-8') as file:
           textdata = file.read()
-          result = dict(re.findall(r'^(ACLOCAL_AMFLAGS).*?=.*?(.*?)$',
-            textdata, re.MULTILINE | re.DOTALL))
         pattern = compiler(r'^ACLOCAL_AMFLAGS.*?=.*?(.*?)$')
         result = cleaner(pattern.findall(textdata))[0]
         # Get all relative directories
         for item in result.split():
-          if not os.path.isabs(item) and dirisnext:
-            m4cache = os.path.join(self._destdir_, item, 'gnulib-cache.m4')
-            if os.path.isfile(m4cache):
+          if not isabs(item) and dirisnext:
+            m4cache = joinpath(self._destdir_, item, 'gnulib-cache.m4')
+            if isfile(m4cache):
               m4dirs.append(item)
           if item == '-I':
             dirisnext = True
           else: # if item != '-I'
             dirisnext = False
-        print(m4dirs)
       else: # Makefile.am does not exist or is not a file
         # Get m4_include from aclocal.m4
-        path = os.path.join(self._destdir_, 'aclocal.m4')
-        if os.path.isfile(path):
+        path = joinpath(self._destdir_, 'aclocal.m4')
+        if isfile(path):
           with codecs.open(path, 'rb', 'UTF-8') as file:
             textdata = file.read()
           pattern = compiler(r'^m4_include\((.*?)\)$')
           result = cleaner(pattern.findall(textdata))
           result.sort()
-      if len(m4dirs) == 1:
+     
+      # First use of gnulib in a package.
+      if len(m4dirs) == 0:
+        self.resetM4Base()
+        # docbase => self._docbase_
+        if type(docbase) is NoneType:
+          self.resetSourceBase()
+        else: # if type(docbase) is not NoneType
+          self.setSourceBase(docbase)
+        # testsbase => self._testsbase_
+        if type(docbase) is NoneType:
+          self.resetSourceBase()
+        else: # if type(docbase) is not NoneType
+          self.setSourceBase(docbase)
+        if type(macro_prefix) is NoneType:
+          self.resetMacroPrefix()
+        else: # type(macro_prefix) is not NoneType:
+          self.setMacroPrefix(macro_prefix)
+      
+      # There's only one use of gnulib here. Assume the user means it.
+      elif len(m4dirs) == 1:
         self._cached_['m4base'] = m4dirs[0]
+        
+      # Ambiguous - guess what the user meant.
+      else: # if len(m4dirs) > 1
+        pass # NOTE: I'll change it later when I create self.run() method
+      
+    # auxdir => self._auxdir_
+    if type(auxdir) is NoneType:
+      self.resetAuxDir()
+    else: # if type(auxdir) is not NoneType
+      self.setAuxDir(auxdir)
     
-  def updateCache(self):
-    '''Update all cache to get initial values for variables from it.'''
-    self._cached_ = dict()
-    # Get other cached settings
-    cache_path = os.path.join(self._m4base_, 'gnulib-cache.m4')
-    if not os.path.exists(cache_path) and os.path.isfile(cache_path):
-      self._cached_['sourcebase'] = os.path.join(self._destdir_, 'lib')
-      self._cached_['docbase'] = os.path.join(self._destdir_, 'doc')
-      self._cached_['testsbase'] = os.path.join(self._destdir_, 'tests')
-      self._cached_['macro_prefix'] = 'gl'
-    else: # if os.path.exists(cache_path) and os.path.isfile(cache_path):
-      with codecs.open(cache_path, 'rb', 'UTF-8') as file:
+    # m4base => self._m4base_
+    if type(m4base) is NoneType:
+      self.resetM4Base()
+    else: # if type(m4base) is not NoneType
+      self.setM4Base(m4base)
+    
+    # Get the cached settings
+    path = joinpath(self._m4base_, 'gnulib-cache.m4')
+    if isfile(path):
+      with codecs.open(path, 'rb', 'UTF-8') as file:
         textdata = file.read()
-      if not PYTHON3:
-        result = dict(re.findall(r'^(gl_.*?)\((.*?)\)$',
-          textdata, re.UNICODE | re.MULTILINE | re.DOTALL))
-      else: # if PYTHON3
-        result = dict(re.findall(r'^(gl_.*?)\((.*?)\)$',
-          textdata, re.MULTILINE | re.DOTALL))
+      # Cached settings as booleans
+      self._cached_['tests'] = list()
+      if 'gl_LIBTOOL' in textdata:
+        self._cached_['libtool'] = True
+      if 'gl_WITH_OBSOLETE' in textdata:
+        self._cached_['tests'].append(TESTS['obsolete'])
+      if 'gl_WITH_TESTS' in textdata:
+        self._cached_['tests'].append(TESTS['default'])
+      if 'gl_WITH_CXX_TESTS' in textdata:
+        self._cached_['tests'].append(TESTS['cxx'])
+      if 'gl_WITH_LONGRUNNING_TESTS' in textdata:
+        self._cached_['tests'].append(TESTS['longrunning'])
+      if 'gl_WITH_PRIVILEGED_TESTS' in textdata:
+        self._cached_['tests'].append(TESTS['privileged'])
+      if 'gl_WITH_UNPORTABLE_TESTS' in textdata:
+        self._cached_['tests'].append(TESTS['unportable'])
+      if 'gl_WITH_ALL_TESTS' in textdata:
+        self._cached_['tests'].append(TESTS['all'])
+      textdata = textdata.replace('gl_LIBTOOL\n', '')
+      textdata = textdata.replace('gl_WITH_OBSOLETE\n', '')
+      textdata = textdata.replace('gl_WITH_TESTS\n', '')
+      textdata = textdata.replace('gl_WITH_CXX_TESTS\n', '')
+      textdata = textdata.replace('gl_WITH_LONGRUNNING_TESTS\n', '')
+      textdata = textdata.replace('gl_WITH_PRIVILEGED_TESTS\n', '')
+      textdata = textdata.replace('gl_WITH_UNPORTABLE_TESTS\n', '')
+      textdata = textdata.replace('gl_WITH_ALL_TESTS\n', '')
+      # Cached settings as strings
+      pattern = compiler(r'^(gl.*?)\((.*?)\)$')
+      result = dict(pattern.findall(textdata))
       keys = \
       [
         'gl_LOCAL_DIR',
         'gl_MODULES',
-        'gl_WITH_OBSOLETE',
-        'gl_WITH_CXX_TESTS',
-        'gl_WITH_LONGRUNNING_TESTS',
-        'gl_WITH_PRIVILEGED_TESTS',
-        'gl_WITH_UNPORTABLE_TESTS',
-        'gl_WITH_ALL_TESTS',
         'gl_AVOID',
         'gl_SOURCE_BASE',
         'gl_M4_BASE',
+        'gl_PO_BASE',
         'gl_DOC_BASE',
         'gl_TESTS_BASE',
-        'gl_WITH_TESTS',
         'gl_LIB',
         'gl_LGPL',
         'gl_MAKEFILE_NAME',
         'gl_CONDITIONAL_DEPENDENCIES',
-        'gl_LIBTOOL',
         'gl_MACRO_PREFIX',
         'gl_PO_DOMAIN',
         'gl_WITNESS_C_MACRO',
         'gl_VC_FILES',
       ]
-      values = [result.get(key, '') for key in keys]
-      values = [value.replace('[', '').replace(']', '') for value in values]
-      values = [value.replace('(', '').replace(')', '') for value in values]
-      values = [False if value == 'false' else value for value in values]
-      values = [True if value == 'true' else value for value in values]
-      values = [False if value == '' else value for value in values]
-      cache_dict = dict(zip(keys, values))
-      # Modify cache dictionary
-      self._cached_['tests'] = list()
-      self._cached_['auxdir'] = configure_dict['AC_CONFIG_AUX_DIR']
-      self._cached_['libtool'] = configure_dict['AC_PROG_LIBTOOL']
-      self._cached_['localdir'] = cache_dict['gl_LOCAL_DIR']
-      self._cached_['modules'] = cache_dict['gl_MODULES'].split()
-      self._cached_['avoid'] = cache_dict['gl_AVOID'].split()
-      self._cached_['sourcebase'] = cache_dict['gl_SOURCE_BASE']
-      self._cached_['docbase'] = cache_dict['gl_DOC_BASE']
-      self._cached_['testsbase'] = cache_dict['gl_TESTS_BASE']
-      self._cached_['lib'] = cache_dict['gl_LIB']
-      self._cached_['lgpl'] = cache_dict['gl_LGPL']
-      self._cached_['makefile'] = cache_dict['gl_MAKEFILE_NAME']
-      self._cached_['dependencies'] = cache_dict['gl_CONDITIONAL_DEPENDENCIES']
-      self._cached_['libtool'] = cache_dict['gl_LIBTOOL']
-      self._cached_['macro_prefix'] = cache_dict['gl_MACRO_PREFIX']
-      self._cached_['podomain'] = cache_dict['gl_PO_DOMAIN']
-      self._cached_['vc_files'] = cache_dict['gl_VC_FILES']
-      if cache_dict['gl_WITH_OBSOLETE']:
-        self._cached_['tests'].append(MODES['tests']['obsolete'])
-      if cache_dict['gl_WITH_CXX_TESTS']:
-        self._cached_['tests'].append(MODES['tests']['cxx'])
-      if cache_dict['gl_WITH_LONGRUNNING_TESTS']:
-        self._cached_['tests'].append(MODES['tests']['longrunning'])
-      if cache_dict['gl_WITH_PRIVILEGED_TESTS']:
-        self._cached_['tests'].append(MODES['tests']['privileged'])
-      if cache_dict['gl_WITH_UNPORTABLE_TESTS']:
-        self._cached_['tests'].append(MODES['tests']['unportable'])
-    # Set some values that were not set
-    if not self._cached_['makefile']:
-      self._cached_['makefile'] = 'Makefile.am'
+      values = cleaner([result.get(key, '') for key in keys])
+      tempdict = dict(zip(keys, values))
+      if tempdict['gl_LOCAL_DIR'] != '':
+        self._cached_['localdir'] = tempdict['gl_LOCAL_DIR']
+      if tempdict['gl_MODULES'] != '':
+        self._cached_['modules'] = cleaner(tempdict['gl_MODULES'].split())
+      if tempdict['gl_AVOID'] != '':
+        self._cached_['avoid'] = cleaner(tempdict['gl_AVOID'].split())
+      if tempdict['gl_SOURCE_BASE'] != '':
+        self._cached_['sourcebase'] = tempdict['gl_SOURCE_BASE']
+      if tempdict['gl_PO_BASE'] != '':
+        self._cached_['pobase'] = tempdict['gl_PO_BASE']
+      if tempdict['gl_DOC_BASE'] != '':
+        self._cached_['docbase'] = tempdict['gl_DOC_BASE']
+      if tempdict['gl_TESTS_BASE'] != '':
+        self._cached_['testsbase'] = tempdict['gl_TESTS_BASE']
+      if tempdict['gl_LIB'] != '':
+        self._cached_['libname'] = tempdict['gl_LIB']
+      if tempdict['gl_LGPL'] != '':
+        self._cached_['lgpl'] = tempdict['gl_LGPL']
+      if tempdict['gl_MAKEFILE_NAME'] != '':
+        self._cached_['makefile'] = tempdict['gl_MAKEFILE_NAME']
+      if tempdict['gl_CONDITIONAL_DEPENDENCIES'] != '':
+        self._cached_['dependencies'] = tempdict['gl_CONDITIONAL_DEPENDENCIES']
+      if tempdict['gl_MACRO_PREFIX'] != '':
+        self._cached_['macro_prefix'] = tempdict['gl_MACRO_PREFIX']
+      if tempdict['gl_PO_DOMAIN'] != '':
+        self._cached_['podomain'] = tempdict['gl_PO_DOMAIN']
+      if tempdict['gl_VC_FILES'] != '':
+        self._cached_['vc_files'] = tempdict['gl_VC_FILES']
+    
+    # modules => self._modules_
+    self._modules_ = list()
+    self.resetModules()
+    if type(modules) is not NoneType:
+      for module in modules:
+        self.addModule(module)
+    
+    # libtool => self._libtool_
+    self.resetLibtool()
+    if type(libtool) is bool:
+      if libtool:
+        self.enableLibtool()
+      else: # if not libtool
+        self.disableLibtool()
+    
+    # tests => self._tests_
+    self.resetTestFlags()
+    if type(tests) is not NoneType:
+      self.setTestFlags(tests)
+    
+    # avoids => self._avoids_
+    self._avoids_ = list()
+    self.resetAvoids()
+    if type(avoids) is not NoneType:
+      for module in avoids:
+        self.addAvoid(module)
+    
+    # sourcebase => self._sourcebase_
+    self._sourcebase_ = self._cached_['sourcebase']
+    if type(sourcebase) is not NoneType:
+      self.setSourceBase(sourcebase)
+    
+    # pobase => self._pobase_
+    self._pobase_ = self._cached_['pobase']
+    if type(pobase) is not NoneType:
+      self.setPoBase(pobase)
+    
+    # docbase => self._docbase_
+    self._docbase_ = self._cached_['docbase']
+    if type(docbase) is not NoneType:
+      self.setDocBase(docbase)
+    
+    # testsbase => self._testsbase_
+    self._testsbase_ = self._cached_['testsbase']
+    if type(testsbase) is not NoneType:
+      self.setTestsBase(testsbase)
+    
+    # libname => self._libname_
+    self._libname_ = self._cached_['libname']
+    if type(libname) is not NoneType:
+      self.setLibName(libname)
+    
+    # makefile => self._makefile_
+    self._makefile_ = self._cached_['makefile']
+    
+    dictionary = self.__dict__
+    dictionary.pop('_cached_')
+    pprint(dictionary)
     
   def setDestDir(self, directory):
     '''Specify the target directory. For --import, this specifies where your
@@ -808,9 +883,9 @@ class GNULibImport(GNULibMode):
   def setModules(self, modules):
     '''Set the modules list.'''
     if type(modules) is list or type(modules) is tuple:
+      old_modules = self._modules_
+      self._modules_ = list()
       for module in modules:
-        old_modules = self._modules_
-        self._modules_ = list()
         if type(module) is not bytes and type(module) is not string:
           raise(TypeError(
             'every module must be a string, not %s' % type(module).__name__))
@@ -825,52 +900,7 @@ class GNULibImport(GNULibMode):
     
   def resetModules(self):
     '''Reset the list of the modules.'''
-    self._modules_ = list()
-    
-  def checkDryRun(self):
-    '''Check if user enabled dry run mode.'''
-    return(self._dryrun_)
-    
-  def enableDryRun(self):
-    '''Only print what would have been done.'''
-    self._dryrun_ = True
-    
-  def disableDryRun(self):
-    '''Really execute what shall be done.'''
-    self._dryrun_ = False
-    
-  def enableTestFlag(self, flag):
-    '''Enable test flag. You can get flags from MODES['tests'] variable.'''
-    if flag in MODES['tests'].keys():
-      if flag not in self._testflags_:
-        self._testflags_.append(flag)
-    else:
-      raise(TypeError('unknown flag: %s' % repr(flag)))
-    
-  def disableTestFlag(self, flag):
-    '''Disable test flag. You can get flags from MODES['tests'] variable.'''
-    if flag in MODES['tests'].keys():
-      if flag in self._testflags_:
-        self._testflags_.remove(flag)
-    else:
-      raise(TypeError('unknown flag: %s' % repr(flag)))
-    
-  def setTestFlags(self, flags):
-    if type(flags) is list or type(flags) is tuple:
-      for flag in flags:
-        if type(flag) is not string:
-          raise(TypeError(
-            'every flag must be an int, not %s' % type(flag).__name__))
-        elif flag not in MODES['tests'].keys():
-          raise(TypeError('unknown flag: %s' % repr(flag)))
-      self._testflags_ = flags
-    else:
-      raise(TypeError(
-        'flags must be a list or a tuple, not %s' % type(flags).__name__))
-    
-  def resetTestFlags(self):
-    '''Reset test flags (only default flag will be enabled).'''
-    self._testflags_ = list([1])
+    self.setModules(self._cached_['modules'])
     
   def addAvoid(self, module):
     '''Avoid including the given module. Useful if you have code that provides
@@ -917,7 +947,52 @@ class GNULibImport(GNULibMode):
     
   def resetAvoids(self):
     '''Reset the list of the avoided modules.'''
-    self._avoids_ = list()
+    self.setAvoids(self._cached_['avoids'])
+    
+  def checkDryRun(self):
+    '''Check if user enabled dry run mode.'''
+    return(self._dryrun_)
+    
+  def enableDryRun(self):
+    '''Only print what would have been done.'''
+    self._dryrun_ = True
+    
+  def disableDryRun(self):
+    '''Really execute what shall be done.'''
+    self._dryrun_ = False
+    
+  def enableTestFlag(self, flag):
+    '''Enable test flag. You can get flags from MODES['tests'] variable.'''
+    if flag in MODES['tests'].keys():
+      if flag not in self._tests_:
+        self._tests_.append(flag)
+    else:
+      raise(TypeError('unknown flag: %s' % repr(flag)))
+    
+  def disableTestFlag(self, flag):
+    '''Disable test flag. You can get flags from MODES['tests'] variable.'''
+    if flag in MODES['tests'].keys():
+      if flag in self._tests_:
+        self._tests_.remove(flag)
+    else:
+      raise(TypeError('unknown flag: %s' % repr(flag)))
+    
+  def setTestFlags(self, flags):
+    if type(flags) is list or type(flags) is tuple:
+      for flag in flags:
+        if type(flag) is not int:
+          raise(TypeError(
+            'every flag must be an int, not %s' % type(flag).__name__))
+        elif flag not in TESTS.values():
+          raise(TypeError('unknown flag: %s' % repr(flag)))
+      self._tests_ = flags
+    else:
+      raise(TypeError(
+        'flags must be a list or a tuple, not %s' % type(flags).__name__))
+    
+  def resetTestFlags(self):
+    '''Reset test flags (only default flag will be enabled).'''
+    self.setTestFlags(self._cached_['tests'])
     
   def checkDependencies(self):
     '''Check if user enabled cond. dependencies.'''
@@ -943,128 +1018,27 @@ class GNULibImport(GNULibMode):
     '''Disable libtool rules.'''
     self._libtool_ = False
     
+  def resetLibtool(self):
+    '''Reset libtool rules.'''
+    self._libtool_ = self._cached_['libtool']
+    
   def getLibName(self):
     '''Return the library name. Defaults to 'libgnu'.'''
-    return(self._lib_)
+    return(self._libname_)
     
-  def setLibName(self, lib):
+  def setLibName(self, libname):
     '''Specify the library name.  Defaults to 'libgnu'.'''
-    if type(lib) is bytes or type(lib) is string:
-      if type(lib) is bytes:
-        lib = string(lib, ENCS['system'])
-      self._lib_ = lib
+    if type(libname) is bytes or type(libname) is string:
+      if type(libname) is bytes:
+        libname = string(libname, ENCS['system'])
+      self._libname_ = libname
     else:
       raise(TypeError(
         'argument must be a string, not %s' % type(module).__name__))
     
   def resetLibName(self):
     '''Specify the library name.  Defaults to 'libgnu'.'''
-    self.setLibName(self._cached_['lib'])
-    
-  def getSourceBase(self):
-    '''Return directory relative to destdir where source code is placed.
-    Default value for this variable is 'lib').'''
-    return(self._sourcebase_)
-    
-  def setSourceBase(self, directory):
-    '''Specify directory relative to destdir where source code is placed.
-    Default value for this variable is 'lib').'''
-    if type(directory) is bytes or type(directory) is string:
-      if type(directory) is bytes:
-        directory = string(directory, ENCS['system'])
-      self._sourcebase_ = os.path.relpath(directory, self._destdir_)
-    else:
-      raise(TypeError(
-        'argument must be a string, not %s' % type(directory).__name__))
-    
-  def resetSourceBase(self):
-    '''Return directory relative to destdir where source code is placed.
-    Default value for this variable is 'lib').'''
-    self.setSourceBase(self._cached_['sourcebase'])
-    
-  def getM4Base(self):
-    '''Return directory relative to destdir where *.m4 macros are placed.
-    Default value for this variable is 'm4').'''
-    return(self._m4base_)
-    
-  def setM4Base(self, directory):
-    '''Specify directory relative to destdir where *.m4 macros are placed.
-    Default value for this variable is 'm4').'''
-    if type(directory) is bytes or type(directory) is string:
-      if type(directory) is bytes:
-        directory = string(directory, ENCS['system'])
-      self._m4base_ = os.path.relpath(directory, self._destdir_)
-    else:
-      raise(TypeError(
-        'argument must be a string, not %s' % type(directory).__name__))
-    
-  def resetM4Base(self):
-    '''Reset directory relative to destdir where *.m4 macros are placed.
-    Default value for this variable is 'm4').'''
-    self.setM4Base(self._cached_['m4base'])
-    
-  def getPoBase(self):
-    '''Return directory relative to destdir where *.po files are placed.
-    Default value for this variable is 'po').'''
-    return(self._pobase_)
-    
-  def setPoBase(self, directory):
-    '''Specify directory relative to destdir where *.po files are placed.
-    Default value for this variable is 'po').'''
-    if type(directory) is bytes or type(directory) is string:
-      if type(directory) is bytes:
-        directory = string(directory, ENCS['system'])
-      self._pobase_ = os.path.relpath(directory, self._destdir_)
-    else:
-      raise(TypeError(
-        'argument must be a string, not %s' % type(directory).__name__))
-    
-  def resetPoBase(self):
-    '''Reset directory relative to destdir where *.po files are placed.
-    Default value for this variable is 'po').'''
-    self.setPoBase(self._cached_['pobase'])
-    
-  def getDocBase(self):
-    '''Return directory relative to destdir where doc files are placed.
-    Default value for this variable is 'doc').'''
-    return(self._docbase_)
-    
-  def setDocBase(self, directory):
-    '''Specify directory relative to destdir where doc files are placed.
-    Default value for this variable is 'doc').'''
-    if type(directory) is bytes or type(directory) is string:
-      if type(directory) is bytes:
-        directory = string(directory, ENCS['system'])
-      self._docbase_ = os.path.relpath(directory, self._destdir_)
-    else:
-      raise(TypeError(
-        'argument must be a string, not %s' % type(directory).__name__))
-    
-  def resetDocBase(self):
-    '''Reset directory relative to destdir where doc files are placed.
-    Default value for this variable is 'doc').'''
-    self.setDocBase(self._cached_['docbase'])
-    
-  def getTestsBase(self):
-    '''Return directory relative to destdir where unit tests are placed.
-    Default value for this variable is 'tests').'''
-    return(self._testsbase_)
-    
-  def setTestsBase(self, directory):
-    '''Specify directory relative to destdir where unit tests are placed.
-    Default value for this variable is 'tests').'''
-    if type(directory) is bytes or type(directory) is string:
-      if type(directory) is bytes:
-        directory = string(directory, ENCS['system'])
-      self._testsbase_ = os.path.relpath(directory, self._destdir_)
-    else:
-      raise(TypeError(
-        'argument must be a string, not %s' % type(directory).__name__))
-    
-  def resetTestsBase(self):
-    '''Reset directory relative to destdir where unit tests are placed.
-    Default value for this variable is 'tests').'''
-    self.setTestsBase(self._cached_['tests'])
+    self.setLibName(self._cached_['libname'])
     
   def getAuxDir(self):
     '''Return directory relative to --dir where auxiliary build tools are
@@ -1077,15 +1051,126 @@ class GNULibImport(GNULibMode):
     if type(auxdir) is bytes or type(auxdir) is string:
       if type(auxdir) is bytes:
         self._auxdir_ = string(auxdir, ENCS['system'])
-      self._auxdir_ = os.path.relpath(directory, self._destdir_)
+      self._auxdir_ = relpath(auxdir, self._destdir_)
     else:
       raise(TypeError(
-        'auxdir must be a string, not %s' % type(auxdir).__name__))
+        'argument must be a string, not %s' % type(auxdir).__name__))
     
   def resetAuxDir(self):
     '''Reset directory relative to --dir where auxiliary build tools are
     placed. Default comes from configure.ac or configure.in.'''
-    self.setAuxDir(self._cached_['auxdir'])
+    path = normpath(joinpath(self._destdir_, self._cached_['auxdir']))
+    self.setAuxDir(path)
+    
+  def getSourceBase(self):
+    '''Return directory relative to destdir where source code is placed.
+    Default value for this variable is 'lib').'''
+    return(self._sourcebase_)
+    
+  def setSourceBase(self, sourcebase):
+    '''Specify directory relative to destdir where source code is placed.
+    Default value for this variable is 'lib').'''
+    if type(sourcebase) is bytes or type(sourcebase) is string:
+      if type(sourcebase) is bytes:
+        sourcebase = string(sourcebase, ENCS['system'])
+      self._sourcebase_ = relpath(sourcebase, self._destdir_)
+    else:
+      raise(TypeError(
+        'argument must be a string, not %s' % type(sourcebase).__name__))
+    
+  def resetSourceBase(self):
+    '''Return directory relative to destdir where source code is placed.
+    Default value for this variable is 'lib').'''
+    path = normpath(joinpath(self._destdir_, self._cached_['sourcebase']))
+    self.setSourceBase(path)
+    
+  def getM4Base(self):
+    '''Return directory relative to destdir where *.m4 macros are placed.
+    Default value for this variable is 'm4').'''
+    return(self._m4base_)
+    
+  def setM4Base(self, m4base):
+    '''Specify directory relative to destdir where *.m4 macros are placed.
+    Default value for this variable is 'm4').'''
+    if type(m4base) is bytes or type(m4base) is string:
+      if type(m4base) is bytes:
+        m4base = string(m4base, ENCS['system'])
+      self._m4base_ = relpath(m4base, self._destdir_)
+    else:
+      raise(TypeError(
+        'argument must be a string, not %s' % type(m4base).__name__))
+    
+  def resetM4Base(self):
+    '''Reset directory relative to destdir where *.m4 macros are placed.
+    Default value for this variable is 'm4').'''
+    path = normpath(joinpath(self._destdir_, self._cached_['m4base']))
+    self.setM4Base(path)
+    
+  def getPoBase(self):
+    '''Return directory relative to destdir where *.po files are placed.
+    Default value for this variable is 'po').'''
+    return(self._pobase_)
+    
+  def setPoBase(self, pobase):
+    '''Specify directory relative to destdir where *.po files are placed.
+    Default value for this variable is 'po').'''
+    if type(pobase) is bytes or type(pobase) is string:
+      if type(pobase) is bytes:
+        pobase = string(pobase, ENCS['system'])
+      self._pobase_ = relpath(pobase, self._destdir_)
+    else:
+      raise(TypeError(
+        'argument must be a string, not %s' % type(pobase).__name__))
+    
+  def resetPoBase(self):
+    '''Reset directory relative to destdir where *.po files are placed.
+    Default value for this variable is 'po').'''
+    path = normpath(joinpath(self._destdir_, self._cached_['pobase']))
+    self.setPoBase(path)
+    
+  def getDocBase(self):
+    '''Return directory relative to destdir where doc files are placed.
+    Default value for this variable is 'doc').'''
+    return(self._docbase_)
+    
+  def setDocBase(self, docbase):
+    '''Specify directory relative to destdir where doc files are placed.
+    Default value for this variable is 'doc').'''
+    if type(docbase) is bytes or type(docbase) is string:
+      if type(docbase) is bytes:
+        docbase = string(docbase, ENCS['system'])
+      self._docbase_ = relpath(docbase, self._destdir_)
+    else:
+      raise(TypeError(
+        'argument must be a string, not %s' % type(docbase).__name__))
+    
+  def resetDocBase(self):
+    '''Reset directory relative to destdir where doc files are placed.
+    Default value for this variable is 'doc').'''
+    path = normpath(joinpath(self._destdir_, self._cached_['docbase']))
+    self.setDocBase(path)
+    
+  def getTestsBase(self):
+    '''Return directory relative to destdir where unit tests are placed.
+    Default value for this variable is 'tests').'''
+    return(self._testsbase_)
+    
+  def setTestsBase(self, testsbase):
+    '''Specify directory relative to destdir where unit tests are placed.
+    Default value for this variable is 'tests').'''
+    if type(testsbase) is bytes or type(testsbase) is string:
+      if type(testsbase) is bytes:
+        testsbase = string(testsbase, ENCS['system'])
+      self._testsbase_ = relpath(testsbase, self._destdir_)
+    else:
+      raise(TypeError(
+        'argument must be a string, not %s' % type(testsbase).__name__))
+    
+  def resetTestsBase(self):
+    '''Reset directory relative to destdir where unit tests are placed.
+    Default value for this variable is 'tests').'''
+    path = normpath(joinpath(self._destdir_, self._cached_['testsbase']))
+    self.setTestsBase(path)
     
   def getLGPL(self):
     '''Check for abort if modules aren't available under the LGPL.'''
@@ -1109,14 +1194,40 @@ class GNULibImport(GNULibMode):
     Default is 'gl'.'''
     return(self._macro_prefix_)
     
-  def setMacroPrefix(self):
+  def setMacroPrefix(self, macro_prefix):
     '''Specify the prefix of the macros 'gl_EARLY' and 'gl_INIT'.
     Default is 'gl'.'''
     if type(macro_prefix) is bytes or type(macro_prefix) is string:
       if type(macro_prefix) is bytes:
-        self._macro_prefix_ = string(macro_prefix, ENCS['system'])
-      self._macro_prefix_ = os.path.relpath(directory, self._destdir_)
+        macro_prefix = string(macro_prefix, ENCS['system'])
+      self._macro_prefix_ = macro_prefix
     else:
       raise(TypeError(
         'macro_prefix must be a string, not %s' % type(macro_prefix).__name__))
+    
+  def resetMacroPrefix(self):
+    '''Reset the prefix of the macros 'gl_EARLY' and 'gl_INIT'.
+    Default is 'gl'.'''
+    self.setMacroPrefix(self._cached_['macro_prefix'])
+    
+  def getMakefile(self):
+    '''Return the name of makefile in automake syntax in the source-base and
+    tests-base directories. Default is 'Makefile.am'.'''
+    return(self._makefile_)
+    
+  def setMakefile(self, makefile):
+    '''Specify the name of makefile in automake syntax in the source-base and
+    tests-base directories. Default is 'Makefile.am'.'''
+    if type(makefile) is bytes or type(makefile) is string:
+      if type(makefile) is bytes:
+        makefile = string(makefile, ENCS['system'])
+      self._makefile_ = makefile
+    else:
+      raise(TypeError(
+        'argument must be a string, not %s' % type(makefile).__name__))
+    
+  def resetMakefile(self):
+    '''Reset the name of makefile in automake syntax in the source-base and
+    tests-base directories. Default is 'Makefile.am'.'''
+    self.setMakefile(self._cached_['makefile'])
 

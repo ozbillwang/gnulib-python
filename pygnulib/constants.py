@@ -51,6 +51,7 @@ UTILS = dict() # Utilities
 ENCS = dict() # Encodings
 FILES = dict() # Files
 MODES = dict() # Modes
+TESTS = dict() # Tests
 
 # Set ENCS dictionary
 import __main__ as interpreter
@@ -90,14 +91,19 @@ DIRS['cvs'] = os.path.join(DIRS['root'], 'CVS')
 FILES['changelog'] = os.path.join(DIRS['root'], 'ChangeLog')
 
 # Set MODES dictionary
-MODES['import'] = 0
-MODES['add-import'] = 1
-MODES['remove-import'] = 2
-MODES['update'] = 3
+MODES = \
+{
+  'import': 0,
+  'add-import': 1,
+  'remove-import': 2,
+  'update': 3,
+}
 MODES['verbose-min'] = -2
 MODES['verbose-default'] = 0
 MODES['verbose-max'] = 2
-MODES['tests'] = \
+
+# Set TESTS dictionary
+TESTS = \
 {
   'default': 1,
   'obsolete': 2,
@@ -105,6 +111,7 @@ MODES['tests'] = \
   'longrunning': 8,
   'privileged': 16,
   'unportable': 32,
+  'all': 64,
 }
 
 # You can set AUTOCONFPATH to empty if autoconf 2.57 is already in your PATH

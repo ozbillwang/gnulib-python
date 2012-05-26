@@ -1,3 +1,28 @@
+26 May 2012, Dmitriy Selyutin
+All __init__ method was completely rewritten. It took a long time, but now it
+seems the most part of work here is done. However, module requires deep
+testing, which I'd like to do. Thanks to Bruno and Stefano for hello, m4 and
+grep packages: they were (and are) extremely useful to test all these features
+(especially m4 package).
+A lot of small changes inside other methods of the GNULibImport class was done.
+Now methods are reduced to identical style (sc. set*, get*, reset* methods).
+Some new attributes and methods were added to the GNULibImport class.
+Some shortcuts were made for os.path.* functions os.path.isdir (isdir),
+os.path.isfile (isfile), os.path.join (joinpath), os.path.normpath (normpath),
+os.path.relpath (relpath). That was done to save some space inside script
+(module has a lot of long strings if we use os.path.* functions).
+MODES['tests'] variable was replaced to TESTS dictionary.
+Calculation of relative path now is being done using combination of the
+joinpath and normpath. I've misunderstood relative paths. Now the problem is
+seemed to be solved and user will get correct paths after running functions.
+You can now test some parameters of GNULibImport running gnulib-tool.py from
+directory with a source package, e.g. you may download m4 sources, go to
+directory with them and then type (python ../gnulib-python/gnulib-tool.py).
+That will show almost all variables. You can also change some init values
+inside the gnulib-tool.py script, I've already set auxdir, pobase and docbase.
+Just try it and tell me if there is something wrong. Not all variables were
+changed to work, but some of them (*base, auxdir, libtool, etc. should work).
+
 22 May 2012, Dmitriy Selyutin
 All the class variables of the GNULibImport class which must store relative
 paths now REALLY will store relative paths. They also set these relative paths
