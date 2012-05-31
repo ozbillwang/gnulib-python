@@ -62,11 +62,8 @@ class GNULibError(Exception):
   def __str__(self):
     errors = \
     [ # Begin list of errors
-      "auxdir: configure file does not exist: %s" % self.errinfo,
-      "auxdir: path does not exist or is not a dir: %s" % self.errinfo,
-      "path does not exist or is not a directory: %s" % self.errinfo,
-      "path does not exist or is not a file: %s" % self.errinfo,
-      "file can not be found: %s" % self.errinfo,
+      "configure file does not exist",
+      "missing macro_prefix option",
     ] # Complete list of errors
     if not PYTHON3:
       self.message = (b'[Errno %d] %s' % \
@@ -550,6 +547,7 @@ class GNULibImport(GNULibMode):
     destdir=None,
     localdir=None,
     modcache=False,
+    dryrun=False,
     auxdir=None,
     modules=None,
     avoids=None,
@@ -559,40 +557,21 @@ class GNULibImport(GNULibMode):
     docbase=None,
     testsbase=None,
     tests=None,
-    lgpl=None,
-    podomain=None,
-    dryrun=False,
-    dependencies=None,
-    libtool=None,
     libname=None,
+    lgpl=None,
     makefile=None,
+    libtool=None,
+    dependencies=None,
     macro_prefix=None,  
+    podomain=None,
+    witness_c_macro=None,
     vc_files=None,
   ):
     '''Create GNULibImport instance. There are some variables which can be
-    used in __init__ section. However you can set them later using methods
-    inside GNULibImport class. Here are the types for variables:
-      mode: int; from 0 to 3; required argument.
-      destdir: string; default is current directory.
-      localdir: string; default is cached one.
-      modcache: bool; default is False.
-      verbose: -2 <= int <= 2; default is 0.
-      auxdir: directory relative to destdir where auxiliary build tools are
-        placed; default comes from configure.ac.
-      modules: list of modules which will be imported; default is cached one.
-      avoids: list of modules which will be avoided; default is cached one.
-      sourcebase: string; default is 'lib' or cached one; relative.
-      m4base: string; default is 'm4' or cached one; relative.
-      docbase: string; default is 'doc' or cached one; relative.
-      testsbase: string; default is 'tests' or cached one; relative.
-      tests: list which contains test codes; default is list([1]);
-        you can get all the codes from MODES['tests'] dict.
-      lgpl: abort if modules aren't available under the LGPL; also modify
-        license template from GPL to LGPL; the version number of the LGPL can
-        be specified; the default is currently LGPLv3.
-      macro_prefix: string; the prefix of the macros 'gl_EARLY' and 'gl_INIT';
-        default value of macro_prefix is 'gl' or cached one;
-      makefile: string; default is 'Makefile.am'.'''
+    used in __init__ section. However, you can set them later using methods
+    inside GNULibImport class. See info for each variable in the corresponding
+    set* class. The main variable, mode, must be one of the values of the
+    MODES dict object, which is accessible from this module.'''
     # Initialization from the parent class
     super(GNULibImport, self).__init__\
     ( # Begin __init__ method
@@ -618,26 +597,31 @@ class GNULibImport(GNULibMode):
     self._cached_['m4base'] = normpath(joinpath(self._destdir_, 'm4'))
     self._cached_['docbase'] = normpath(joinpath(self._destdir_, 'doc'))
     self._cached_['testsbase'] = normpath(joinpath(self._destdir_, 'tests'))
-    self._cached_['makefile'] = 'Makefile.am'
-    self._cached_['macro_prefix'] = 'gl'
     self._cached_['libname'] = 'libgnu'
+    self._cached_['libtool'] = False
     self._cached_['lgpl'] = 3
+    self._cached_['makefile'] = 'Makefile.am'
+    self._cached_['dependencies'] = False
+    self._cached_['macro_prefix'] = ''
+    if self.mode == MODES['import']:
+      self._cached_['macro_prefix'] = 'gl'
+    self._cached_['podomain'] = ''
+    self._cached_['witness_c_macro'] = ''
+    self._cached_['vc_files'] = ''
     
     # Get default auxdir and libtool from configure.ac/in
     path = relpath('configure.ac', self._destdir_)
     if not isfile(path):
       path = relpath('configure.in', self._destdir_)
       if not isfile(path):
-        raise(GNULibError(1, repr(path)))
+        raise(GNULibError(1))
     with codecs.open(path, 'rb', 'UTF-8') as file:
       textdata = file.read()
     pattern = compiler(r'^AC_CONFIG_AUX_DIR\((.*?)\)$')
     self._cached_['auxdir'] = \
       relpath(cleaner(pattern.findall(textdata))[0], self._destdir_)
     pattern = compiler(r'A[CM]_PROG_LIBTOOL')
-    self._cached_['libtool'] = bool(pattern.findall(textdata))
-    
-    # Set self._m4base_ for 
+    guessed_libtool = bool(pattern.findall(textdata))
     
     # Set default values for other modes
     if self._mode_ != MODES['import']:
@@ -717,6 +701,8 @@ class GNULibImport(GNULibMode):
       self._cached_['tests'] = list()
       if 'gl_LIBTOOL' in textdata:
         self._cached_['libtool'] = True
+      if tempdict['gl_CONDITIONAL_DEPENDENCIES'] in textdata:
+        self._cached_['dependencies'] = True
       if 'gl_WITH_OBSOLETE' in textdata:
         self._cached_['tests'].append(TESTS['obsolete'])
       if 'gl_WITH_TESTS' in textdata:
@@ -763,6 +749,8 @@ class GNULibImport(GNULibMode):
       ]
       values = cleaner([result.get(key, '') for key in keys])
       tempdict = dict(zip(keys, values))
+      if tempdict['gl_M4_BASE'] != '':
+        self._cached_['m4base'] = tempdict['gl_M4_BASE']
       if tempdict['gl_LOCAL_DIR'] != '':
         self._cached_['localdir'] = tempdict['gl_LOCAL_DIR']
       if tempdict['gl_MODULES'] != '':
@@ -781,14 +769,16 @@ class GNULibImport(GNULibMode):
         self._cached_['libname'] = tempdict['gl_LIB']
       if tempdict['gl_LGPL'] != '':
         self._cached_['lgpl'] = tempdict['gl_LGPL']
+        if self._cached_['lgpl'].isdecimal():
+          self._cached_['lgpl'] = int(self._cached_['lgpl'])
       if tempdict['gl_MAKEFILE_NAME'] != '':
         self._cached_['makefile'] = tempdict['gl_MAKEFILE_NAME']
-      if tempdict['gl_CONDITIONAL_DEPENDENCIES'] != '':
-        self._cached_['dependencies'] = tempdict['gl_CONDITIONAL_DEPENDENCIES']
       if tempdict['gl_MACRO_PREFIX'] != '':
         self._cached_['macro_prefix'] = tempdict['gl_MACRO_PREFIX']
       if tempdict['gl_PO_DOMAIN'] != '':
         self._cached_['podomain'] = tempdict['gl_PO_DOMAIN']
+      if tempdict['gl_WITNESS_C_MACRO'] != '':
+        self._cached_['witness_c_macro'] = tempdict['gl_WITNESS_C_MACRO']
       if tempdict['gl_VC_FILES'] != '':
         self._cached_['vc_files'] = tempdict['gl_VC_FILES']
     
@@ -798,14 +788,6 @@ class GNULibImport(GNULibMode):
     if type(modules) is not NoneType:
       for module in modules:
         self.addModule(module)
-    
-    # libtool => self._libtool_
-    self.resetLibtool()
-    if type(libtool) is bool:
-      if libtool:
-        self.enableLibtool()
-      else: # if not libtool
-        self.disableLibtool()
     
     # tests => self._tests_
     self.resetTestFlags()
@@ -844,9 +826,55 @@ class GNULibImport(GNULibMode):
     if type(libname) is not NoneType:
       self.setLibName(libname)
     
+    # lgpl => self._lgpl_
+    self._lgpl_ = self._cached_['lgpl']
+    if type(lgpl) is not NoneType:
+      self.setLGPL(lgpl)
+    
     # makefile => self._makefile_
     self._makefile_ = self._cached_['makefile']
+    if type(makefile) is not NoneType:
+      self.setMakefile(makefile)
     
+    # libtool => self._libtool_
+    if type(libtool) is NoneType:
+      if self._cached_['m4base']:
+        self._libtool_ = self._cached_['libtool']
+      else: # if not self._cached_['m4base']
+        self._libtool_ = guessed_libtool
+    else: # if type(libtool) is not NoneType
+      if type(libtool) is bool:
+        if libtool:
+          self.enableLibtool()
+        else: # if not libtool
+          self.disableLibtool()
+    
+    # dependencies => self._dependencies_
+    self._dependencies_ = self._cached_['dependencies']
+    if type(dependencies) is bool:
+      if dependencies:
+        self.enableDependencies()
+      else: # if not dependencies
+        self.disableDependencies()
+    
+    # macro_prefix => self._macro_prefix_
+    self._macro_prefix_ = self._cached_['macro_prefix']
+    if type(macro_prefix) is not NoneType:
+      self.setMacroPrefix(macro_prefix)
+    if self._macro_prefix_ == '':
+      raise(GNULibError(2)) # missing macro_prefix option
+    
+    # podomain => self.podomain
+    self._podomain_ = self._cached_['podomain']
+    if type(podomain) is not NoneType:
+      self.setPoDomain(podomain)
+    
+    # witness_c_macro => self._witness_c_macro_
+    self._witness_c_macro_ = self._cached_['witness_c_macro']
+    if type(witness_c_macro) is not NoneType:
+      self.setWitnessCMacro(witness_c_macro)
+    
+    # Print dictionary
     dictionary = self.__dict__
     dictionary.pop('_cached_')
     pprint(dictionary)
@@ -1230,4 +1258,46 @@ class GNULibImport(GNULibMode):
     '''Reset the name of makefile in automake syntax in the source-base and
     tests-base directories. Default is 'Makefile.am'.'''
     self.setMakefile(self._cached_['makefile'])
+    
+  def getPoDomain(self):
+    '''Return the prefix of the i18n domain. Usually use the package name.
+    A suffix '-gnulib' is appended.'''
+    return(self._podomain_)
+    
+  def setPoDomain(self, podomain):
+    '''Specify the prefix of the i18n domain. Usually use the package name.
+    A suffix '-gnulib' is appended.'''
+    if type(podomain) is bytes or type(podomain) is string:
+      if type(podomain) is bytes:
+        podomain = string(podomain, ENCS['system'])
+      self._podomain_ = podomain
+    else:
+      raise(TypeError(
+        'argument must be a string, not %s' % type(podomain).__name__))
+    
+  def resetPoDomain(self):
+    '''Reset the prefix of the i18n domain. Usually use the package name.
+    A suffix '-gnulib' is appended.'''
+    self.setPoDomain(self._cached_['podomain'])
+    
+  def getWitnessCMacro(self):
+    '''Return the C macro that is defined when the sources in this directory
+    are compiled or used.'''
+    return(self._witness_c_macro_)
+    
+  def setWitnessCMacro(self, witness_c_macro):
+    '''Specify the C macro that is defined when the sources in this directory
+    are compiled or used.'''
+    if type(witness_c_macro) is bytes or type(witness_c_macro) is string:
+      if type(witness_c_macro) is bytes:
+        witness_c_macro = string(witness_c_macro, ENCS['system'])
+      self._witness_c_macro_ = witness_c_macro
+    else:
+      raise(TypeError(
+        'argument must be a string, not %s' % type(witness_c_macro).__name__))
+    
+  def resetWitnessCMacro(self):
+    '''Return the C macro that is defined when the sources in this directory
+    are compiled or used.'''
+    self.setWitnessCMacro(self._cached_['witness_c_macro'])
 

@@ -1,3 +1,11 @@
+1 July 2012, Dmitriy Selyutin
+os.getcwd() function now always returns Unicode representation of the current
+working directory. To get current working directory in bytes, use os.getcwdb()
+function. I know that we won't need it always, but I think it is better to get
+current working directory than decode bytes to Unicode.
+Some necessary additions inside GNULibImport module: set*, get*, reset* methods
+for some variables, also some sets inside of the __init__ part.
+
 26 May 2012, Dmitriy Selyutin
 All __init__ method was completely rewritten. It took a long time, but now it
 seems the most part of work here is done. However, module requires deep
