@@ -1,3 +1,14 @@
+5 July 2012, Dmitriy Selyutin
+I wanted to add new __or__ method for string class to use it like x | y, but I
+was failed because Python doesn't support monkey patching for C types. So I had
+to add str1_or_str2 function into constants.py code.
+__init__ part of the GNULibImport mode was rewritten to use __or__ method of
+string for setting variables. I use x.__or__(y) form here instead of x | y,
+because it is more readable.
+It seems I've found to test values of the variables for old gnulib-tool, so
+next week I'll test it. I had to change the original gnulib-tool.sh, however.
+As I see now, some variables are wrong; I need to rewrite them.
+
 1 July 2012, Dmitriy Selyutin
 os.getcwd() function now always returns Unicode representation of the current
 working directory. To get current working directory in bytes, use os.getcwdb()

@@ -4454,7 +4454,22 @@ func_import ()
   # Add the dummy module to the main module list or to the tests-related module
   # list if needed.
   func_modules_add_dummy_separately
-
+  
+  
+  echo "\$auxdir = $auxdir"
+  echo "\$avoids = $avoids"
+  echo "\$dependencies = $dependencies"
+  echo "\$destdir = $destdir"
+  echo "\$docbase = $docbase"
+  echo "\$lgpl = $lgpl"
+  echo "\$libname = $libname"
+  echo "\$libtool = $libtool"
+  echo "\$local_gnulib_dir = $local_gnulib_dir"
+  echo "\$m4base = $m4base"
+  echo "\$macro_prefix = $macro_prefix"
+  
+  exit
+  
   # If --lgpl, verify that the licenses of modules are compatible.
   if test -n "$lgpl"; then
     license_incompatibilities=

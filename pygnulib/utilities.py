@@ -31,6 +31,7 @@ NoneType = type(None)
 compiler = constants.compiler
 cleaner = constants.cleaner
 string = constants.string
+str1_or_str2 = constants.str1_or_str2
 APP = constants.APP
 DIRS = constants.DIRS
 ENCS = constants.ENCS
@@ -590,6 +591,8 @@ class GNULibImport(GNULibMode):
     # For mode == MODES['import'], most of these values are default.
     # For other modes, pygnulib will get them from different files.
     self._cached_ = dict()
+    self._cached_['destdir'] = os.getcwd()
+    self._cached_['localdir'] = ''
     self._cached_['modules'] = list()
     self._cached_['avoids'] = list()
     self._cached_['sourcebase'] = normpath(joinpath(self._destdir_, 'lib'))
@@ -597,13 +600,14 @@ class GNULibImport(GNULibMode):
     self._cached_['m4base'] = normpath(joinpath(self._destdir_, 'm4'))
     self._cached_['docbase'] = normpath(joinpath(self._destdir_, 'doc'))
     self._cached_['testsbase'] = normpath(joinpath(self._destdir_, 'tests'))
+    self._cached_['macro_prefix'] = 'gl'
     self._cached_['libname'] = 'libgnu'
-    self._cached_['libtool'] = False
-    self._cached_['lgpl'] = 3
+    self._cached_['libtool'] = ''
+    self._cached_['lgpl'] = ''
     self._cached_['makefile'] = 'Makefile.am'
-    self._cached_['dependencies'] = False
+    self._cached_['dependencies'] = ''
     self._cached_['macro_prefix'] = ''
-    if self.mode == MODES['import']:
+    if self._mode_ == MODES['import']:
       self._cached_['macro_prefix'] = 'gl'
     self._cached_['podomain'] = ''
     self._cached_['witness_c_macro'] = ''
@@ -701,7 +705,7 @@ class GNULibImport(GNULibMode):
       self._cached_['tests'] = list()
       if 'gl_LIBTOOL' in textdata:
         self._cached_['libtool'] = True
-      if tempdict['gl_CONDITIONAL_DEPENDENCIES'] in textdata:
+      if 'gl_CONDITIONAL_DEPENDENCIES' in textdata:
         self._cached_['dependencies'] = True
       if 'gl_WITH_OBSOLETE' in textdata:
         self._cached_['tests'].append(TESTS['obsolete'])
@@ -749,38 +753,52 @@ class GNULibImport(GNULibMode):
       ]
       values = cleaner([result.get(key, '') for key in keys])
       tempdict = dict(zip(keys, values))
-      if tempdict['gl_M4_BASE'] != '':
-        self._cached_['m4base'] = tempdict['gl_M4_BASE']
-      if tempdict['gl_LOCAL_DIR'] != '':
-        self._cached_['localdir'] = tempdict['gl_LOCAL_DIR']
+      
+      # Define cached modules
       if tempdict['gl_MODULES'] != '':
         self._cached_['modules'] = cleaner(tempdict['gl_MODULES'].split())
+      # Define cached avoids
       if tempdict['gl_AVOID'] != '':
         self._cached_['avoid'] = cleaner(tempdict['gl_AVOID'].split())
-      if tempdict['gl_SOURCE_BASE'] != '':
-        self._cached_['sourcebase'] = tempdict['gl_SOURCE_BASE']
-      if tempdict['gl_PO_BASE'] != '':
-        self._cached_['pobase'] = tempdict['gl_PO_BASE']
-      if tempdict['gl_DOC_BASE'] != '':
-        self._cached_['docbase'] = tempdict['gl_DOC_BASE']
-      if tempdict['gl_TESTS_BASE'] != '':
-        self._cached_['testsbase'] = tempdict['gl_TESTS_BASE']
-      if tempdict['gl_LIB'] != '':
-        self._cached_['libname'] = tempdict['gl_LIB']
-      if tempdict['gl_LGPL'] != '':
-        self._cached_['lgpl'] = tempdict['gl_LGPL']
-        if self._cached_['lgpl'].isdecimal():
-          self._cached_['lgpl'] = int(self._cached_['lgpl'])
-      if tempdict['gl_MAKEFILE_NAME'] != '':
-        self._cached_['makefile'] = tempdict['gl_MAKEFILE_NAME']
-      if tempdict['gl_MACRO_PREFIX'] != '':
-        self._cached_['macro_prefix'] = tempdict['gl_MACRO_PREFIX']
-      if tempdict['gl_PO_DOMAIN'] != '':
-        self._cached_['podomain'] = tempdict['gl_PO_DOMAIN']
-      if tempdict['gl_WITNESS_C_MACRO'] != '':
-        self._cached_['witness_c_macro'] = tempdict['gl_WITNESS_C_MACRO']
-      if tempdict['gl_VC_FILES'] != '':
-        self._cached_['vc_files'] = tempdict['gl_VC_FILES']
+      # Define cached m4base
+      self._cached_['m4base'] = str1_or_str2(
+        tempdict['gl_M4_BASE'], self._cached_['m4base'])
+      # Define cached localdir
+      self._cached_['localdir'] = str1_or_str2(
+        tempdict['gl_LOCAL_DIR'], self._cached_['localdir'])
+      # Define cached sourcebase
+      self._cached_['sourcebase'] = str1_or_str2(
+        tempdict['gl_SOURCE_BASE'], self._cached_['sourcebase'])
+      # Define cached pobase
+      self._cached_['pobase'] = str1_or_str2(
+        tempdict['gl_PO_BASE'], self._cached_['pobase'])
+      # Define cached docbase
+      self._cached_['docbase'] = str1_or_str2(
+        tempdict['gl_DOC_BASE'], self._cached_['docbase'])
+      # Define cached testsbase
+      self._cached_['testsbase'] = str1_or_str2(
+        tempdict['gl_TESTS_BASE'], self._cached_['testsbase'])
+      # Define cached libname
+      self._cached_['libname'] = str1_or_str2(
+        tempdict['gl_LIB'], self._cached_['libname'])
+      # Define cached lgpl
+      self._cached_['lgpl'] = str1_or_str2(
+        tempdict['gl_LGPL'], self._cached_['lgpl'])
+      # Define cached makefile
+      self._cached_['makefile'] = str1_or_str2(
+        tempdict['gl_MAKEFILE_NAME'], self._cached_['makefile'])
+      # Define cached macro_prefix
+      self._cached_['macro_prefix'] = str1_or_str2(
+        self._cached_['macro_prefix'], tempdict['gl_MACRO_PREFIX'])
+      # Define cached podomain
+      self._cached_['podomain'] = str1_or_str2(
+        tempdict['gl_PO_DOMAIN'], self._cached_['podomain'])
+      # Define cached witness_c_macro
+      self._cached_['witness_c_macro'] = str1_or_str2(
+        tempdict['gl_WITNESS_C_MACRO'], self._cached_['witness_c_macro'])
+      # Define cached vc_files
+      self._cached_['vc_files'] = str1_or_str2(
+        tempdict['gl_VC_FILES'], self._cached_['vc_files'])
     
     # modules => self._modules_
     self._modules_ = list()
@@ -874,10 +892,19 @@ class GNULibImport(GNULibMode):
     if type(witness_c_macro) is not NoneType:
       self.setWitnessCMacro(witness_c_macro)
     
-    # Print dictionary
-    dictionary = self.__dict__
-    dictionary.pop('_cached_')
-    pprint(dictionary)
+    # Print variables
+    print('auxdir =', self._auxdir_)
+    print('avoids =', self._avoids_)
+    print('dependencies =', self._dependencies_)
+    print('destdir =', self._destdir_)
+    print('lgpl =', self._lgpl_)
+    print('libname =', self._libname_)
+    print('libtool =', self._libtool_)
+    print('localdir =', self._localdir_)
+    print('m4base =', self._m4base_)
+    print('libname =', self._libname_)
+    print('m4base =', self._m4base_)
+    print('macro_prefix =', self._macro_prefix_)
     
   def setDestDir(self, directory):
     '''Specify the target directory. For --import, this specifies where your

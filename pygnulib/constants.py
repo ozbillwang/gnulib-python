@@ -215,4 +215,16 @@ def cleaner(values):
   values = [True if value == 'true' else value for value in values]
   values = [value.strip() for value in values]
   return(values)
-
+  
+def str1_or_str2(str1, str2):
+  '''str1_or_str2(str1, str2)'''
+  if type(str1) is not string or type(str2) is not string:
+    if not PYTHON3:
+      raise(TypeError(b'each of objects must be a string!'))
+    else: # if PYTHON3
+      raise(TypeError('each of objects must be a string!'))
+  if not str1:
+    return(str2)
+  else: # if str1
+    return(str1)
+  
