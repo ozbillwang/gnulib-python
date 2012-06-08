@@ -1,3 +1,23 @@
+7 July 2012, Dmitriy Selyutin
+Function str1_or_str2 inside constants.py was renamed to str_disj and now
+supports None values as arguments. Function joinpath was added to constants.py
+to join paths and then normalize the result to avoid results like './a/../b',
+getting reults like './b' instead.
+Code of the GNULibImport was fully rewritten (I was needing to have much
+cleaner code, so I decided to completely rewrite it). Now all the attributes
+like self._destdir_, self._auxdir_, etc. were replaced to dict self.args, which
+has the same structure as old self._cached_ dictionary had. This self._cached_
+dictionary was renamed to self.cache.
+All functions which work with module names now have check if module exists using
+self.getAllModules method from the GNULibMode class. setModules, setAvoids and
+setTestFlags methods were rewritten to more short form using addModule, addAvoid
+and enableTestFlag methods.
+GNULibImport.__init__ now takes at least 3 arguments, because m4base argument
+now was done a necessary argument. The default value of m4base is calculated
+inside __main__ part, like in the old gnulib-tool.sh (that was done to have an
+ability to create GNULibImport instance for each directory in m4dirs variable).
+Function cleaner inside constants.py can now receive string as argument.
+
 5 July 2012, Dmitriy Selyutin
 I wanted to add new __or__ method for string class to use it like x | y, but I
 was failed because Python doesn't support monkey patching for C types. So I had

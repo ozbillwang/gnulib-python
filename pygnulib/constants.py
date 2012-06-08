@@ -207,18 +207,37 @@ def compiler(pattern):
     pattern = re.compile(pattern, re.MULTILINE | re.DOTALL)
   return(pattern)
   
-def cleaner(values):
-  '''Clean all items inside listing just not to use complex regex.'''
-  values = [value.replace('[', '').replace(']', '') for value in values]
-  values = [value.replace('(', '').replace(')', '') for value in values]
-  values = [False if value == 'false' else value for value in values]
-  values = [True if value == 'true' else value for value in values]
-  values = [value.strip() for value in values]
-  return(values)
+def cleaner(sequence):
+  '''Clean string or list of strings after using regex.'''
+  if type(sequence) is string:
+    sequence = sequence.replace('[', '')
+    sequence = sequence.replace(']', '')
+  elif type(sequence) is list:
+    sequence = [value.replace('[', '').replace(']', '') for value in sequence]
+    sequence = [value.replace('(', '').replace(')', '') for value in sequence]
+    sequence = [False if value == 'false' else value for value in sequence]
+    sequence = [True if value == 'true' else value for value in sequence]
+    sequence = [value.strip() for value in sequence]
+  return(sequence)
   
-def str1_or_str2(str1, str2):
-  '''str1_or_str2(str1, str2)'''
-  if type(str1) is not string or type(str2) is not string:
+def joinpath(head, *tail):
+  '''joinpath(head, *tail) -> string
+  
+  Join two or more pathname components, inserting '/' as needed. If any
+  component is an absolute path, all previous path components will be
+  discarded. The second argument may be string or list of strings.'''
+  result = os.path.normpath(os.path.join(head, *tail))
+  return(result)
+  
+def str_disj(str1, str2):
+  '''str_disj(str1, str2) -> string
+  
+  Performs logical disjunction operation. Arguments can be strings or None.
+  None value for argument is as if argument equals to empty string.'''
+  if str1 == None: str1 = ''
+  if str2 == None: str2 = ''
+  if type(str1) is not string or \
+  type(str2) is not string:
     if not PYTHON3:
       raise(TypeError(b'each of objects must be a string!'))
     else: # if PYTHON3
@@ -227,4 +246,4 @@ def str1_or_str2(str1, str2):
     return(str2)
   else: # if str1
     return(str1)
-  
+

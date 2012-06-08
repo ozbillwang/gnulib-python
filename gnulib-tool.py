@@ -27,6 +27,7 @@ from __future__ import unicode_literals
 from pygnulib import constants
 from pygnulib import utilities
 from pygnulib import testing
+from pprint import pprint
 APP = constants.APP
 
 
@@ -34,8 +35,7 @@ APP = constants.APP
 # Define global constants
 ################################################################################
 if __name__ == '__main__':
-  gnulibapp = utilities.GNULibImport(1,
-    auxdir='./build-aux1',
-    pobase='../mypobase',
-    docbase='../../doc')
-
+  gnulibimport = utilities.GNULibImport(1, m4base='ltdl/m4')
+  pprint(gnulibimport.cache)
+  
+  
