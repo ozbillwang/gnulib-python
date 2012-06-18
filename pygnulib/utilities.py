@@ -58,7 +58,12 @@ class GNULibError(Exception):
     errno: code of error; used to catch error type
       1: destination directory does not exist: <destdir>
       2: configure file does not exist: <configure.ac>
-      3: selected module does not exist: <module>'''
+      3: selected module does not exist: <module>
+      4: <cache> is expected to contain gl_M4_BASE([m4base])
+      5: missing sourcebase argument
+      6: missing docbase argument
+      7: missing testsbase argument
+      8: missing libname argument'''
     self.errno = errno; self.errinfo = errinfo
     self.args = (self.errno, self.errinfo)
   
@@ -68,6 +73,17 @@ class GNULibError(Exception):
       "destination directory does not exist: %s" % self.errinfo,
       "configure file does not exist: %s" % self.errinfo,
       "selected module does not exist: %s" % self.errinfo,
+      "%s is expected to contain gl_M4_BASE([%s])" % \
+        (os.path.join(self.errinfo, 'gnulib-comp.m4'), self.errinfo),
+      "missing sourcebase argument; cache file doesn't contain it,"
+        +" so you might have to set this argument",
+      "missing docbase argument; you might have to create GNULibImport" \
+        +" instance with mode 0 and docbase argument",
+      "missing testsbase argument; cache file doesn't contain it,"
+        +" so you might have to set this argument"
+      "missing libname argument; cache file doesn't contain it,"
+        +" so you might have to set this argument",
+      "dependencies and testflag 'default' cannot be used together",
     ] # Complete list of errors
     if not PYTHON3:
       self.message = (b'[Errno %d] %s' % \
@@ -652,7 +668,7 @@ class GNULibImport(GNULibMode):
     result = cleaner(pattern.findall(data))[0]
     self.cache['auxdir'] = joinpath(result, self.args['destdir'])
     pattern = compiler(r'A[CM]_PROG_LIBTOOL')
-    self.cache['libtool'] = bool(pattern.findall(data))
+    guessed_libtool = bool(pattern.findall(data))
     
     # Get other cached variables
     path = joinpath(self.args['m4base'], 'gnulib-cache.m4')
@@ -731,12 +747,162 @@ class GNULibImport(GNULibMode):
         self.cache['macro_prefix'] = cleaner(tempdict['gl_MACRO_PREFIX'])
       if tempdict['gl_PO_DOMAIN']:
         self.cache['podomain'] = cleaner(tempdict['gl_PO_DOMAIN'])
-      if tempdict['gl_VC_FILES']:
-        self.cache['vc_files'] = cleaner(tempdict['gl_VC_FILES'])
       if tempdict['gl_WITNESS_C_MACRO']:
         self.cache['witness_c_macro'] = cleaner(tempdict['gl_WITNESS_C_MACRO'])
     
-    
+    if self.mode == MODES['import']:
+      self.setModules(modules)
+    else: # if self.mode != MODES['import']
+      if self.args['m4base'] != self.cache['m4base']:
+        raise(GNULibError(4, m4base))
+      
+      # The self.args['localdir'] defaults to the cached one. Recall that the 
+      # cached one is relative to $destdir, whereas the one we use is relative
+      # to . or absolute.
+      if not self.args['localdir']:
+        if self.cache['localdir']:
+          if isabs(self.args['destdir']):
+            self.args['localdir'] = \
+              joinpath(self.args['destdir'], self.cache['localdir'])
+          else: # if not isabs(self.args['destdir'])
+            if isabs(self.cache['localdir']:
+              self.args['localdir'] = \
+                joinpath(self.args['destdir'], self.cache['localdir'])
+            else: # if not isabs(self.cache['localdir'])
+              self.args['localdir'] = \
+                relpath(joinpath(self.args['destdir'], self.cache['localdir']))
+      
+      # Perform actions with modules. In --add-import, append each given module
+      # to the list of cached modules; in --remove-import, remove each given
+      # module from the list of cached modules; in --update, simply set
+      # self.args['modules'] to its cached version.
+      self.setModules(self.cache['modules'])
+      if self.mode == MODES['add-import']:
+        for module in modules:
+          self.addModule(module)
+      elif self.mode == MODES['remove-import']:
+        for module in modules:
+          self.removeModule(module)
+      
+      # tests => self.args['tests']
+      if tests == None:
+        self.setTestFlags(self.cache['tests'])
+      else: # if tests != None
+        self.setTestFlags(tests)
+      
+      # avoids => self.args['avoids']
+      self.setAvoids(avoids +self.cache['avoids'])
+      
+      # sourcebase => self.args['sourcebase']
+      if sourcebase == None:
+        self.setSourceBase(self.cache['sourcebase'])
+      else: # if sourcebase != None
+        self.setSourceBase(sourcebase)
+      if not self.args['sourcebase']:
+        raise(GNULibError(5, None))
+      
+      # pobase => self.args['pobase']
+      if pobase == None:
+        self.setPoBase(self.cache['pobase'])
+      else: # if pobase != None
+        self.setPoBase(pobase)
+      
+      # docbase => self.args['docbase']
+      if docbase == None:
+        self.setDocBase(self.cache['docbase'])
+      else: # if docbase != None
+        self.setDocBase(docbase)
+      if not self.args['docbase']:
+        raise(GNULibError(6, None))
+      
+      # testsbase => self.args['testsbase']
+      if testsbase == None:
+        self.setDocBase(self.cache['testsbase'])
+      else: # if testsbase != None
+        self.setDocBase(testsbase)
+      if not self.args['testsbase']:
+        raise(GNULibError(7, None))
+      
+      # libname => self.args['libname']
+      if libname == None:
+        self.setLibName(self.cache['libname'])
+      else: # if libname != None
+        self.setLibName(libname)
+      if not self.args['libname']:
+        raise(GNULibError(8, None))
+      
+      # lgpl => self.args['lgpl']
+      if lgpl == None:
+        self.setLGPL(self.cache['lgpl'])
+      else: # if lgpl != None
+        self.setLGPL(lgpl)
+      
+      # makefile => self.args['makefile']
+      if makefile == None:
+        self.setMakefile(self.cache['makefile'])
+      else: # if makefile != None
+        self.setMakefile(makefile)
+      
+      # dependencies => self.args['dependencies']
+      if type(dependencies) is bool and dependencies:
+        self.enableDependencies()
+      elif type(dependencies) is bool and not dependencies:
+        self.disableDependencies()
+      elif type(dependencies) is NoneType and self.cache['dependencies']:
+        self.enableDependencies()
+      elif type(dependencies) is NoneType and not self.cache['dependencies']:
+        self.disableDependencies()
+      
+      # libtool => self.args['libtool']
+      if libtool == None:
+        if 'libtool' in self.cache:
+          if self.cache['libtool']:
+            self.enableLibtool()
+          else: # if not self.cache['libtool']
+            self.disableLibtool()
+        else: # if 'libtool' not in self.cache
+          if guessed_libtool:
+            self.enableLibtool()
+          else: # if not guessed_libtool
+            self.disableLibtool()
+      else: # if libtool != None
+        if libtool:
+          self.enableLibtool()
+        else: # if not libtool
+          self.disableLibtool()
+      
+      # macro_prefix => self.args['macro_prefix']
+      if macro_prefix == None:
+        self.setMacroPrefix(self.cache['macro_prefix'])
+      else: # if macro_prefix != None
+        self.setMacroPrefix(macro_prefix)
+      
+      # podomain => self.args['podomain']
+      if podomain == None:
+        self.setPoDomain(self.cache['podomain'])
+      else: # if podomain != None
+        self.setPoDomain(podomain)
+      
+      # witness_c_macro => self.args['witness_c_macro']
+      if witness_c_macro == None:
+        self.setWitnessCMacro(self.cache['witness_c_macro'])
+      else: # if witness_c_macro != None
+        self.setWitnessCMacro(witness_c_macro)
+      
+      # vc_files => self.args['vc_files']
+      if vc_files == None:
+        if self.cache['vc_files']:
+          self.disableVCFiles()
+        else: # if not self.cache['vc_files']
+          self.enableVCFiles()
+      elif type(vc_files) is bool: # if not vc_files
+        if vc_files:
+          self.enableVCFiles()
+        else: # if not vc_files
+          self.disableVCFiles
+      
+      if dependencies and TESTS['default'] in self.tests:
+        raise(GNULibError(9, None))
     
   def setDestDir(self, directory):
     '''Specify the target directory. For --import, this specifies where your
@@ -1178,4 +1344,23 @@ class GNULibImport(GNULibMode):
     '''Return the C macro that is defined when the sources in this directory
     are compiled or used.'''
     self.setWitnessCMacro(self.cache['witness_c_macro'])
+    
+  def checkVCFiles(self):
+    '''Check if update of the version control files is enabled or disabled.'''
+    return(self.args['vc_files'])
+    
+  def enableVCFiles(self):
+    '''Enable update of the version control files.'''
+    self.args['vc_files'] = True
+    
+  def disableVCFiles(self):
+    '''Disable update of the version control files.'''
+    self.args['vc_files'] = False
+    
+  def resetVCFiles(self):
+    '''Reset update of the version control files.'''
+    if not self.cache['vc_files']:
+      self.disableVCFiles()
+    else: # if self.cache['vc_files']
+      self.enableVCFiles()
 

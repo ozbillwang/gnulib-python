@@ -4455,6 +4455,7 @@ func_import ()
   echo "\$pobase = $pobase"
   echo "\$podomain = $po_domain"
   echo "\$sourcebase = $sourcebase"
+  echo "\$testsbase = $testsbase"
   
   exit
   
