@@ -10,6 +10,7 @@ import re
 import sys
 import locale
 import codecs
+import warnings
 import subprocess as sp
 from . import constants
 from pprint import pprint
@@ -406,15 +407,15 @@ class GNULibMode(object):
     self.cache['verbose'] = 0
     
     # destdir => self.args['destdir']
-    if type(destdir) is NoneType:
+    if destdir == None:
       self.resetDestDir()
-    else: # type(destdir) is not NoneType:
+    else: # if destdir != None
       self.setDestDir(destdir)
     
     # localdir => self.args['localdir']
-    if type(localdir) is NoneType:
+    if localdir == None:
       self.resetLocalDir()
-    else: # if type(localdir) is not NoneType
+    else: # if localdir != None
       self.setLocalDir(localdir)
     
     # modcache => self.args['modcache']
@@ -473,6 +474,27 @@ class GNULibMode(object):
     listing = tuple(listing)
     os.chdir(DIRS['cwd'])
     return(listing)
+    
+  def checkModule(self, module):
+    '''Check if module exists inside gnulib dir or localdir.'''
+    result = bool()
+    if type(module) is bytes or type(module) is string:
+      if type(module) is bytes:
+        module = string(module, ENCS['system'])
+    else: # if module has not bytes or string type
+      raise(TypeError(
+        'argument must be a string, not %s' % type(module).__name__))
+    badnames = ['CVS', 'ChangeLog', 'COPYING', 'README', 'TEMPLATE',
+      'TEMPLATE-EXTENDED', 'TEMPLATE-TESTS']
+    if isfile(joinpath(DIRS['modules'], module)) or \
+    all([ # Begin all(iterable) function
+      self.args['localdir'],
+      isdir(joinpath(self.args['localdir'], 'modules')),
+      isfile(joinpath(self.args['localdir'], 'modules', module))
+    ]): # Close all(iterable) function
+      if module not in badnames:
+        result = True
+    return(result)
     
   def getDestDir(self):
     '''Return the target directory. For --import, this specifies where your
@@ -765,7 +787,7 @@ class GNULibImport(GNULibMode):
             self.args['localdir'] = \
               joinpath(self.args['destdir'], self.cache['localdir'])
           else: # if not isabs(self.args['destdir'])
-            if isabs(self.cache['localdir']:
+            if isabs(self.cache['localdir']):
               self.args['localdir'] = \
                 joinpath(self.args['destdir'], self.cache['localdir'])
             else: # if not isabs(self.cache['localdir'])
@@ -776,6 +798,8 @@ class GNULibImport(GNULibMode):
       # to the list of cached modules; in --remove-import, remove each given
       # module from the list of cached modules; in --update, simply set
       # self.args['modules'] to its cached version.
+      if modules == None:
+        modules = list()
       self.setModules(self.cache['modules'])
       if self.mode == MODES['add-import']:
         for module in modules:
@@ -903,7 +927,7 @@ class GNULibImport(GNULibMode):
       
       if dependencies and TESTS['default'] in self.tests:
         raise(GNULibError(9, None))
-    
+   
   def setDestDir(self, directory):
     '''Specify the target directory. For --import, this specifies where your
     configure.ac can be found. Defaults to current directory.'''
@@ -911,12 +935,10 @@ class GNULibImport(GNULibMode):
     
   def addModule(self, module):
     '''Add the module to the modules list.'''
-    if not hasattr(self, '_available_'):
-      self._available_ = super(GNULibImport, self).getAllModules()
     if type(module) is bytes or type(module) is string:
       if type(module) is bytes:
         module = string(module, ENCS['system'])
-      if module not in self._available_:
+      if not super(GNULibImport, self).checkModule(module):
         raise(GNULibError(3, repr(module)))
       self.args['modules'].append(module)
     else: # if module has not bytes or string type
@@ -925,12 +947,10 @@ class GNULibImport(GNULibMode):
     
   def removeModule(self, module):
     '''Remove the module from the modules list.'''
-    if not hasattr(self, '_available_'):
-      self._available_ = super(GNULibImport, self).getAllModules()
     if type(module) is bytes or type(module) is string:
       if type(module) is bytes:
         module = string(module, ENCS['system'])
-      if module not in self._available_:
+      if not super(GNULibImport, self).checkModule(module):
         raise(GNULibError(3, repr(module)))
       self.args['modules'].remove(module)
     else: # if module has not bytes or string type
@@ -939,7 +959,7 @@ class GNULibImport(GNULibMode):
     
   def getModules(self):
     '''Return the modules list.'''
-    return(self.args['modules'])
+    return(list(self.args['modules']))
     
   def setModules(self, modules):
     '''Set the modules list.'''
@@ -966,12 +986,10 @@ class GNULibImport(GNULibMode):
   def addAvoid(self, module):
     '''Avoid including the given module. Useful if you have code that provides
     equivalent functionality.'''
-    if not hasattr(self, '_available_'):
-      self._available_ = super(GNULibImport, self).getAllModules()
     if type(module) is bytes or type(module) is string:
       if type(module) is bytes:
         module = string(module, ENCS['system'])
-      if module not in self._available_:
+      if not super(GNULibImport, self).checkModule(module):
         raise(GNULibError(3, repr(module)))
       self.args['avoids'].append(module)
     else: # if module has not bytes or string type
@@ -980,12 +998,10 @@ class GNULibImport(GNULibMode):
     
   def removeAvoid(self, module):
     '''Remove the given module from the list of avoided modules.'''
-    if not hasattr(self, '_available_'):
-      self._available_ = super(GNULibImport, self).getAllModules()
     if type(module) is bytes or type(module) is string:
       if type(module) is bytes:
         module = string(module, ENCS['system'])
-      if module not in self._available_:
+      if not super(GNULibImport, self).checkModule(module):
         raise(GNULibError(3, repr(module)))
       self.args['avoids'].remove(module)
     else: # if module has not bytes or string type
@@ -994,7 +1010,7 @@ class GNULibImport(GNULibMode):
     
   def getAvoids(self):
     '''Return the list of the avoided modules.'''
-    return(self.args['avoids'])
+    return(list(self.args['avoids']))
     
   def setAvoids(self, modules):
     '''Specify the modules which will be avoided.'''
@@ -1036,7 +1052,7 @@ class GNULibImport(GNULibMode):
     
   def enableTestFlag(self, flag):
     '''Enable test flag. You can get flags from TESTS variable.'''
-    if flag in TESTS.keys():
+    if flag in TESTS.values():
       if flag not in self.args['tests']:
         self.args['tests'].append(flag)
     else: # if flag is not in TESTS
@@ -1044,17 +1060,21 @@ class GNULibImport(GNULibMode):
     
   def disableTestFlag(self, flag):
     '''Disable test flag. You can get flags from TESTS variable.'''
-    if flag in TESTS.keys():
+    if flag in TESTS.values():
       if flag in self.args['tests']:
         self.args['tests'].remove(flag)
     else: # if flag is not in TESTS
       raise(TypeError('unknown flag: %s' % repr(flag)))
     
+  def getTestFlags(self):
+    '''Return test flags. You can get flags from TESTS variable.'''
+    return(list(self.args['tests']))
+    
   def setTestFlags(self, flags):
-    '''Set test flags. You can get flags from TESTS variable.'''
+    '''Specify test flags. You can get flags from TESTS variable.'''
     if type(flags) is list or type(flags) is tuple:
-      old_flags = self.args['flags']
-      self.args['flags'] = list()
+      old_flags = self.args['tests']
+      self.args['tests'] = list()
       for flag in flags:
         try: # Try to enable each flag
           self.enableTestFlag(flag)

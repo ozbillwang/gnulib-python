@@ -1,3 +1,28 @@
+21 July 2012, Dmitriy Selyutin
+GNULibMode now has method checkModule(module), which tests if the given module
+exists inside '$gnulib$/modules' or '$localdir$/modules' directories. If module
+contains inside one of this directories and the name of the module is not one
+of the special names like CVS, ChangeLog, COPYING, etc., then method returns
+True. Some methods which work with module names now have support for this
+feature. First I wanted to make this method hidden, but then I decided it will
+be better to allow user check module name in his own scripts. In GNULibImport
+addModule, setModules, removeModule, addAvoid, setAvoids, removeAvoid methods
+pygnulib uses combination of super(GNULibImport, self).checkModule(module)
+syntax to call checkModule method from GNULibMode class. If module does not
+exist, these methods generate GNULibError. This is a controversial decision,
+which needs a discussion, because original gnulib-tool.sh generates a warning.
+However, I'll leave it at least until we decide what we want to do (see
+<gnulib-tool-py@gnu.org> archives, I've posted a question about this feature).
+All methods which must return list type variables now return not lists like
+self.args['modules'], but their copies. That was done to avoid situations when
+user gets the original list and then changes it. User shall change such lists
+only using special methods (mainly add* and set* methods).
+Several errors were fixed, getTestFlags() method was added.
+P.S. I've forgotten to say that in the previous commit almost all sections
+where pygnulib does checks for NoneType were changed to checks for x == None.
+Original NoneType checks were left only for case when pygnulib checks for other
+types first.
+
 18 July 2012, Dmitriy Selyutin
 Some necessary additions inside GNULibError and GNULibImport classes. All
 errors are raised in __init__ part of the GNULibImport class; that behaviour

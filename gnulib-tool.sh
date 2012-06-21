@@ -4437,7 +4437,16 @@ func_import ()
   inc_all_direct_tests="$inc_all_tests"
   inc_all_indirect_tests="$inc_all_tests"
 
+  modules="$specified_modules"
+  
+  func_modules_transitive_closure
+  if test $verbose -ge 0; then
+    func_show_module_list
+  fi
+  final_modules="$modules"
+
   # Determine final module list.
+  for module in $final_modules; do echo $module; done
   echo "\$auxdir = $auxdir"
   echo "\$avoids = $avoids"
   echo "\$dependencies = $dependencies"
@@ -4458,13 +4467,6 @@ func_import ()
   echo "\$testsbase = $testsbase"
   
   exit
-  
-  modules="$specified_modules"
-  func_modules_transitive_closure
-  if test $verbose -ge 0; then
-    func_show_module_list
-  fi
-  final_modules="$modules"
 
   # Determine main module list and tests-related module list separately.
   func_modules_transitive_closure_separately

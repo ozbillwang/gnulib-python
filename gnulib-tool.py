@@ -36,6 +36,5 @@ APP = constants.APP
 ################################################################################
 if __name__ == '__main__':
   gnulibimport = utilities.GNULibImport(1, m4base='ltdl/m4')
-  pprint(gnulibimport.cache)
-  
+  print(gnulibimport.getModules())
   
