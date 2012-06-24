@@ -19,3 +19,4 @@ __copyright__ = '2012 Free Software Foundation, Inc.'
 __author__ = 'Dmitriy Selyutin'
 __license__ = 'GNU GPLv3+'
 __version__ = 0.1
+__all__ = ['constants']

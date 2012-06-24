@@ -25,7 +25,7 @@ from __future__ import unicode_literals
 # Define global imports
 ################################################################################
 from pygnulib import constants
-from pygnulib import utilities
+from pygnulib import classes
 from pygnulib import testing
 from pprint import pprint
 APP = constants.APP
@@ -35,6 +35,5 @@ APP = constants.APP
 # Define global constants
 ################################################################################
 if __name__ == '__main__':
-  gnulibimport = utilities.GNULibImport(1, m4base='ltdl/m4')
-  print(gnulibimport.getModules())
+  gnulibimport = classes.GNULibModule('yes')
   

@@ -13,6 +13,7 @@ import sys
 #===============================================================================
 # Define module information
 #===============================================================================
+__all__ = list()
 __author__ = \
 [
   'Bruno Haible',
@@ -61,11 +62,11 @@ TESTS = dict() # Tests
 # Set ENCS dictionary
 import __main__ as interpreter
 if not hasattr(interpreter, '__file__'):
-  ENCS['default'] = sys.stdout.encoding
+  ENCS['default'] = sys.stdout.encoding.upper()
 else: # if hasattr(interpreter, '__file__'):
   ENCS['default'] = 'UTF-8'
-ENCS['system'] = sys.getfilesystemencoding()
-ENCS['shell'] = sys.stdout.encoding
+ENCS['system'] = sys.getfilesystemencoding().upper()
+ENCS['shell'] = sys.stdout.encoding.upper()
 if ENCS['shell'] == None:
   ENCS['shell'] = 'UTF-8'
 
@@ -228,22 +229,6 @@ def joinpath(head, *tail):
   discarded. The second argument may be string or list of strings.'''
   result = os.path.normpath(os.path.join(head, *tail))
   return(result)
-  
-def str_disj(str1, str2):
-  '''str_disj(str1, str2) -> string
-  
-  Performs logical disjunction operation. Arguments can be strings or None.
-  None value for argument is as if argument equals to empty string.'''
-  if str1 == None: str1 = ''
-  if str2 == None: str2 = ''
-  if type(str1) is not string or \
-  type(str2) is not string:
-    if not PYTHON3:
-      raise(TypeError(b'each of objects must be a string!'))
-    else: # if PYTHON3
-      raise(TypeError('each of objects must be a string!'))
-  if not str1:
-    return(str2)
-  else: # if str1
-    return(str1)
 
+
+__all__ += ['APP', 'DIRS', 'FILES', 'MODES', 'UTILS']

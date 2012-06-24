@@ -9,7 +9,7 @@ import os
 import difflib
 import subprocess as sp
 from . import constants
-from . import utilities
+from . import classes
 
 
 #===============================================================================
@@ -46,7 +46,7 @@ def testVersion():
   print('Begin testing of the --version output...')
   print('#' *80)
   result = string()
-  info = utilities.GNULibInfo()
+  info = classes.GNULibInfo()
   message_py = \
     '%s (%s %s) %s\n%s\n%s\n\nWritten by %s.' % \
     (
@@ -78,7 +78,7 @@ def testHelp():
   print('#' *80)
   print('Begin testing of the --help output...')
   print('#' *80)
-  info = utilities.GNULibInfo()
+  info = classes.GNULibInfo()
   message_py = info.help()
   message_sh = sp.check_output([gnulib_bash, '--help'])
   message_sh = string(message_sh, ENCS['shell'])
@@ -104,7 +104,7 @@ def testList():
   print('#' *80)
   print('Begin testing of the --list output...')
   print('#' *80)
-  data = utilities.GNULibImport()
+  data = classes.GNULibImport()
   message_py = list(data.getAvailableModules())
   message_sh = sp.check_output([gnulib_bash, '--list'])
   message_sh = string(message_sh, ENCS['shell'])

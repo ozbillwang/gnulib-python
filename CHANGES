@@ -1,3 +1,28 @@
+24 July 2012, Dmitriy Selyutin
+Module utilities.py was deprecated from pygnulib. Now it is separated into the
+several files, where each file has name according to module which contais
+inside. There is also a new small module classes.py, which is used just to
+store these modules (like all utilities.py module did, but without large code
+inside). All modules can now be imported in two ways: from classes or from
+their source files. Example for GNULibMode:
+>>> from pygnulib.classes import GNULibMode
+>>> from pygnulib.GNULibMode import GNULibMode
+To demonstrate that these ways return the same objects just type:
+>>> from pygnulib.classes import GNULibMode as gl1
+>>> from pygnulib.GNULibError import GNULibMode as gl2
+>>> gl1 == gl2
+This way allows to save a lot of nerve cells when working on modules, since it
+becomes really easy to find the necessary line in each module. That also helps
+maintainability, because it is better to have separated script for each part of
+code if it is possible. I think such model will be now used in every new class
+(except for the case the class is to small or the case when we can restrict
+to function instead of class).
+However, I've found an error for GNULibError class after using such way: it
+cannot show error strings in the way it does before (it shows short form;
+before I've fixed it, it didn't shown errors at all), so I need to reimplement
+it. I'll think how to do it.
+I've also begun a work on the GNULibModule class.
+
 21 July 2012, Dmitriy Selyutin
 GNULibMode now has method checkModule(module), which tests if the given module
 exists inside '$gnulib$/modules' or '$localdir$/modules' directories. If module
