@@ -11,7 +11,7 @@ import locale
 import codecs
 import subprocess as sp
 from . import constants
-from .GNULibError import GNULibError
+from .GLError import GLError
 
 
 #===============================================================================
@@ -26,6 +26,7 @@ __version__ = constants.__version__
 #===============================================================================
 # Define global constants
 #===============================================================================
+PYTHON3 = constants.PYTHON3
 NoneType = type(None)
 APP = constants.APP
 DIRS = constants.DIRS
@@ -46,13 +47,17 @@ relpath = os.path.relpath
 
 
 #===============================================================================
-# Define GNULibInfo class
+# Define GLInfo class
 #===============================================================================
-class GNULibInfo:
+class GLInfo(object):
   '''This class is used to get fromatted information about gnulib-tool.
   This information is mainly used in stdout messages, but can be used
   anywhere else. The return values are not the same as for the module,
   but still depends on them.'''
+  
+  def __repr__(self):
+    '''x.__repr__ <==> repr(x)'''
+    return('<pygnulib.GLInfo>')
   
   def package(self):
     '''Return formatted string which contains name of the package.'''

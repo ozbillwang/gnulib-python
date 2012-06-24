@@ -1,5 +1,5 @@
 #!/usr/bin/python
-'''This script is a part of PyGNULib module for gnulib.'''
+# encoding: UTF-8
 
 from __future__ import unicode_literals
 #===============================================================================
@@ -46,7 +46,7 @@ def testVersion():
   print('Begin testing of the --version output...')
   print('#' *80)
   result = string()
-  info = classes.GNULibInfo()
+  info = classes.GLInfo()
   message_py = \
     '%s (%s %s) %s\n%s\n%s\n\nWritten by %s.' % \
     (
@@ -78,7 +78,7 @@ def testHelp():
   print('#' *80)
   print('Begin testing of the --help output...')
   print('#' *80)
-  info = classes.GNULibInfo()
+  info = classes.GLInfo()
   message_py = info.help()
   message_sh = sp.check_output([gnulib_bash, '--help'])
   message_sh = string(message_sh, ENCS['shell'])
@@ -104,7 +104,7 @@ def testList():
   print('#' *80)
   print('Begin testing of the --list output...')
   print('#' *80)
-  data = classes.GNULibImport()
+  data = classes.GLImport()
   message_py = list(data.getAvailableModules())
   message_sh = sp.check_output([gnulib_bash, '--list'])
   message_sh = string(message_sh, ENCS['shell'])

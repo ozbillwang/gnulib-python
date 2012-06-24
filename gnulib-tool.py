@@ -35,5 +35,6 @@ APP = constants.APP
 # Define global constants
 ################################################################################
 if __name__ == '__main__':
-  gnulibimport = classes.GNULibModule('yes')
-  
+  localdir = './pygnulib/testfiles'
+  modulesystem = classes.GLModuleSystem(localdir=localdir, modcache=False)
+  print(modulesystem.find('pygnulib').module)

@@ -1,3 +1,23 @@
+25 July 2012. Dmitriy Selyutin
+All classes were renamed from GNULib* to GL* to cut their names.
+GLFileSystem class was added and tested using my own generated diff files (not
+real gnulib modules, but I don't think this is necessary at this stage). I
+couldn't find any equivalent to patch (there is only difflib, but it seems it
+doesn't support patching), so we have to use external patch.
+GLModuleSystem class was added. It contains all functionality from functions
+like func_exists_module, func_verify_module, func_verify_tests_module,
+func_verify_nontests_module. This class also has find(module) method, which is
+used to create new GLModule instance based on the name of the module.
+GLModule class was added too. I will implement all its methods later, because
+it has to use modcache variable and I need to think about how to implement this
+better, using the GLModule or in GLModuleSystem class.
+The most common way to get GLModule is to use GLModuleSystem.find(module).
+You can test it a little if you run your gnulib-tool.py inside its directory.
+It will search for module 'pygnulib' with localdir='./pygnulib/testfiles'.
+Script will print the path of the modified 'pygnulib' file. I think you can
+already experiment with the other packages.
+A lot of fixes and changes in the other modules, I can't remind them all.
+
 24 July 2012, Dmitriy Selyutin
 Module utilities.py was deprecated from pygnulib. Now it is separated into the
 several files, where each file has name according to module which contais

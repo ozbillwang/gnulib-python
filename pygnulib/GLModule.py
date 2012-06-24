@@ -1,23 +1,16 @@
 #!/usr/bin/python
 # encoding: UTF-8
 
-from __future__ import unicode_literals
 #===============================================================================
 # Define global imports
 #===============================================================================
 import os
 import re
 import sys
-import locale
 import codecs
 import subprocess as sp
 from . import constants
 from .GLError import GLError
-from .GLMode import GLMode
-from .GLFileSystem import GLFileSystem
-from .GLModuleSystem import GLModuleSystem
-from .GLModule import GLModule
-from .GLImport import GLImport
 
 
 #===============================================================================
@@ -32,6 +25,8 @@ __version__ = constants.__version__
 #===============================================================================
 # Define global constants
 #===============================================================================
+PYTHON3 = constants.PYTHON3
+NoneType = type(None)
 APP = constants.APP
 DIRS = constants.DIRS
 ENCS = constants.ENCS
@@ -50,4 +45,15 @@ normpath = os.path.normpath
 relpath = os.path.relpath
 
 
-__all__ = ['GLError', 'GLMode', 'GLModule', 'GLImport']
+#===============================================================================
+# Define GLModule class
+#===============================================================================
+class GLModule(object):
+  
+  def __init__(self, module, istemp):
+    self.module = module
+    self.istemp = istemp
+    
+  def __repr__(self):
+    '''x.__repr__ <==> repr(x)'''
+    return('<pygnulib.GLModule>')

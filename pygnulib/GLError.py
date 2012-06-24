@@ -25,6 +25,7 @@ __version__ = constants.__version__
 #===============================================================================
 # Define global constants
 #===============================================================================
+PYTHON3 = constants.PYTHON3
 NoneType = type(None)
 APP = constants.APP
 DIRS = constants.DIRS
@@ -45,38 +46,40 @@ relpath = os.path.relpath
 
 
 #===============================================================================
-# Define GNULibError class
+# Define GLError class
 #===============================================================================
-class GNULibError(Exception):
-  '''Exception handler for GNULib classes.'''
-  
+class GLError(Exception):
+  '''Exception handler for GL classes.'''
+
   def __init__(self, errno, errinfo=None):
     '''Each error has following parameters:
     errno: code of error; used to catch error type
       1: destination directory does not exist: <destdir>
       2: configure file does not exist: <configure.ac>
-      3: selected module does not exist: <module>
-      4: <cache> is expected to contain gl_M4_BASE([m4base])
-      5: missing sourcebase argument
-      6: missing docbase argument
-      7: missing testsbase argument
-      8: missing libname argument'''
-    self.args = (errno, errinfo)
-    self.errno = errno
-    self.errinfo = errinfo
+      3: file does not exist in GLFileSystem: <file>
+      4: cannot patch file inside GLFileSystem: <file>
+      5: <cache> is expected to contain gl_M4_BASE([<m4base>])
+      6: missing sourcebase argument
+      7: missing docbase argument
+      8: missing testsbase argument
+      9: missing libname argument
+    errinfo: additional information'''
+    self.errno = errno; self.errinfo = errinfo
     self.args = (self.errno, self.errinfo)
-    
-  def _get_message(self):
+
+  def __repr__(self):
+    errinfo = self.errinfo
     errors = \
     [ # Begin list of errors
-      "destination directory does not exist: %s" % self.errinfo,
-      "configure file does not exist: %s" % self.errinfo,
-      "selected module does not exist: %s" % self.errinfo,
+      "destination directory does not exist: %s" % repr(errinfo),
+      "configure file does not exist: %s" % repr(errinfo),
+      "file does not exist in GLFileSystem: %s" % repr(errinfo),
+      "cannot patch file inside GLFileSystem: %s" % repr(errinfo),
       "%s is expected to contain gl_M4_BASE([%s])" % \
-        (os.path.join(self.errinfo, 'gnulib-comp.m4'), self.errinfo),
+        (repr(os.path.join(errinfo, 'gnulib-comp.m4')), repr(errinfo)),
       "missing sourcebase argument; cache file doesn't contain it,"
         +" so you might have to set this argument",
-      "missing docbase argument; you might have to create GNULibImport" \
+      "missing docbase argument; you might have to create GLImport" \
         +" instance with mode 0 and docbase argument",
       "missing testsbase argument; cache file doesn't contain it,"
         +" so you might have to set this argument"
@@ -85,16 +88,10 @@ class GNULibError(Exception):
       "dependencies and testflag 'default' cannot be used together",
     ] # Complete list of errors
     if not PYTHON3:
-      self._message = (b'[Errno %d] %s' % \
-        (self.errno, self.errors[self.errno -1].encode(ENCS['default'])))
+      self.message = (b'[Errno %d] %s' % \
+        (self.errno, errors[self.errno -1].encode(ENCS['default'])))
     else: # if PYTHON3
-      self._message = ('[Errno %d] %s' % \
-        (self.errno, self.errors[self.errno -1]))
-    return(self._message)
-  def _set_message(self, message): 
-    self._message = message
-  message = property(_get_message, _set_message)
-    
-  #def __str__(self):
-    
+      self.message = ('[Errno %d] %s' % \
+        (self.errno, errors[self.errno -1]))
+    return(self.message)
 

@@ -10,9 +10,10 @@ import sys
 import locale
 import codecs
 import subprocess as sp
+from pprint import pprint
 from . import constants
-from .GNULibError import GNULibError
-from .GNULibMode import GNULibMode
+from .GLError import GLError
+from .GLMode import GLMode
 
 
 #===============================================================================
@@ -27,6 +28,7 @@ __version__ = constants.__version__
 #===============================================================================
 # Define global constants
 #===============================================================================
+PYTHON3 = constants.PYTHON3
 NoneType = type(None)
 APP = constants.APP
 DIRS = constants.DIRS
@@ -47,10 +49,10 @@ relpath = os.path.relpath
 
 
 #===============================================================================
-# Define GNULibImport class
+# Define GLImport class
 #===============================================================================
-class GNULibImport(GNULibMode):
-  '''GNULibImport class is used to provide methods for --import, --add-import
+class GLImport(GLMode):
+  '''GLImport class is used to provide methods for --import, --add-import
   and --remove-import actions.'''
   
   def __init__\
@@ -63,8 +65,8 @@ class GNULibImport(GNULibMode):
     verbose=None,
     dryrun=None,
     auxdir=None,
-    modules=None,
-    avoids=None,
+    modules=list(),
+    avoids=list(),
     sourcebase=None,
     m4base=None,
     pobase=None,
@@ -81,14 +83,14 @@ class GNULibImport(GNULibMode):
     witness_c_macro=None,
     vc_files=None,
   ):
-    '''Create GNULibImport instance. There are some variables which can be used
+    '''Create GLImport instance. There are some variables which can be used
     in __init__ section. However, you can set them later using methods inside
-    GNULibImport class. See info for each variable in the corresponding set*
+    GLImport class. See info for each variable in the corresponding set*
     class. The main variable, mode, must be one of the values of the MODES dict
     object, which is accessible from this module.'''
     
     # Initialization of the object
-    super(GNULibImport, self).__init__\
+    super(GLImport, self).__init__\
     ( # Begin __init__ method
       destdir=destdir,
       localdir=localdir,
@@ -111,8 +113,8 @@ class GNULibImport(GNULibMode):
       'lgpl', 'witness_c_macro',
     ]
     for item in keys:
-      self.args[item] = None
-      self.cache[item] = None
+      self.args[item] = ''
+      self.cache[item] = ''
     self.cache['libname'] = 'libgnu'
     self.cache['modules'] = list(['dummy'])
     self.cache['avoids'] = list()
@@ -139,7 +141,7 @@ class GNULibImport(GNULibMode):
     if not isfile(path):
       path = joinpath(self.args['destdir'], 'configure.in')
       if not isfile(path):
-        raise(GNULibError(2, repr(path)))
+        raise(GLError(2, path))
     with codecs.open(path, 'rb', 'UTF-8') as file:
       data = file.read()
     pattern = compiler(r'^AC_CONFIG_AUX_DIR\((.*?)\)$')
@@ -201,6 +203,8 @@ class GNULibImport(GNULibMode):
         self.cache['lgpl'] = cleaner(tempdict['gl_LGPL'])
         if self.cache['lgpl'].isdecimal():
           self.cache['lgpl'] = int(self.cache['lgpl'])
+      else: # if 'gl_LGPL' not in tempdict
+        self.cache['lgpl'] = False
       if tempdict['gl_LIB']:
         self.cache['libname'] = cleaner(tempdict['gl_LIB'])
       if tempdict['gl_LOCAL_DIR']:
@@ -232,7 +236,7 @@ class GNULibImport(GNULibMode):
       self.setModules(modules)
     else: # if self.mode != MODES['import']
       if self.args['m4base'] != self.cache['m4base']:
-        raise(GNULibError(4, m4base))
+        raise(GLError(4, m4base))
       
       # The self.args['localdir'] defaults to the cached one. Recall that the 
       # cached one is relative to $destdir, whereas the one we use is relative
@@ -254,8 +258,6 @@ class GNULibImport(GNULibMode):
       # to the list of cached modules; in --remove-import, remove each given
       # module from the list of cached modules; in --update, simply set
       # self.args['modules'] to its cached version.
-      if modules == None:
-        modules = list()
       self.setModules(self.cache['modules'])
       if self.mode == MODES['add-import']:
         for module in modules:
@@ -279,7 +281,7 @@ class GNULibImport(GNULibMode):
       else: # if sourcebase != None
         self.setSourceBase(sourcebase)
       if not self.args['sourcebase']:
-        raise(GNULibError(5, None))
+        raise(GLError(5, None))
       
       # pobase => self.args['pobase']
       if pobase == None:
@@ -293,15 +295,15 @@ class GNULibImport(GNULibMode):
       else: # if docbase != None
         self.setDocBase(docbase)
       if not self.args['docbase']:
-        raise(GNULibError(6, None))
+        raise(GLError(6, None))
       
       # testsbase => self.args['testsbase']
       if testsbase == None:
-        self.setDocBase(self.cache['testsbase'])
+        self.setTestsBase(self.cache['testsbase'])
       else: # if testsbase != None
-        self.setDocBase(testsbase)
+        self.setTestsBase(testsbase)
       if not self.args['testsbase']:
-        raise(GNULibError(7, None))
+        raise(GLError(7, None))
       
       # libname => self.args['libname']
       if libname == None:
@@ -309,7 +311,7 @@ class GNULibImport(GNULibMode):
       else: # if libname != None
         self.setLibName(libname)
       if not self.args['libname']:
-        raise(GNULibError(8, None))
+        raise(GLError(8, None))
       
       # lgpl => self.args['lgpl']
       if lgpl == None:
@@ -382,15 +384,21 @@ class GNULibImport(GNULibMode):
           self.disableVCFiles
       
       if dependencies and TESTS['default'] in self.tests:
-        raise(GNULibError(9, None))
+        raise(GLError(9, None))
+    
+    pprint(self.args)
+    
+  def __repr__(self):
+    '''x.__repr__ <==> repr(x)'''
+    return('<pygnulib.GLImport>')
     
   def addModule(self, module):
     '''Add the module to the modules list.'''
     if type(module) is bytes or type(module) is string:
       if type(module) is bytes:
         module = string(module, ENCS['system'])
-      if not super(GNULibImport, self).checkModule(module):
-        raise(GNULibError(3, repr(module)))
+      if not super(GLImport, self).checkModule(module):
+        raise(GLError(3, module))
       self.args['modules'].append(module)
     else: # if module has not bytes or string type
       raise(TypeError(
@@ -401,8 +409,8 @@ class GNULibImport(GNULibMode):
     if type(module) is bytes or type(module) is string:
       if type(module) is bytes:
         module = string(module, ENCS['system'])
-      if not super(GNULibImport, self).checkModule(module):
-        raise(GNULibError(3, repr(module)))
+      if not super(GLImport, self).checkModule(module):
+        raise(GLError(3, module))
       self.args['modules'].remove(module)
     else: # if module has not bytes or string type
       raise(TypeError(
@@ -423,9 +431,9 @@ class GNULibImport(GNULibMode):
         except TypeError as error:
           self.args['modules'] = old_modules
           raise(TypeError('each module must be a string'))
-        except GNULibError as error:
+        except GLError as error:
           self.args['modules'] = old_modules
-          raise(GNULibError(error.errno, error.errinfo))
+          raise(GLError(error.errno, error.errinfo))
     else: # if type of modules is not list or tuple
       raise(TypeError(
         'modules must be a list or a tuple, not %s' % type(modules).__name__))
@@ -440,8 +448,8 @@ class GNULibImport(GNULibMode):
     if type(module) is bytes or type(module) is string:
       if type(module) is bytes:
         module = string(module, ENCS['system'])
-      if not super(GNULibImport, self).checkModule(module):
-        raise(GNULibError(3, repr(module)))
+      if not super(GLImport, self).checkModule(module):
+        raise(GLError(3, module))
       self.args['avoids'].append(module)
     else: # if module has not bytes or string type
       raise(TypeError(
@@ -452,8 +460,8 @@ class GNULibImport(GNULibMode):
     if type(module) is bytes or type(module) is string:
       if type(module) is bytes:
         module = string(module, ENCS['system'])
-      if not super(GNULibImport, self).checkModule(module):
-        raise(GNULibError(3, repr(module)))
+      if not super(GLImport, self).checkModule(module):
+        raise(GLError(3, module))
       self.args['avoids'].remove(module)
     else: # if module has not bytes or string type
       raise(TypeError(
@@ -474,9 +482,9 @@ class GNULibImport(GNULibMode):
         except TypeError as error:
           self.args['avoids'] = old_avoids
           raise(TypeError('each module must be a string'))
-        except GNULibError as error:
+        except GLError as error:
           self.args['avoids'] = old_avoids
-          raise(GNULibError(error.errno, error.errinfo))
+          raise(GLError(error.errno, error.errinfo))
     else: # if type of modules is not list or tuple
       raise(TypeError(
         'modules must be a list or a tuple, not %s' % type(modules).__name__))

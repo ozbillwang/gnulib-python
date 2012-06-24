@@ -10,7 +10,7 @@ import sys
 import codecs
 import subprocess as sp
 from . import constants
-from .GNULibError import GNULibError
+from .GLError import GLError
 
 
 #===============================================================================
@@ -25,6 +25,7 @@ __version__ = constants.__version__
 #===============================================================================
 # Define global constants
 #===============================================================================
+PYTHON3 = constants.PYTHON3
 NoneType = type(None)
 APP = constants.APP
 DIRS = constants.DIRS
@@ -45,12 +46,12 @@ relpath = os.path.relpath
 
 
 #===============================================================================
-# Define GNULibMode class
+# Define GLMode class
 #===============================================================================
-class GNULibMode(object):
-  '''GNULibMode class is used to create basic mode instance. All the methods
-  which can be applied to GNULibMode can be applied to any other mode.
-  GNULibMode is the parent for all the other modes, so every new mode must be
+class GLMode(object):
+  '''GLMode class is used to create basic mode instance. All the methods
+  which can be applied to GLMode can be applied to any other mode.
+  GLMode is the parent for all the other modes, so every new mode must be
   based on this class.'''
   
   def __init__\
@@ -61,9 +62,9 @@ class GNULibMode(object):
     verbose=None,
     modcache=None,
   ):
-    '''Create GNULibImport instance. There are some variables which can be
+    '''Create GLImport instance. There are some variables which can be
     used in __init__ section. However, you can set them later using methods
-    inside GNULibImport class. See info for each variable in the corresponding
+    inside GLImport class. See info for each variable in the corresponding
     set* class. The main variable, mode, must be one of the values of the
     MODES dict object, which is accessible from this module.'''
     
@@ -102,47 +103,9 @@ class GNULibMode(object):
     elif type(verbose) is int:
       self.setVerbosity(verbose)
     
-  def getAllModules(self):
-    '''Return the available module names as tuple. We could use a combination
-    of os.walk() function and re module. However, it takes too much time to
-    complete, so this version uses subprocess to run shell commands.'''
-    args1 = ['find', 'modules', '-type', 'f', '-print']
-    args2 = \
-    [
-      'sed',
-      '-e', r's,^modules/,,',
-      '-e', r'/^CVS\//d',
-      '-e', r'/\/CVS\//d',
-      '-e', r'/^ChangeLog$/d',
-      '-e', r'/\/ChangeLog$/d',
-      '-e', r'/^COPYING$/d',
-      '-e', r'/\/COPYING$/d',
-      '-e', r'/^README$/d',
-      '-e', r'/\/README$/d',
-      '-e', r'/^TEMPLATE$/d',
-      '-e', r'/^TEMPLATE-EXTENDED$/d',
-      '-e', r'/^TEMPLATE-TESTS$/d',
-      '-e', r'/^\..*/d',
-      '-e', r'/~$/d',
-      '-e', r'/-tests$/d',
-    ]
-    localdir = self.args['localdir']
-    if localdir and isdir(joinpath(localdir, 'modules')):
-      os.chdir(self.args['localdir'])
-      args2.append('-e')
-      args2.append(r's,\.diff$,,')
-    proc1 = sp.Popen(args1, stdout=sp.PIPE)
-    proc2 = sp.Popen(args2, stdin=proc1.stdout, stdout=sp.PIPE)
-    proc1.stdout.close() # Close the first shell pipe
-    result = string(proc2.stdout.read(), ENCS['shell'])
-    if result[-2:] == '\r\n':
-      result = result.replace('\r\n', '\n')
-    if result[-1] == '\n':
-      result = result[:-1]
-    listing = result.splitlines(); listing.sort()
-    listing = tuple(listing)
-    os.chdir(DIRS['cwd'])
-    return(listing)
+  def __repr__(self):
+    '''x.__repr__ <==> repr(x)'''
+    return('<pygnulib.GLMode>')
     
   def checkModule(self, module):
     '''Check if module exists inside gnulib dir or localdir.'''
@@ -177,7 +140,7 @@ class GNULibMode(object):
       if type(directory) is bytes:
         directory = string(directory, ENCS['system'])
       if not isdir(directory):
-        raise(GNULibError(1, repr(directory)))
+        raise(GLError(1, directory))
       self.args['destdir'] = directory
     else:
       raise(TypeError(

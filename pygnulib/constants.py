@@ -1,5 +1,5 @@
 #!/usr/bin/python
-'''This script is a part of PyGNULib module for gnulib.'''
+# encoding: UTF-8
 
 from __future__ import unicode_literals
 #===============================================================================
