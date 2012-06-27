@@ -1,3 +1,13 @@
+27 July 2012, Dmitriy Selyutin
+GLModule and GLModuleSystem were merged inside the GLModuleSystem, because they
+are deeply connected with each other and mainly because it is not possible to
+realize together 'from .GLModuleSystem import GLModuleSystem' inside GLModule
+and 'from .GLModule import GLModule' inside GLModuleSystem. So now it is one
+module. It seems it is the first reason to use imports from classes.
+Simple test was added to show how GLModule works and demonstrate its speed.
+TODO: Ask whether show warning about missed license or raise GLError.
+TODO: Implement functions to work with Makefile.am.
+
 25 July 2012. Dmitriy Selyutin
 All classes were renamed from GNULib* to GL* to cut their names.
 GLFileSystem class was added and tested using my own generated diff files (not

@@ -35,6 +35,80 @@ APP = constants.APP
 # Define global constants
 ################################################################################
 if __name__ == '__main__':
+  import time
+  import codecs
+  with codecs.open('modules.txt', 'rb', 'UTF-8') as file:
+    modules = file.read().split()
   localdir = './pygnulib/testfiles'
   modulesystem = classes.GLModuleSystem(localdir=localdir, modcache=False)
-  print(modulesystem.find('pygnulib').module)
+  # NOTE: It seems we don't need modcache argument since we are all agree that
+  # modules will now use caching by default. Try it, it allows to access the
+  # methods of GLModule at least twice faster!
+  # NOTE:this testing doesn't tests situation when we patch a lot of files
+  # from localdir. There is only one file, pygnulib module.
+  modules = [modulesystem.find(module) for module in modules]
+  
+  # First test: print all informtion about module #275
+  print('=' *80)
+  print('FIRST TEST: SHOW INFORMATION')
+  print('=' *80)
+  module = modules[275]
+  print('Name:\t\t%s'         % repr(module.getName()))
+  print('Patched:\t%s'        % repr(module.isPatched()))
+  print('Tests:\t\t%s'        % repr(module.isTests()))
+  print('Description:\t%s'    % repr(module.getDescription()))
+  print('Comment:\t%s'        % repr(module.getComment()))
+  print('Status:\t\t%s'       % repr(module.getStatus()))
+  print('Notice:\t\t%s'       % repr(module.getNotice()))
+  print('Applicability:\t%s'  % repr(module.getApplicability()))
+  print('Files:\t\t%s'        % repr(module.getFiles()))
+  print('Dependencies:\t%s'   % repr(module.getDependencies()))
+  print('Autoconf_Early:\t%s' % repr(module.getAutoconf_Early()))
+  print('Autoconf:\t%s'       % repr(module.getAutoconf()))
+  print('Include:\t%s'        % repr(module.getInclude()))
+  print('Link:\t\t%s'         % repr(module.getLink()))
+  print('Maintainer:\t%s'     % repr(module.getMaintainer()))
+  print('')
+  
+  # Second test: check how much time it takes to get values for every module
+  # for the first time (we want to compare it with cache)
+  print('=' *80)
+  print('SECOND TEST: CREATION OF THE CACHE')
+  print('=' *80)
+  start_time = time.time()
+  for module in modules:
+    module.getName()
+    module.getDescription()
+    module.getStatus()
+    module.getAutoconf_Early()
+    module.getAutoconf()
+    module.getFiles()
+    module.getDependencies()
+    module.getInclude()
+    module.getLink()
+    module.getMaintainer()
+  finish_time = time.time() -start_time
+  print('TIME WAS NEEDED: %s' % finish_time)
+  print('')
+  
+  # Third test: check how much time it takes to get cached values for every
+  # module when we run cycle for the second time
+  start_time = time.time()
+  print('=' *80)
+  print('THIRD TEST: ACCESS TO THE CACHE')
+  print('=' *80)
+  start_time = time.time()
+  for module in modules:
+    module.getName()
+    module.getDescription()
+    module.getStatus()
+    module.getAutoconf_Early()
+    module.getAutoconf()
+    module.getFiles()
+    module.getDependencies()
+    module.getInclude()
+    module.getLink()
+    module.getMaintainer()
+  finish_time = time.time() -start_time
+  print('TIME WAS NEEDED: %s' % finish_time)
+  print('')

@@ -4248,6 +4248,9 @@ func_import ()
     fi
   fi
 
+  func_get_dependencies "$module"
+  exit
+
   if test "$mode" = import; then
     # In 'import' mode, the new set of specified modules overrides the cached
     # set of modules. Ignore the cached settings.

@@ -67,7 +67,7 @@ class GLFileSystem(object):
       self.args['localdir'] = localdir
     else: # if localdir has not bytes or string type
       raise(TypeError(
-        'localdir must be a string, not %s' % type(module).__name__))
+        'localdir must be a string, not %s' % type(localdir).__name__))
     
   def __repr__(self):
     '''x.__repr__ <==> repr(x)'''
@@ -89,7 +89,8 @@ class GLFileSystem(object):
     path_gnulib = joinpath(DIRS['root'], name)
     path_local = joinpath(self.args['localdir'], name)
     path_diff = joinpath(self.args['localdir'], '%s.diff' % name)
-    path_temp = tempfile.mktemp()
+    path_temp = joinpath(tempfile.mkdtemp(), name)
+    os.makedirs(os.path.dirname(path_temp))
     if self.args['localdir'] and isfile(path_local):
       result = (path_local, False)
     else: # if path_local does not exist
