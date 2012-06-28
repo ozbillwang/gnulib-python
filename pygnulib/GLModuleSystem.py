@@ -50,9 +50,10 @@ relpath = os.path.relpath
 # Define GLModuleSystem class
 #===============================================================================
 class GLModuleSystem(object):
-  '''GLModuleSystem is used to operate with module names.'''
+  '''GLModuleSystem is used to operate with module system using dynamic
+  searching and patching.'''
   
-  def __init__(self, localdir, modcache):
+  def __init__(self, localdir):
     '''Create new GLModuleSystem instance. The necessary arguments are localdir
     and modcache, which are the same as usual. Some functions use GLFileSystem
     class to look up a file in localdir or gnulib directories, or combines it
@@ -65,11 +66,6 @@ class GLModuleSystem(object):
     else: # if localdir has not bytes or string type
       raise(TypeError(
         'argument must be a string, not %s' % type(module).__name__))
-    if type(modcache) is bool:
-      self.args['modcache'] = modcache
-    else: # if type(modcache) is not bool
-      raise(TypeError(
-        'argument must be a bool, not %s' % type(module).__name__))
     
   def __repr__(self):
     '''x.__repr__ <==> repr(x)'''
@@ -185,6 +181,26 @@ class GLModule(object):
     self.args['patched'] = patched
     with codecs.open(module, 'rb', 'UTF-8') as file:
       self.content = file.read()
+    
+  def __eq__(self, module):
+    '''x.__eq__(y) <==> x==y'''
+    if type(module) is not GLModule:
+      raise(TypeError(
+        'cannot compare GLModule with %s' % type(module).__name__))
+    result = bool()
+    if self.args['module'] == module.args['module']:
+      result = True
+    return(result)
+    
+  def __ne__(self, module):
+    '''x.__ne__(y) <==> x!=y'''
+    if type(module) is not GLModule:
+      raise(TypeError(
+        'cannot compare GLModule with %s' % type(module).__name__))
+    result = bool()
+    if self.args['module'] != module.args['module']:
+      result = True
+    return(result)
     
   def __repr__(self):
     '''x.__repr__ <==> repr(x)'''

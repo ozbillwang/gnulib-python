@@ -1,3 +1,13 @@
+28 July 2012, Dmitriy Selyutin
+In GLImport class dryrun argument was deprecated from __init__ method. All
+methods which were used to enable/disable dryrun mode were deprecated too. Now
+users can enable/disabe dryrun in the GLImport.execute method. m4base is now an
+argument which must be set always when users create GLImport instance.
+Some code was added to gnulib-tool.py. I think I will now write command-line
+processing part, because I have some questions about code which must be in
+other modules. So I'll do what I can now to let the work go on.
+Some small fixes in other parts of code.
+
 27 July 2012, Dmitriy Selyutin
 GLModule and GLModuleSystem were merged inside the GLModuleSystem, because they
 are deeply connected with each other and mainly because it is not possible to

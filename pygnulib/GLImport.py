@@ -14,6 +14,8 @@ from pprint import pprint
 from . import constants
 from .GLError import GLError
 from .GLMode import GLMode
+from .GLModuleSystem import GLModule
+from .GLModuleSystem import GLModuleSystem
 
 
 #===============================================================================
@@ -59,16 +61,15 @@ class GLImport(GLMode):
   (
     self,
     mode,
+    m4base,
     destdir=None,
     localdir=None,
     modcache=None,
     verbose=None,
-    dryrun=None,
     auxdir=None,
-    modules=list(),
-    avoids=list(),
+    modules=None,
+    avoids=None,
     sourcebase=None,
-    m4base=None,
     pobase=None,
     docbase=None,
     testsbase=None,
@@ -78,7 +79,7 @@ class GLImport(GLMode):
     makefile=None,
     libtool=None,
     dependencies=None,
-    macro_prefix=None,  
+    macro_prefix=None,
     podomain=None,
     witness_c_macro=None,
     vc_files=None,
@@ -104,22 +105,30 @@ class GLImport(GLMode):
       raise(TypeError(
         "mode must be 0 <= mode <= 3, not %s" % repr(mode)))
     
-    # Initialize some dict values
+    # Initialize some values
+    if modules == None:
+      modules = list()
+    if avoids == None:
+      avoids = list()
     keys = \
     [
-      'dryrun', 'auxdir', 'modules', 'avoids', 'sourcebase', 'm4base',
-      'pobase', 'docbase', 'testsbase', 'tests', 'libname', 'makefile',
-      'libtool', 'dependencies', 'macro_prefix', 'podomain', 'vc_files',
-      'lgpl', 'witness_c_macro',
+      'auxdir', 'modules', 'avoids', 'sourcebase', 'm4base', 'pobase',
+      'docbase', 'testsbase', 'tests', 'libname', 'makefile', 'libtool',
+      'dependencies', 'macro_prefix', 'podomain', 'vc_files', 'lgpl',
+      'witness_c_macro',
     ]
     for item in keys:
       self.args[item] = ''
       self.cache[item] = ''
     self.cache['libname'] = 'libgnu'
-    self.cache['modules'] = list(['dummy'])
+    self.cache['modules'] = list()
     self.cache['avoids'] = list()
     self.cache['flags'] = list()
     self.cache['tests'] = list()
+    self.cache['lgpl'] = False
+    
+    # Set m4base as always needed argument
+    self.setM4Base(m4base)
     
     # mode => self.mode
     if type(mode) is int and \
@@ -128,12 +137,6 @@ class GLImport(GLMode):
     else: # if mode is not int or is not 0-3
       raise(TypeError(
         "mode must be 0 <= mode <= 3, not %s" % repr(mode)))
-    
-    # m4base => self.args['m4base']
-    if type(m4base) is NoneType:
-      self.resetM4Base()
-    else: # if type(m4base) is not NoneType
-      self.setM4Base(m4base)
     
     # Get cached auxdir and libtool from configure.ac/in
     self.cache['auxdir'] = '.'
@@ -386,11 +389,17 @@ class GLImport(GLMode):
       if dependencies and TESTS['default'] in self.tests:
         raise(GLError(9, None))
     
-    pprint(self.args)
-    
   def __repr__(self):
     '''x.__repr__ <==> repr(x)'''
     return('<pygnulib.GLImport>')
+    
+  def execute(self, dryrun=False):
+    '''Run the GLImport and perform necessary actions. If dryrun is True, then
+    only print what would have been done.'''
+    pprint(self.__dict__['args'])
+    modulesystem = GLModuleSystem(self.args['localdir'])
+    modules = [modulesystem.find(module) for module in self.args['modules']]
+    
     
   def addModule(self, module):
     '''Add the module to the modules list.'''
@@ -417,7 +426,9 @@ class GLImport(GLMode):
         'argument must be a string, not %s' % type(module).__name__))
     
   def getModules(self):
-    '''Return the modules list.'''
+    '''GLImport.getModules() -> list
+    
+    Return the modules list.'''
     return(list(self.args['modules']))
     
   def setModules(self, modules):
@@ -492,22 +503,6 @@ class GLImport(GLMode):
   def resetAvoids(self):
     '''Reset the list of the avoided modules.'''
     self.setAvoids(self.cache['avoids'])
-    
-  def checkDryRun(self):
-    '''Check if user enabled dry run mode.'''
-    return(self.args['dryrun'])
-    
-  def enableDryRun(self):
-    '''Only print what would have been done.'''
-    self.args['dryrun'] = True
-    
-  def disableDryRun(self):
-    '''Really execute what shall be done.'''
-    self.args['dryrun'] = False
-    
-  def resetDryRun(self):
-    '''Reset default dryrun status.'''
-    self.args['dryrun'] = self.cache['dryrun']
     
   def enableTestFlag(self, flag):
     '''Enable test flag. You can get flags from TESTS variable.'''
@@ -734,7 +729,7 @@ class GLImport(GLMode):
         self.args['lgpl'] = lgpl
     else: # if lgpl is not False, 2 or 3
       raise(TypeError(
-        "invalid LGPL version number: %s" % repr(lgpl)))
+        "invalid LGPL version: %s" % repr(lgpl)))
     
   def resetLGPL(self):
     '''Disable abort if modules aren't available under the LGPL.'''

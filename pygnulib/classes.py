@@ -13,11 +13,11 @@ import codecs
 import subprocess as sp
 from . import constants
 from .GLError import GLError
+from .GLInfo import GLInfo
 from .GLMode import GLMode
 from .GLFileSystem import GLFileSystem
 from .GLModuleSystem import GLModule
 from .GLModuleSystem import GLModuleSystem
-from .GLModule import GLModule
 from .GLImport import GLImport
 
 
