@@ -54,11 +54,11 @@ class GLError(Exception):
   def __init__(self, errno, errinfo=None):
     '''Each error has following parameters:
     errno: code of error; used to catch error type
-      1: destination directory does not exist: <destdir>
-      2: configure file does not exist: <configure.ac>
-      3: file does not exist in GLFileSystem: <file>
-      4: cannot patch file inside GLFileSystem: <file>
-      5: <cache> is expected to contain gl_M4_BASE([<m4base>])
+      1: file does not exist in GLFileSystem: <file>
+      2: cannot patch file inside GLFileSystem: <file>
+      3: configure file does not exist: <configure.ac>
+      4: minimum supported autoconf version is 2.59, not <version>
+      5: <gnulib-comp.m4> is expected to contain gl_M4_BASE([<m4base>])
       6: missing sourcebase argument
       7: missing docbase argument
       8: missing testsbase argument
@@ -71,10 +71,10 @@ class GLError(Exception):
     errinfo = self.errinfo
     errors = \
     [ # Begin list of errors
-      "destination directory does not exist: %s" % repr(errinfo),
-      "configure file does not exist: %s" % repr(errinfo),
       "file does not exist in GLFileSystem: %s" % repr(errinfo),
       "cannot patch file inside GLFileSystem: %s" % repr(errinfo),
+      "configure file does not exist: %s" % repr(errinfo),
+      "minimum supported autoconf version is 2.59, not %s" % repr(errinfo),
       "%s is expected to contain gl_M4_BASE([%s])" % \
         (repr(os.path.join(errinfo, 'gnulib-comp.m4')), repr(errinfo)),
       "missing sourcebase argument; cache file doesn't contain it,"

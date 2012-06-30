@@ -144,7 +144,7 @@ class GLImport(GLMode):
     if not isfile(path):
       path = joinpath(self.args['destdir'], 'configure.in')
       if not isfile(path):
-        raise(GLError(2, path))
+        raise(GLError(3, path))
     with codecs.open(path, 'rb', 'UTF-8') as file:
       data = file.read()
     pattern = compiler(r'^AC_CONFIG_AUX_DIR\((.*?)\)$')
@@ -152,6 +152,17 @@ class GLImport(GLMode):
     self.cache['auxdir'] = joinpath(result, self.args['destdir'])
     pattern = compiler(r'A[CM]_PROG_LIBTOOL')
     guessed_libtool = bool(pattern.findall(data))
+    
+    # Guess autoconf version
+    pattern = compiler('.*AC_PREREQ\((.*?)\)$')
+    versions = cleaner(pattern.findall(data))
+    if not versions:
+      version = 2.59
+    else: # if versions
+      version = sorted(set([float(version) for version in versions]))[-1]
+    if version < 2.59:
+      raise(GLError(4, version))
+    self.autoconf_version = version
     
     # Get other cached variables
     path = joinpath(self.args['m4base'], 'gnulib-cache.m4')
@@ -178,22 +189,22 @@ class GLImport(GLMode):
         self.cache['libtool'] = True
         data = data.replace('gl_LIBTOOL', '')
       if 'gl_WITH_TESTS' in data:
-        self.cache['tests'].append(TESTS['default'])
+        self.cache['tests'].append(TESTS['tests'])
         data = data.replace('gl_WITH_TESTS', '')
       if 'gl_WITH_OBSOLETE' in data:
         self.cache['tests'].append(TESTS['obsolete'])
         data = data.replace('gl_WITH_OBSOLETE', '')
       if 'gl_WITH_CXX_TESTS' in data:
-        self.cache['tests'].append(TESTS['cxx'])
+        self.cache['tests'].append(TESTS['c++-test'])
         data = data.replace('gl_WITH_CXX_TESTS', '')
       if 'gl_WITH_LONGRUNNING_TESTS' in data:
-        self.cache['tests'].append(TESTS['longrunning'])
+        self.cache['tests'].append(TESTS['longrunning-test'])
         data = data.replace('gl_WITH_LONGRUNNING_TESTS', '')
       if 'gl_WITH_PRIVILEGED_TESTS' in data:
-        self.cache['tests'].append(TESTS['privileged'])
+        self.cache['tests'].append(TESTS['privileged-test'])
         data = data.replace('gl_WITH_PRIVILEGED_TESTS', '')
       if 'gl_WITH_UNPORTABLE_TESTS' in data:
-        self.cache['tests'].append(TESTS['unportable'])
+        self.cache['tests'].append(TESTS['unportable-test'])
         data = data.replace('gl_WITH_UNPORTABLE_TESTS', '')
       if 'gl_WITH_ALL_TESTS' in data:
         self.cache['tests'].append(TESTS['all'])
@@ -236,10 +247,12 @@ class GLImport(GLMode):
         self.cache['witness_c_macro'] = cleaner(tempdict['gl_WITNESS_C_MACRO'])
     
     if self.mode == MODES['import']:
+      self.modulesystem = GLModuleSystem()
       self.setModules(modules)
+    
     else: # if self.mode != MODES['import']
       if self.args['m4base'] != self.cache['m4base']:
-        raise(GLError(4, m4base))
+        raise(GLError(5, m4base))
       
       # The self.args['localdir'] defaults to the cached one. Recall that the 
       # cached one is relative to $destdir, whereas the one we use is relative
@@ -256,6 +269,7 @@ class GLImport(GLMode):
             else: # if not isabs(self.cache['localdir'])
               self.args['localdir'] = \
                 relpath(joinpath(self.args['destdir'], self.cache['localdir']))
+      self.modulesystem = GLModuleSystem(self.args['localdir'])
       
       # Perform actions with modules. In --add-import, append each given module
       # to the list of cached modules; in --remove-import, remove each given
@@ -284,7 +298,7 @@ class GLImport(GLMode):
       else: # if sourcebase != None
         self.setSourceBase(sourcebase)
       if not self.args['sourcebase']:
-        raise(GLError(5, None))
+        raise(GLError(6, None))
       
       # pobase => self.args['pobase']
       if pobase == None:
@@ -298,7 +312,7 @@ class GLImport(GLMode):
       else: # if docbase != None
         self.setDocBase(docbase)
       if not self.args['docbase']:
-        raise(GLError(6, None))
+        raise(GLError(7, None))
       
       # testsbase => self.args['testsbase']
       if testsbase == None:
@@ -306,7 +320,7 @@ class GLImport(GLMode):
       else: # if testsbase != None
         self.setTestsBase(testsbase)
       if not self.args['testsbase']:
-        raise(GLError(7, None))
+        raise(GLError(8, None))
       
       # libname => self.args['libname']
       if libname == None:
@@ -314,7 +328,7 @@ class GLImport(GLMode):
       else: # if libname != None
         self.setLibName(libname)
       if not self.args['libname']:
-        raise(GLError(8, None))
+        raise(GLError(9, None))
       
       # lgpl => self.args['lgpl']
       if lgpl == None:
@@ -396,18 +410,62 @@ class GLImport(GLMode):
   def execute(self, dryrun=False):
     '''Run the GLImport and perform necessary actions. If dryrun is True, then
     only print what would have been done.'''
-    pprint(self.__dict__['args'])
-    modulesystem = GLModuleSystem(self.args['localdir'])
-    modules = [modulesystem.find(module) for module in self.args['modules']]
+    system = self.modulesystem
+    modules = self.getModules()
+    avoids = self.getAvoids()
+    dependencies = list()
     
+    if not self.checkDependencies():
+      
+      if not self.getTestFlags():
+        for module in modules:
+          if module not in avoids:
+            module = system.find(module)
+            dependencies += module.getDependencies()
+        dependencies = [dep.split('[')[0].strip() for dep in dependencies]
+        dependencies = sorted(set(dependencies))
+      
+      else: # if self.getTestFlags()
+        for module in modules:
+          if module not in avoids:
+            module = system.find(module)
+            status = module.getStatus()
+            
+            if system.exists(module.getTestsName()):
+              if self.checkTestFlag(TESTS['tests']):
+                dependencies += [module.getTestsName()]
+            
+            elif status == 'obsolete':
+              if self.checkTestFlag(TESTS['obsolete']):
+                dependencies += module.getDependencies()
+            
+            elif status == 'c++-test':
+              if self.checkTestFlag(TESTS['c++-test']):
+                dependencies += module.getDependencies()
+            
+            elif status == 'longrunning-test':
+              if self.checkTestFlag(TESTS['longrunning-test']):
+                dependencies += module.getDependencies()
+            
+            elif status == 'privileged-test':
+              if self.checkTestFlag(TESTS['privileged-test']):
+                dependencies += module.getDependencies()
+            
+            elif status == 'unportable-test':
+              if self.checkTestFlag(TESTS['unportable-test']):
+                dependencies += module.getDependencies()
+            
+            elif status.endswith('-test'):
+              if self.checkTestFlag(TESTS['all']):
+                dependencies += [module.getDependencies()]
+      
+    pprint(dependencies)
     
   def addModule(self, module):
     '''Add the module to the modules list.'''
     if type(module) is bytes or type(module) is string:
       if type(module) is bytes:
-        module = string(module, ENCS['system'])
-      if not super(GLImport, self).checkModule(module):
-        raise(GLError(3, module))
+        module = module.decode(ENCS['default'])
       self.args['modules'].append(module)
     else: # if module has not bytes or string type
       raise(TypeError(
@@ -417,9 +475,7 @@ class GLImport(GLMode):
     '''Remove the module from the modules list.'''
     if type(module) is bytes or type(module) is string:
       if type(module) is bytes:
-        module = string(module, ENCS['system'])
-      if not super(GLImport, self).checkModule(module):
-        raise(GLError(3, module))
+        module = module.decode(ENCS['default'])
       self.args['modules'].remove(module)
     else: # if module has not bytes or string type
       raise(TypeError(
@@ -458,9 +514,7 @@ class GLImport(GLMode):
     equivalent functionality.'''
     if type(module) is bytes or type(module) is string:
       if type(module) is bytes:
-        module = string(module, ENCS['system'])
-      if not super(GLImport, self).checkModule(module):
-        raise(GLError(3, module))
+        module = module.decode(ENCS['default'])
       self.args['avoids'].append(module)
     else: # if module has not bytes or string type
       raise(TypeError(
@@ -470,9 +524,7 @@ class GLImport(GLMode):
     '''Remove the given module from the list of avoided modules.'''
     if type(module) is bytes or type(module) is string:
       if type(module) is bytes:
-        module = string(module, ENCS['system'])
-      if not super(GLImport, self).checkModule(module):
-        raise(GLError(3, module))
+        module = module.decode(ENCS['default'])
       self.args['avoids'].remove(module)
     else: # if module has not bytes or string type
       raise(TypeError(
@@ -503,6 +555,13 @@ class GLImport(GLMode):
   def resetAvoids(self):
     '''Reset the list of the avoided modules.'''
     self.setAvoids(self.cache['avoids'])
+    
+  def checkTestFlag(self, flag):
+    '''Return the status of the test flag.'''
+    if flag in TESTS.values():
+      return(flag in TESTS.values())
+    else: # if flag is not in TESTS
+      raise(TypeError('unknown flag: %s' % repr(flag)))
     
   def enableTestFlag(self, flag):
     '''Enable test flag. You can get flags from TESTS variable.'''

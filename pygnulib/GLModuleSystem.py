@@ -59,6 +59,7 @@ class GLModuleSystem(object):
     class to look up a file in localdir or gnulib directories, or combines it
     through 'patch' utility.'''
     self.args = dict()
+    self.cache = list()
     if type(localdir) is bytes or type(localdir) is string:
       if type(localdir) is bytes:
         localdir = localdir.decode(ENCS['default'])
@@ -98,18 +99,43 @@ class GLModuleSystem(object):
     '''GLModuleSystem.find(module) -> GLModule
     
     Find the given module.'''
-    if type(module) is bytes or string:
-      if type(module) is bytes:
-        module = module.decode(ENCS['default'])
-    else: # if module has not bytes or string type
-      raise(TypeError(
-        'module must be a string, not %s' % type(module).__name__))
-    if self.exists(module):
-      filesystem = GLFileSystem(self.args['localdir'])
-      result = filesystem.lookup(joinpath('modules', module))
-      return(GLModule(result[0], result[1]))
-    else: # if not self.exists(module)
-      raise(GLError(3, module))
+    cache = [module.getName() for module in self.cache]
+    if module not in cache:
+      if type(module) is bytes or string:
+        if type(module) is bytes:
+          module = module.decode(ENCS['default'])
+      else: # if module has not bytes or string type
+        raise(TypeError(
+          'module must be a string, not %s' % type(module).__name__))
+      if self.exists(module):
+        filesystem = GLFileSystem(self.args['localdir'])
+        path, istemp = filesystem.lookup(joinpath('modules', module))
+        result = GLModule(path, istemp)
+        self.cache += [result]
+        return(result)
+      else: # if self.exists(module)
+        raise(GLError(3, module))
+    else: # if module in cache
+      index = cache.index(module)
+      result = self.cache[index]
+      return(result)
+    
+  def filterFileList(self,
+    filelist, prefix, suffix,
+    removed_prefix, removed_suffix,
+    added_prefix, added_suffix):
+    '''GLModuleSystem.filterFileList(*args, **kwargs) -> list
+    
+    Filter the given list of files. Filtering: Only the elements starting with
+    prefix and ending with suffix are considered. Processing: removed_prefix
+    and removed_suffix are removed from each element, added_prefix and
+    added_suffix are added to each element.'''
+    result = list()
+    for filename in filelist:
+      if filename.startswith(prefix) and filename.endswith(suffix):
+        pattern = compiler('^%s(.*?)%s$' % (removed_prefix, removed_suffix))
+        result += [pattern.sub('%s\\1%s' % (added_prefix, added_suffix))]
+    return(result)
     
   def list(self):
     '''GLModuleSystem.list() -> list
@@ -204,7 +230,7 @@ class GLModule(object):
     
   def __repr__(self):
     '''x.__repr__ <==> repr(x)'''
-    return('<pygnulib.GLModule>')
+    return('<pygnulib.GLModule %s>' % repr(self.getName()))
     
   def _find_splitter_(self, splitters):
     '''Find splitter to split text.'''
@@ -233,6 +259,13 @@ class GLModule(object):
     Check whether module is a -tests version of module.'''
     name = self.getName()
     return(name.endswith('-tests'))
+    
+  def getTestsName(self):
+    '''Return -tests version of the module name.'''
+    result = self.getName()
+    if not result.endswith('-tests'):
+      result += '-tests'
+    return(result)
     
   def getDescription(self):
     '''GLModule.getDescription() -> string
@@ -296,7 +329,7 @@ class GLModule(object):
         result = self.content.split('Status:')[1]
         if result.startswith('\t') or result.startswith(' '):
           result = result[1:]
-        result = result.split(splitter)[0]
+        result = result.split(splitter)[0].strip()
       self.cache['status'] = result
     return(self.cache['status'])
     
@@ -344,10 +377,13 @@ class GLModule(object):
       self.cache['applicability'] = result
     return(self.cache['applicability'])
     
-  def getFiles(self):
+  def getFiles(self, autoconf_version):
     '''GLModule.getFiles() -> list
     
     Return list of files.'''
+    if type(autoconf_version) is not float:
+      raise(TypeError('autoconf_version must be a float, not %s' % \
+        type(autoconf_version).__name__))
     if 'files' not in self.cache:
       if 'Files:' not in self.content:
         result = list()
@@ -363,7 +399,11 @@ class GLModule(object):
           result = result[1:]
         result = result.split(splitter)[0].strip().split()
       self.cache['files'] = result
-    return(self.cache['files'])
+      self.cache['files'] += [joinpath('m4', '00gnulib.m4')]
+      self.cache['files'] += [joinpath('m4', 'gnulib-common.m4')]
+      if autoconf_version == 2.59:
+        self.cache['files'] += [joinpath('m4', 'onceonly.m4')]
+    return(list(self.cache['files']))
     
   def getDependencies(self):
     '''GLModule.getDependencies() -> list
@@ -388,12 +428,16 @@ class GLModule(object):
         result = module.content.split('Depends-on:')[1]
         if result.startswith('\t') or result.startswith(' '):
           result = result[1:]
-        result = result.split(splitter)[0].strip().split()
-      module.cache['dependencies'] = result
-    return(module.cache['dependencies'])
+        result = result.split(splitter)[0].strip().split('\n')
+      result = [module for module in result if not module.startswith('#')]
+      if result != ['']:
+        module.cache['dependencies'] = result
+      else: # if result == ['']
+        module.cache['dependencies'] = list()
+    return(list(module.cache['dependencies']))
     
-  def getAutoconf_Early(self):
-    '''GLModule.getAutoconf_Early() -> string
+  def getAutoconf_EarlySnippet(self):
+    '''GLModule.getAutoconf_EarlySnippet() -> string
     
     Return autoconf-early snippet.'''
     if 'autoconf_early' not in self.cache:
@@ -413,8 +457,8 @@ class GLModule(object):
       self.cache['autoconf_early'] = result
     return(self.cache['autoconf_early'])
     
-  def getAutoconf(self):
-    '''GLModule.getAutoconf() -> string
+  def getAutoconfSnippet(self):
+    '''GLModule.getAutoconfSnippet() -> string
     
     Return autoconf snippet.'''
     if 'autoconf' not in self.cache:
@@ -432,6 +476,32 @@ class GLModule(object):
         result = result.split(splitter)[0]
       self.cache['autoconf'] = result
     return(self.cache['autoconf'])
+    
+  def getAutomakeSnippet(self, conditional):
+    '''GLModule.getAutomakeSnippet(conditional) -> string
+    
+    Return automake snippet.'''
+    if type(conditional) is not bool:
+      raise(TypeError(
+        'conditional must be bool, not %s' % type(conditional).__name__))
+    if conditional:
+      if 'automake' not in self.cache:
+        if 'Makefile.am:' not in self.content:
+          result = string()
+        else: # if 'Makefile.am:' in self.content
+          splitters = \
+          [ # Begin splitters list
+            'Include:', 'Link:', 'License:', 'Maintainer:',
+          ] # Finish splitters list
+          splitter = self._find_splitter_(splitters)
+          result = self.content.split('Makefile.am:')[1]
+          if result.startswith('\t') or result.startswith(' '):
+            result = result[1:]
+          result = result.split(splitter)[0]
+        self.cache['automake'] = result
+      return(self.cache['autoconf'])
+    else: # if not conditional
+      all_files = self.getFiles()
     
   def getInclude(self):
     '''GLModule.getInclude() -> string

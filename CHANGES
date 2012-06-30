@@ -1,3 +1,14 @@
+30 July 2012, Dmitriy Selyutin
+Some fixes and improvements in GLImport and GLModuleSystem modules.
+The main addition is that every GLModuleSystem now has its cache. Each time if
+you have already searched for the given module before its GLModule instance is
+taken from cache istead of looking up again. I first wanted to do it right in
+the GLImport.execute with list, but I think that it is more elegant and wiser
+to define cache in GLModuleSystem. That's the third time I rewrite it: each
+previous realization was not enough good as I wanted, so I didn't commit it.
+Now I think I am satisfied.
+GNULibImport execute section was changed.
+
 28 July 2012, Dmitriy Selyutin
 In GLImport class dryrun argument was deprecated from __init__ method. All
 methods which were used to enable/disable dryrun mode were deprecated too. Now

@@ -109,12 +109,21 @@ MODES['verbose-max'] = 2
 # Set TESTS dictionary
 TESTS = \
 {
+  'tests': 1,
   'default': 1,
+  
   'obsolete': 2,
-  'cxx': 4, 'c++': 4,
+  
+  'c++': 4,
+  'c++-test': 8,
+  
   'longrunning': 8,
+  'longrunning-test': 8,
+  
   'privileged': 16,
-  'unportable': 32,
+  'privileged-test': 16,
+  
+  'unportable-test': 32,
   'all': 64,
 }
 

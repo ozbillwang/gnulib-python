@@ -191,7 +191,6 @@ if __name__ == '__main__':
             if isfile(joinpath(destdir, m4dir, 'gnulib-cache.m4'))
           ] # Finish filtering
           m4dirs = sorted(set(m4dirs))
-        print(m4dirs)
       
       if len(m4dirs) == 0:
         # First use of gnulib in a package.

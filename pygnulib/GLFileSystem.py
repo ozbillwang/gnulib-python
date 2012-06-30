@@ -101,11 +101,11 @@ class GLFileSystem(object):
           try: # Try to apply patch
             sp.check_call(command, shell=True)
           except sp.CalledProcessError as error:
-            raise(GLError(4, name))
+            raise(GLError(2, name))
           result = (path_temp, True)
         else: # if path_diff does not exist
           result = (path_gnulib, False)
       else: # if path_gnulib does not exist
-        raise(GLError(3, name))
+        raise(GLError(1, name))
     return(result)
 
