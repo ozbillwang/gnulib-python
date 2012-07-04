@@ -68,13 +68,13 @@ if __name__ == '__main__':
   modcache = None
   verbose = None
   auxdir = None
-  modules = list()
+  modules = list(['canon-host'])
   avoids = list()
   sourcebase = None
   pobase = None
   docbase = None
   testsbase = None
-  tests = None
+  tests = [0, 1]
   libname = None
   lgpl = None
   makefile = None

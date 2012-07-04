@@ -147,14 +147,14 @@ class GLImport(GLMode):
         raise(GLError(3, path))
     with codecs.open(path, 'rb', 'UTF-8') as file:
       data = file.read()
-    pattern = compiler(r'^AC_CONFIG_AUX_DIR\((.*?)\)$')
+    pattern = compiler(r'^AC_CONFIG_AUX_DIR\((.*?)\)$', re.S | re.M)
     result = cleaner(pattern.findall(data))[0]
     self.cache['auxdir'] = joinpath(result, self.args['destdir'])
-    pattern = compiler(r'A[CM]_PROG_LIBTOOL')
+    pattern = compiler(r'A[CM]_PROG_LIBTOOL', re.S | re.M)
     guessed_libtool = bool(pattern.findall(data))
     
     # Guess autoconf version
-    pattern = compiler('.*AC_PREREQ\((.*?)\)$')
+    pattern = compiler('.*AC_PREREQ\((.*?)\)$', re.S | re.M)
     versions = cleaner(pattern.findall(data))
     if not versions:
       version = 2.59
@@ -170,7 +170,7 @@ class GLImport(GLMode):
       with codecs.open(path, 'rb', 'UTF-8') as file:
         data = file.read()
       # Create regex object and keys
-      pattern = compiler(r'^(gl_.*?)\((.*?)\)$')
+      pattern = compiler(r'^(gl_.*?)\((.*?)\)$', re.S | re.M)
       keys = \
       [
         'gl_LOCAL_DIR', 'gl_MODULES', 'gl_AVOID', 'gl_SOURCE_BASE',
@@ -207,7 +207,7 @@ class GLImport(GLMode):
         self.cache['tests'].append(TESTS['unportable-test'])
         data = data.replace('gl_WITH_UNPORTABLE_TESTS', '')
       if 'gl_WITH_ALL_TESTS' in data:
-        self.cache['tests'].append(TESTS['all'])
+        self.cache['tests'].append(TESTS['all-test'])
         data = data.replace('gl_WITH_ALL_TESTS', '')
       # Find string values
       result = dict(pattern.findall(data))
@@ -246,30 +246,29 @@ class GLImport(GLMode):
       if tempdict['gl_WITNESS_C_MACRO']:
         self.cache['witness_c_macro'] = cleaner(tempdict['gl_WITNESS_C_MACRO'])
     
+    # The self.args['localdir'] defaults to the cached one. Recall that the 
+    # cached one is relative to $destdir, whereas the one we use is relative
+    # to . or absolute.
+    if not self.args['localdir']:
+      if self.cache['localdir']:
+        if isabs(self.args['destdir']):
+          self.args['localdir'] = \
+            joinpath(self.args['destdir'], self.cache['localdir'])
+        else: # if not isabs(self.args['destdir'])
+          if isabs(self.cache['localdir']):
+            self.args['localdir'] = \
+              joinpath(self.args['destdir'], self.cache['localdir'])
+          else: # if not isabs(self.cache['localdir'])
+            self.args['localdir'] = \
+              relpath(joinpath(self.args['destdir'], self.cache['localdir']))
+    self.modulesystem = GLModuleSystem(self.args['localdir'])
+    
     if self.mode == MODES['import']:
-      self.modulesystem = GLModuleSystem()
       self.setModules(modules)
     
     else: # if self.mode != MODES['import']
       if self.args['m4base'] != self.cache['m4base']:
         raise(GLError(5, m4base))
-      
-      # The self.args['localdir'] defaults to the cached one. Recall that the 
-      # cached one is relative to $destdir, whereas the one we use is relative
-      # to . or absolute.
-      if not self.args['localdir']:
-        if self.cache['localdir']:
-          if isabs(self.args['destdir']):
-            self.args['localdir'] = \
-              joinpath(self.args['destdir'], self.cache['localdir'])
-          else: # if not isabs(self.args['destdir'])
-            if isabs(self.cache['localdir']):
-              self.args['localdir'] = \
-                joinpath(self.args['destdir'], self.cache['localdir'])
-            else: # if not isabs(self.cache['localdir'])
-              self.args['localdir'] = \
-                relpath(joinpath(self.args['destdir'], self.cache['localdir']))
-      self.modulesystem = GLModuleSystem(self.args['localdir'])
       
       # Perform actions with modules. In --add-import, append each given module
       # to the list of cached modules; in --remove-import, remove each given
@@ -288,6 +287,9 @@ class GLImport(GLMode):
         self.setTestFlags(self.cache['tests'])
       else: # if tests != None
         self.setTestFlags(tests)
+        for testflag in self.cache['tests']:
+          self.enableTestFlag(testflag)
+      self.args['tests'] = sorted(self.args['tests'])
       
       # avoids => self.args['avoids']
       self.setAvoids(avoids +self.cache['avoids'])
@@ -403,63 +405,92 @@ class GLImport(GLMode):
       if dependencies and TESTS['default'] in self.tests:
         raise(GLError(9, None))
     
+    self.depmodules = list()
+    self.conditions = list()
+    
   def __repr__(self):
     '''x.__repr__ <==> repr(x)'''
     return('<pygnulib.GLImport>')
+    
+  def transitive_closure(self, module):
+    '''Get dependencies of module and add them to list of modules. For each
+    dependency get its dependencies, etc. Recursive function, which is used to
+    set lists of dependencies and its conditions. If module is added without
+    conditions, then condition is None.'''
+    depmodules = module.getDependencies()
+    for depmodule in depmodules:
+      if '[' in depmodule:
+        depmodule, condition = depmodule.split('[')
+        depmodule = depmodule.strip()
+        condition = '[%s' % condition
+      else: # if '[' not in depmodule
+        condition = None
+      depmodule = self.modulesystem.find(depmodule)
+      if depmodule not in self.depmodules:
+          if depmodule not in self.args['avoids']:
+            self.depmodules += [depmodule]
+            self.conditions += [condition]
+            self.transitive_closure(depmodule)
     
   def execute(self, dryrun=False):
     '''Run the GLImport and perform necessary actions. If dryrun is True, then
     only print what would have been done.'''
     system = self.modulesystem
-    modules = self.getModules()
-    avoids = self.getAvoids()
-    dependencies = list()
+    self.args['modules'] = \
+    [ # Begin creation of GLModule list
+      self.modulesystem.find(module) for module in self.getModules()
+    ] # Finish creation of GLModule list
+    self.args['avoids'] = \
+    [ # Begin creation of GLModule list
+      self.modulesystem.find(module) for module in self.getAvoids()
+    ] # Finish creation of GLModule list
     
-    if not self.checkDependencies():
-      
-      if not self.getTestFlags():
-        for module in modules:
-          if module not in avoids:
-            module = system.find(module)
-            dependencies += module.getDependencies()
-        dependencies = [dep.split('[')[0].strip() for dep in dependencies]
-        dependencies = sorted(set(dependencies))
-      
-      else: # if self.getTestFlags()
-        for module in modules:
-          if module not in avoids:
-            module = system.find(module)
-            status = module.getStatus()
-            
-            if system.exists(module.getTestsName()):
-              if self.checkTestFlag(TESTS['tests']):
-                dependencies += [module.getTestsName()]
-            
-            elif status == 'obsolete':
-              if self.checkTestFlag(TESTS['obsolete']):
-                dependencies += module.getDependencies()
-            
-            elif status == 'c++-test':
-              if self.checkTestFlag(TESTS['c++-test']):
-                dependencies += module.getDependencies()
-            
-            elif status == 'longrunning-test':
-              if self.checkTestFlag(TESTS['longrunning-test']):
-                dependencies += module.getDependencies()
-            
-            elif status == 'privileged-test':
-              if self.checkTestFlag(TESTS['privileged-test']):
-                dependencies += module.getDependencies()
-            
-            elif status == 'unportable-test':
-              if self.checkTestFlag(TESTS['unportable-test']):
-                dependencies += module.getDependencies()
-            
-            elif status.endswith('-test'):
-              if self.checkTestFlag(TESTS['all']):
-                dependencies += [module.getDependencies()]
-      
-    pprint(dependencies)
+    # If testflags are disabled and conditional dependencies are disabled, we
+    # just add every module to final modules list.
+    for module in self.args['modules']:
+      self.transitive_closure(module)
+    
+    # If testflags are enabled, filter dependencies whose flag is disabled.
+    if self.getTestFlags():
+      for depmodule in self.depmodules:
+        index = self.depmodules.index(depmodule)
+        status = depmodule.getStatus()
+        if self.checkTestFlag(TESTS['tests']):
+          testsname = depmodule.getTestsName()
+          if self.modulesystem.exists(testsname):
+            testsmodule = self.modulesystem.find(testsname)
+            if testsmodule not in self.depmodules:
+              self.depmodules += [testsmodule]
+        if status == 'obsolete':
+          if self.checkTestFlag(TESTS['obsolete']) or \
+          self.checkTestFlag(TESTS['all-test']):
+            self.depmodules.remove(depmodule)
+            self.conditions.pop(index)
+        elif status == 'c++-test':
+          if self.checkTestFlag(TESTS['c++-test']) or \
+          self.checkTestFlag(TESTS['all-test']):
+            self.depmodules.remove(depmodule)
+            self.conditions.pop(index)
+        elif status == 'longrunning-test':
+          if self.checkTestFlag(TESTS['longrunning-test']) or \
+          self.checkTestFlag(TESTS['all-test']):
+            self.depmodules.remove(depmodule)
+            self.conditions.pop(index)
+        elif status == 'privileged-test':
+          if self.checkTestFlag(TESTS['privileged-test']) or \
+          self.checkTestFlag(TESTS['all-test']):
+            self.depmodules.remove(depmodule)
+            self.conditions.pop(index)
+        elif status == 'all-test':
+          if self.checkTestFlag(TESTS['all-test']) or \
+          self.checkTestFlag(TESTS['all-test']):
+            self.depmodules.remove(depmodule)
+            self.conditions.pop(index)
+    
+    # If conditional dependencies are enabled, filter dependencies which can be
+    # added if their condition is True.
+    
+    exit()
     
   def addModule(self, module):
     '''Add the module to the modules list.'''
@@ -559,7 +590,7 @@ class GLImport(GLMode):
   def checkTestFlag(self, flag):
     '''Return the status of the test flag.'''
     if flag in TESTS.values():
-      return(flag in TESTS.values())
+      return(flag in self.args['tests'])
     else: # if flag is not in TESTS
       raise(TypeError('unknown flag: %s' % repr(flag)))
     

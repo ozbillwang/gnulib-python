@@ -44,6 +44,7 @@ isdir = os.path.isdir
 isfile = os.path.isfile
 normpath = os.path.normpath
 relpath = os.path.relpath
+filter_filelist = constants.filter_filelist
 
 
 #===============================================================================
@@ -120,23 +121,6 @@ class GLModuleSystem(object):
       result = self.cache[index]
       return(result)
     
-  def filterFileList(self,
-    filelist, prefix, suffix,
-    removed_prefix, removed_suffix,
-    added_prefix, added_suffix):
-    '''GLModuleSystem.filterFileList(*args, **kwargs) -> list
-    
-    Filter the given list of files. Filtering: Only the elements starting with
-    prefix and ending with suffix are considered. Processing: removed_prefix
-    and removed_suffix are removed from each element, added_prefix and
-    added_suffix are added to each element.'''
-    result = list()
-    for filename in filelist:
-      if filename.startswith(prefix) and filename.endswith(suffix):
-        pattern = compiler('^%s(.*?)%s$' % (removed_prefix, removed_suffix))
-        result += [pattern.sub('%s\\1%s' % (added_prefix, added_suffix))]
-    return(result)
-    
   def list(self):
     '''GLModuleSystem.list() -> list
    
@@ -187,7 +171,7 @@ class GLModuleSystem(object):
 #===============================================================================
 class GLModule(object):
   
-  def __init__(self, module, patched):
+  def __init__(self, module, patched=False, isdep=False):
     '''Create new GLModule instance. Arguments are module and patched, where
     module is a string representing the path to the module and patched is a
     bool indicating that module was created after applying patch.'''
@@ -207,6 +191,9 @@ class GLModule(object):
     self.args['patched'] = patched
     with codecs.open(module, 'rb', 'UTF-8') as file:
       self.content = file.read()
+    self.regex ='(?:Description:|Comment:|Status:|Notice:|Applicability:|\
+Files:|Depends-on:|configure\\.ac-early:|configure\\.ac:|Makefile\\.am:|\
+Include:|Link:|License:|Maintainer:)'
     
   def __eq__(self, module):
     '''x.__eq__(y) <==> x==y'''
@@ -228,16 +215,56 @@ class GLModule(object):
       result = True
     return(result)
     
+  def __ge__(self, module):
+    '''x.__ge__(y) <==> x>=y'''
+    if type(module) is not GLModule:
+      raise(TypeError(
+        'cannot compare GLModule with %s' % type(module).__name__))
+    result = bool()
+    if self.args['module'] >= module.args['module']:
+      result = True
+    return(result)
+    
+  def __gt__(self, module):
+    '''x.__gt__(y) <==> x>y'''
+    if type(module) is not GLModule:
+      raise(TypeError(
+        'cannot compare GLModule with %s' % type(module).__name__))
+    result = bool()
+    if self.args['module'] > module.args['module']:
+      result = True
+    return(result)
+    
+  def __hash__(self):
+    '''x.__hash__() <==> hash(x)'''
+    moduletype = hash('<pygnulib.GLModule>')
+    modulename = hash(self.getName())
+    result = moduletype ^modulename
+    return(result)
+    
+  def __le__(self, module):
+    '''x.__le__(y) <==> x<=y'''
+    if type(module) is not GLModule:
+      raise(TypeError(
+        'cannot compare GLModule with %s' % type(module).__name__))
+    result = bool()
+    if self.args['module'] <= module.args['module']:
+      result = True
+    return(result)
+    
+  def __lt__(self, module):
+    '''x.__lt__(y) <==> x<y'''
+    if type(module) is not GLModule:
+      raise(TypeError(
+        'cannot compare GLModule with %s' % type(module).__name__))
+    result = bool()
+    if self.args['module'] < module.args['module']:
+      result = True
+    return(result)
+    
   def __repr__(self):
     '''x.__repr__ <==> repr(x)'''
     return('<pygnulib.GLModule %s>' % repr(self.getName()))
-    
-  def _find_splitter_(self, splitters):
-    '''Find splitter to split text.'''
-    for splitter in splitters:
-      if splitter in self.content:
-        return(splitter)
-        break
     
   def getName(self):
     '''GLModule.getName() -> string
@@ -271,21 +298,19 @@ class GLModule(object):
     '''GLModule.getDescription() -> string
     
     Return description of the module.'''
+    section = 'Description:'
     if 'description' not in self.cache:
-      if 'Description:' not in self.content:
+      if section not in self.content:
         result = string()
-      else: # if 'Description:' in self.content
-        splitters = \
-        [ # Begin splitters list
-          'Comment:', 'Status:', 'Notice:', 'Applicability:', 'Files:',
-          'Depends-on:', 'configure.ac-early:', 'configure.ac:',
-          'Makefile.am:', 'Include:', 'Link:', 'License:', 'Maintainer:'
-        ] # Finish splitters list
-        splitter = self._find_splitter_(splitters)
-        result = self.content.split('Description:')[1]
-        if result.startswith('\t') or result.startswith(' '):
-          result = result[1:]
-        result = result.split(splitter)[0]
+      else: # if section in self.content
+        pattern = '^%s[\t ]*(.*?)%s' % (section, self.regex)
+        pattern = compiler(pattern, re.DOTALL | re.MULTILINE)
+        result = pattern.findall(self.content)
+        if type(result) is list:
+          if result == list():
+            result = string()
+          else: # if result != list()
+            result = result[-1]
       self.cache['description'] = result
     return(self.cache['description'])
     
@@ -293,21 +318,19 @@ class GLModule(object):
     '''GLModule.getComment() -> string
     
     Return comment to module.'''
+    section = 'Comment:'
     if 'comment' not in self.cache:
-      if 'Comment:' not in self.content:
+      if section not in self.content:
         result = string()
-      else: # if 'Comment:' in self.content
-        splitters = \
-        [ # Begin splitters list
-          'Status:', 'Notice:', 'Applicability:', 'Files:', 'Depends-on:',
-          'configure.ac-early:', 'configure.ac:','Makefile.am:', 'Include:',
-          'Link:', 'License:', 'Maintainer:'
-        ] # Finish splitters list
-        splitter = self._find_splitter_(splitters)
-        result = self.content.split('Comment:')[1]
-        if result.startswith('\t') or result.startswith(' '):
-          result = result[1:]
-        result = result.split(splitter)[0]
+      else: # if section in self.content
+        pattern = '^%s[\t ]*(.*?)%s' % (section, self.regex)
+        pattern = compiler(pattern, re.DOTALL | re.MULTILINE)
+        result = pattern.findall(self.content)
+        if type(result) is list:
+          if result == list():
+            result = string()
+          else: # if result != list()
+            result = result[-1]
       self.cache['comment'] = result
     return(self.cache['comment'])
     
@@ -315,43 +338,39 @@ class GLModule(object):
     '''GLModule.getStatus() -> string
     
     Return module status.'''
+    section = 'Status:'
     if 'status' not in self.cache:
-      if 'Status:' not in self.content:
+      if section not in self.content:
         result = string()
-      else: # if 'Status:' in self.content
-        splitters = \
-        [ # Begin splitters list
-          'Notice:', 'Applicability:', 'Files:', 'Depends-on:',
-          'configure.ac-early:', 'configure.ac:','Makefile.am:', 'Include:',
-          'Link:', 'License:', 'Maintainer:',
-        ] # Finish splitters list
-        splitter = self._find_splitter_(splitters)
-        result = self.content.split('Status:')[1]
-        if result.startswith('\t') or result.startswith(' '):
-          result = result[1:]
-        result = result.split(splitter)[0].strip()
-      self.cache['status'] = result
+      else: # if section in self.content
+        pattern = '^%s[\t ]*(.*?)%s' % (section, self.regex)
+        pattern = compiler(pattern, re.DOTALL | re.MULTILINE)
+        result = pattern.findall(self.content)
+        if type(result) is list:
+          if result == list():
+            result = string()
+          else: # if result != list()
+            result = result[-1]
+      self.cache['status'] = result.strip()
     return(self.cache['status'])
     
   def getNotice(self):
     '''GLModule.getNotice() -> string
     
     Return notice to module.'''
+    section = 'Notice:'
     if 'notice' not in self.cache:
-      if 'Notice:' not in self.content:
+      if section not in self.content:
         result = string()
-      else: # if 'Notice:' in self.content
-        splitters = \
-        [ # Begin splitters list
-          'Applicability:', 'Files:', 'Depends-on:', 'configure.ac-early:',
-          'configure.ac:','Makefile.am:', 'Include:', 'Link:', 'License:',
-          'Maintainer:',
-        ] # Finish splitters list
-        splitter = self._find_splitter_(splitters)
-        result = self.content.split('Notice:')[1]
-        if result.startswith('\t') or result.startswith(' '):
-          result = result[1:]
-        result = result.split(splitter)[0]
+      else: # if section in self.content
+        pattern = '^%s[\t ]*(.*?)%s' % (section, self.regex)
+        pattern = compiler(pattern, re.DOTALL | re.MULTILINE)
+        result = pattern.findall(self.content)
+        if type(result) is list:
+          if result == list():
+            result = string()
+          else: # if result != list()
+            result = result[-1]
       self.cache['notice'] = result
     return(self.cache['notice'])
     
@@ -359,45 +378,40 @@ class GLModule(object):
     '''GLModule.getApplicability() -> string
     
     Return applicability of module.'''
+    section = 'Applicability:'
     if 'applicability' not in self.cache:
-      if 'Applicability:' not in self.content:
+      if section not in self.content:
         result = string()
-      else: # if 'Applicability:' in self.content
-        splitters = \
-        [ # Begin splitters list
-          'Files:', 'Depends-on:', 'configure.ac-early:',
-          'configure.ac:','Makefile.am:', 'Include:', 'Link:', 'License:',
-          'Maintainer:',
-        ] # Finish splitters list
-        splitter = self._find_splitter_(splitters)
-        result = self.content.split('Applicability:')[1]
-        if result.startswith('\t') or result.startswith(' '):
-          result = result[1:]
-        result = result.split(splitter)[0]
+      else: # if section in self.content
+        pattern = '^%s[\t ]*(.*?)%s' % (section, self.regex)
+        pattern = compiler(pattern, re.DOTALL | re.MULTILINE)
+        result = pattern.findall(self.content)
+        if type(result) is list:
+          if result == list():
+            result = string()
+          else: # if result != list()
+            result = result[-1]
       self.cache['applicability'] = result
     return(self.cache['applicability'])
     
-  def getFiles(self, autoconf_version):
+  def getFiles(self, autoconf_version=2.59):
     '''GLModule.getFiles() -> list
     
     Return list of files.'''
+    section = 'Files:'
     if type(autoconf_version) is not float:
       raise(TypeError('autoconf_version must be a float, not %s' % \
         type(autoconf_version).__name__))
     if 'files' not in self.cache:
-      if 'Files:' not in self.content:
-        result = list()
-      else: # if 'Files:' in self.content
-        splitters = \
-        [ # Begin splitters list
-          'Depends-on:', 'configure.ac-early:', 'configure.ac:','Makefile.am:',
-          'Include:', 'Link:', 'License:', 'Maintainer:',
-        ] # Finish splitters list
-        splitter = self._find_splitter_(splitters)
-        result = self.content.split('Files:')[1]
-        if result.startswith('\t') or result.startswith(' '):
-          result = result[1:]
-        result = result.split(splitter)[0].strip().split()
+      if section not in self.content:
+        result = string()
+      else: # if section in self.content
+        pattern = '^%s[\t ]*(.*?)%s' % (section, self.regex)
+        pattern = compiler(pattern, re.DOTALL | re.MULTILINE)
+        result = pattern.findall(self.content)
+        if type(result) is list:
+          if result != list():
+            result = result[-1].strip().split('\n')
       self.cache['files'] = result
       self.cache['files'] += [joinpath('m4', '00gnulib.m4')]
       self.cache['files'] += [joinpath('m4', 'gnulib-common.m4')]
@@ -411,115 +425,111 @@ class GLModule(object):
     Return list of dependencies.'''
     module = self
     name = self.getName()
+    section = 'Depends-on:'
     if self.isTests():
       modulesystem = GLModuleSystem()
       if modulesystem.exists(name[:name.find('-tests')]):
         module = GLModuleSystem.find(name[:name.find('-tests')])
     if 'dependencies' not in module.cache:
-      if 'Depends-on:' not in module.content:
-        result = list()
-      else: # if 'Depends-on:' in module.content
-        splitters = \
-        [ # Begin splitters list
-          'configure.ac-early:', 'configure.ac:','Makefile.am:', 'Include:',
-          'Link:', 'License:', 'Maintainer:',
-        ] # Finish splitters list
-        splitter = module._find_splitter_(splitters)
-        result = module.content.split('Depends-on:')[1]
-        if result.startswith('\t') or result.startswith(' '):
-          result = result[1:]
-        result = result.split(splitter)[0].strip().split('\n')
-      result = [module for module in result if not module.startswith('#')]
-      if result != ['']:
-        module.cache['dependencies'] = result
-      else: # if result == ['']
-        module.cache['dependencies'] = list()
+      if section not in module.content:
+        result = string()
+      else: # if section in module.content
+        pattern = '^%s[\t ]*(.*?)%s' % (section, module.regex)
+        pattern = compiler(pattern, re.DOTALL | re.MULTILINE)
+        result = pattern.findall(module.content)
+        if type(result) is list:
+          if result != list():
+            result = result[-1].strip().split('\n')
+      if result == ['']: result = list()
+      result = [dep for dep in result if not dep.startswith('#')]
+      module.cache['dependencies'] = result
     return(list(module.cache['dependencies']))
     
   def getAutoconf_EarlySnippet(self):
     '''GLModule.getAutoconf_EarlySnippet() -> string
     
     Return autoconf-early snippet.'''
-    if 'autoconf_early' not in self.cache:
-      if 'configure.ac-early:' not in self.content:
+    section = 'configure.ac-early:'
+    if 'autoconf-early' not in self.cache:
+      if section not in self.content:
         result = string()
-      else: # if 'configure.ac-early:' in self.content
-        splitters = \
-        [ # Begin splitters list
-          'configure.ac:','Makefile.am:', 'Include:', 'Link:', 'License:',
-          'Maintainer:',
-        ] # Finish splitters list
-        splitter = self._find_splitter_(splitters)
-        result = self.content.split('configure.ac-early:')[1]
-        if result.startswith('\t') or result.startswith(' '):
-          result = result[1:]
-        result = result.split(splitter)[0]
-      self.cache['autoconf_early'] = result
-    return(self.cache['autoconf_early'])
+      else: # if section in self.content
+        pattern = '^%s[\t ]*(.*?)%s' % (section, self.regex)
+        pattern = compiler(pattern, re.DOTALL | re.MULTILINE)
+        result = pattern.findall(self.content)
+        if type(result) is list:
+          if result == list():
+            result = string()
+          else: # if result != list()
+            result = result[-1]
+      self.cache['autoconf-early'] = result
+    return(self.cache['autoconf-early'])
     
   def getAutoconfSnippet(self):
     '''GLModule.getAutoconfSnippet() -> string
     
     Return autoconf snippet.'''
+    section = 'configure.ac:'
     if 'autoconf' not in self.cache:
-      if 'configure.ac:' not in self.content:
+      if section not in self.content:
         result = string()
-      else: # if 'configure.ac:' in self.content
-        splitters = \
-        [ # Begin splitters list
-          'Makefile.am:', 'Include:', 'Link:', 'License:', 'Maintainer:',
-        ] # Finish splitters list
-        splitter = self._find_splitter_(splitters)
-        result = self.content.split('configure.ac:')[1]
-        if result.startswith('\t') or result.startswith(' '):
-          result = result[1:]
-        result = result.split(splitter)[0]
+      else: # if section in self.content
+        pattern = '^%s[\t ]*(.*?)%s' % (section, self.regex)
+        pattern = compiler(pattern, re.DOTALL | re.MULTILINE)
+        result = pattern.findall(self.content)
+        if type(result) is list:
+          if result == list():
+            result = string()
+          else: # if result != list()
+            result = result[-1]
       self.cache['autoconf'] = result
     return(self.cache['autoconf'])
     
-  def getAutomakeSnippet(self, conditional):
+  def getAutomakeSnippet(self, conditional, autoconf_version=2.59):
     '''GLModule.getAutomakeSnippet(conditional) -> string
     
     Return automake snippet.'''
+    section = 'Makefile.am:'
     if type(conditional) is not bool:
       raise(TypeError(
         'conditional must be bool, not %s' % type(conditional).__name__))
     if conditional:
-      if 'automake' not in self.cache:
-        if 'Makefile.am:' not in self.content:
+      if 'makefile' not in self.cache:
+        if section not in self.content:
           result = string()
-        else: # if 'Makefile.am:' in self.content
-          splitters = \
-          [ # Begin splitters list
-            'Include:', 'Link:', 'License:', 'Maintainer:',
-          ] # Finish splitters list
-          splitter = self._find_splitter_(splitters)
-          result = self.content.split('Makefile.am:')[1]
-          if result.startswith('\t') or result.startswith(' '):
-            result = result[1:]
-          result = result.split(splitter)[0]
-        self.cache['automake'] = result
-      return(self.cache['autoconf'])
+        else: # if section in self.content
+          pattern = '^%s[\t ]*(.*?)%s' % (section, self.regex)
+          pattern = compiler(pattern, re.DOTALL | re.MULTILINE)
+          result = pattern.findall(self.content)
+          if type(result) is list:
+            if result == list():
+              result = string()
+            else: # if result != list()
+              result = result[-1]
+        self.cache['makefile'] = result
+      return(self.cache['makefile'])
     else: # if not conditional
-      all_files = self.getFiles()
-    
+      if self.isTests():
+        all_files = self.getFiles(autoconf_version)
+        extra_files = filter_filelist(all_files, 'tests/', '', 'tests/', '')
+        
   def getInclude(self):
     '''GLModule.getInclude() -> string
     
     Return include directive.'''
+    section = 'Include:'
     if 'include' not in self.cache:
-      if 'Include:' not in self.content:
+      if section not in self.content:
         result = string()
-      else: # if 'Include:' in self.content
-        splitters = \
-        [ # Begin splitters list
-          'Link:', 'License:','Maintainer:',
-        ] # Finish splitters list
-        splitter = self._find_splitter_(splitters)
-        result = self.content.split('Include:')[1]
-        if result.startswith('\t') or result.startswith(' '):
-          result = result[1:]
-        result = result.split(splitter)[0]
+      else: # if section in self.content
+        pattern = '^%s[\t ]*(.*?)%s' % (section, self.regex)
+        pattern = compiler(pattern, re.DOTALL | re.MULTILINE)
+        result = pattern.findall(self.content)
+        if type(result) is list:
+          if result == list():
+            result = string()
+          else: # if result != list()
+            result = result[-1]
       self.cache['include'] = result
     return(self.cache['include'])
     
@@ -527,19 +537,19 @@ class GLModule(object):
     '''GLModule.getLink() -> string
     
     Return link directive.'''
+    section = 'Link:'
     if 'link' not in self.cache:
-      if 'Link:' not in self.content:
+      if section not in self.content:
         result = string()
-      else: # if 'Link:' in self.content
-        splitters = \
-        [ # Begin splitters list
-          'License:','Maintainer:',
-        ] # Finish splitters list
-        splitter = self._find_splitter_(splitters)
-        result = self.content.split('Link:')[1]
-        if result.startswith('\t') or result.startswith(' '):
-          result = result[1:]
-        result = result.split(splitter)[0]
+      else: # if section in self.content
+        pattern = '^%s[\t ]*(.*?)%s' % (section, self.regex)
+        pattern = compiler(pattern, re.DOTALL | re.MULTILINE)
+        result = pattern.findall(self.content)
+        if type(result) is list:
+          if result == list():
+            result = string()
+          else: # if result != list()
+            result = result[-1]
       self.cache['link'] = result
     return(self.cache['link'])
     

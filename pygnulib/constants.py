@@ -109,22 +109,13 @@ MODES['verbose-max'] = 2
 # Set TESTS dictionary
 TESTS = \
 {
-  'tests': 1,
-  'default': 1,
-  
-  'obsolete': 2,
-  
-  'c++': 4,
-  'c++-test': 8,
-  
-  'longrunning': 8,
-  'longrunning-test': 8,
-  
-  'privileged': 16,
-  'privileged-test': 16,
-  
-  'unportable-test': 32,
-  'all': 64,
+  'tests':            0,
+  'obsolete':         1,
+  'c++-test':         2,
+  'longrunning-test': 3,
+  'privileged-test':  4,
+  'unportable-test':  5,
+  'all-test':         6,
 }
 
 # You can set AUTOCONFPATH to empty if autoconf 2.57 is already in your PATH
@@ -209,12 +200,12 @@ else:
 #===============================================================================
 # Define global functions
 #===============================================================================
-def compiler(pattern):
+def compiler(pattern, flags=0):
   '''Compile regex pattern depending on version of Python.'''
   if not PYTHON3:
-    pattern = re.compile(pattern, re.UNICODE | re.MULTILINE | re.DOTALL)
+    pattern = re.compile(pattern, re.UNICODE | flags)
   else: # if PYTHON3
-    pattern = re.compile(pattern, re.MULTILINE | re.DOTALL)
+    pattern = re.compile(pattern, flags)
   return(pattern)
   
 def cleaner(sequence):
@@ -239,5 +230,21 @@ def joinpath(head, *tail):
   result = os.path.normpath(os.path.join(head, *tail))
   return(result)
 
+def filter_filelist(filelist,
+  prefix, suffix, removed_prefix, removed_suffix,
+  added_prefix=string(), added_suffix=string()):
+  '''filter_filelist(*args) -> list
+  
+  Filter the given list of files. Filtering: Only the elements starting with
+  prefix and ending with suffix are considered. Processing: removed_prefix
+  and removed_suffix are removed from each element, added_prefix and
+  added_suffix are added to each element.'''
+  result = list()
+  for filename in filelist:
+    if filename.startswith(prefix) and filename.endswith(suffix):
+      pattern = compiler('^%s(.*?)%s$' % (removed_prefix, removed_suffix))
+      result += [pattern.sub('%s\\1%s' % (added_prefix, added_suffix))]
+  return(result)
 
 __all__ += ['APP', 'DIRS', 'FILES', 'MODES', 'UTILS']
+

@@ -1,4 +1,16 @@
-30 July 2012, Dmitriy Selyutin
+4 July 2012, Dmitriy Selyutin
+Recursive method transitive_closure was added to GLImport module. Now it seems
+to make the work as follows. It takes about two seconds to get list of modules
+which consists of user-defined modules, their dependencies, dependencies of
+dependencies, etc.
+Some fixes inside GLModule module. Now it must get all the necessary data from
+content as follows. I had to use regular expressions, however. GLModule now
+also has some special methods like __ge__, __gt__, __le__, __lt__ to sort the
+modules inside the listing. I've added __hash__ method to GLModule too, because
+some developers may need to group GLModule instances in dict objects.
+A lot of fixes and improvements in GLImport and GLModule.
+
+30 June 2012, Dmitriy Selyutin
 Some fixes and improvements in GLImport and GLModuleSystem modules.
 The main addition is that every GLModuleSystem now has its cache. Each time if
 you have already searched for the given module before its GLModule instance is
@@ -9,17 +21,17 @@ previous realization was not enough good as I wanted, so I didn't commit it.
 Now I think I am satisfied.
 GNULibImport execute section was changed.
 
-28 July 2012, Dmitriy Selyutin
+28 June 2012, Dmitriy Selyutin
 In GLImport class dryrun argument was deprecated from __init__ method. All
 methods which were used to enable/disable dryrun mode were deprecated too. Now
-users can enable/disabe dryrun in the GLImport.execute method. m4base is now an
+users can enable/disable dryrun in the GLImport.execute method. m4base is now an
 argument which must be set always when users create GLImport instance.
 Some code was added to gnulib-tool.py. I think I will now write command-line
 processing part, because I have some questions about code which must be in
 other modules. So I'll do what I can now to let the work go on.
-Some small fixes in other parts of code.
+Some good fixes and changes in other parts of code.
 
-27 July 2012, Dmitriy Selyutin
+27 June 2012, Dmitriy Selyutin
 GLModule and GLModuleSystem were merged inside the GLModuleSystem, because they
 are deeply connected with each other and mainly because it is not possible to
 realize together 'from .GLModuleSystem import GLModuleSystem' inside GLModule
@@ -29,7 +41,7 @@ Simple test was added to show how GLModule works and demonstrate its speed.
 TODO: Ask whether show warning about missed license or raise GLError.
 TODO: Implement functions to work with Makefile.am.
 
-25 July 2012. Dmitriy Selyutin
+25 June 2012. Dmitriy Selyutin
 All classes were renamed from GNULib* to GL* to cut their names.
 GLFileSystem class was added and tested using my own generated diff files (not
 real gnulib modules, but I don't think this is necessary at this stage). I
@@ -49,7 +61,7 @@ Script will print the path of the modified 'pygnulib' file. I think you can
 already experiment with the other packages.
 A lot of fixes and changes in the other modules, I can't remind them all.
 
-24 July 2012, Dmitriy Selyutin
+24 June 2012, Dmitriy Selyutin
 Module utilities.py was deprecated from pygnulib. Now it is separated into the
 several files, where each file has name according to module which contais
 inside. There is also a new small module classes.py, which is used just to
@@ -74,7 +86,7 @@ before I've fixed it, it didn't shown errors at all), so I need to reimplement
 it. I'll think how to do it.
 I've also begun a work on the GNULibModule class.
 
-21 July 2012, Dmitriy Selyutin
+21 June 2012, Dmitriy Selyutin
 GNULibMode now has method checkModule(module), which tests if the given module
 exists inside '$gnulib$/modules' or '$localdir$/modules' directories. If module
 contains inside one of this directories and the name of the module is not one
@@ -99,16 +111,16 @@ where pygnulib does checks for NoneType were changed to checks for x == None.
 Original NoneType checks were left only for case when pygnulib checks for other
 types first.
 
-18 July 2012, Dmitriy Selyutin
+18 June 2012, Dmitriy Selyutin
 Some necessary additions inside GNULibError and GNULibImport classes. All
 errors are raised in __init__ part of the GNULibImport class; that behaviour
 will be changed so the errors can appear only during run function (just to
 allow developers set variables until they run GNULibImport, even if variables
 are incorrect).
-P.S. Tommorow I have the last exam, so at 20th of July I can return to the
+P.S. Tommorow I have the last exam, so at 20th of June I can return to the
 normal mode of work. I plan to make run function next.
 
-7 July 2012, Dmitriy Selyutin
+7 June 2012, Dmitriy Selyutin
 Function str1_or_str2 inside constants.py was renamed to str_disj and now
 supports None values as arguments. Function joinpath was added to constants.py
 to join paths and then normalize the result to avoid results like './a/../b',
@@ -128,7 +140,7 @@ inside __main__ part, like in the old gnulib-tool.sh (that was done to have an
 ability to create GNULibImport instance for each directory in m4dirs variable).
 Function cleaner inside constants.py can now receive string as argument.
 
-5 July 2012, Dmitriy Selyutin
+5 June 2012, Dmitriy Selyutin
 I wanted to add new __or__ method for string class to use it like x | y, but I
 was failed because Python doesn't support monkey patching for C types. So I had
 to add str1_or_str2 function into constants.py code.
@@ -139,7 +151,7 @@ It seems I've found to test values of the variables for old gnulib-tool, so
 next week I'll test it. I had to change the original gnulib-tool.sh, however.
 As I see now, some variables are wrong; I need to rewrite them.
 
-1 July 2012, Dmitriy Selyutin
+1 June 2012, Dmitriy Selyutin
 os.getcwd() function now always returns Unicode representation of the current
 working directory. To get current working directory in bytes, use os.getcwdb()
 function. I know that we won't need it always, but I think it is better to get
