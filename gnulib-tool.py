@@ -68,7 +68,7 @@ if __name__ == '__main__':
   modcache = None
   verbose = None
   auxdir = None
-  modules = list(['canon-host'])
+  modules = list(['string-tests', 'stddef'])
   avoids = list()
   sourcebase = None
   pobase = None
@@ -79,7 +79,7 @@ if __name__ == '__main__':
   lgpl = None
   makefile = None
   libtool = None
-  dependencies = None
+  conddeps = None
   macro_prefix = None
   podomain = None
   witness_c_macro = None
@@ -116,7 +116,7 @@ if __name__ == '__main__':
       lgpl=lgpl,
       makefile=makefile,
       libtool=libtool,
-      dependencies=dependencies,
+      conddeps=conddeps,
       macro_prefix=macro_prefix,
       podomain=podomain,
       witness_c_macro=witness_c_macro,
@@ -153,7 +153,7 @@ if __name__ == '__main__':
           lgpl=lgpl,
           makefile=makefile,
           libtool=libtool,
-          dependencies=dependencies,
+          conddeps=conddeps,
           macro_prefix=macro_prefix,
           podomain=podomain,
           witness_c_macro=witness_c_macro,
@@ -223,7 +223,7 @@ if __name__ == '__main__':
           lgpl=lgpl,
           makefile=makefile,
           libtool=libtool,
-          dependencies=dependencies,
+          conddeps=conddeps,
           macro_prefix=macro_prefix,
           podomain=podomain,
           witness_c_macro=witness_c_macro,
@@ -250,7 +250,7 @@ if __name__ == '__main__':
           lgpl=lgpl,
           makefile=makefile,
           libtool=libtool,
-          dependencies=dependencies,
+          conddeps=conddeps,
           macro_prefix=macro_prefix,
           podomain=podomain,
           witness_c_macro=witness_c_macro,
@@ -277,7 +277,7 @@ if __name__ == '__main__':
             lgpl=lgpl,
             makefile=makefile,
             libtool=libtool,
-            dependencies=dependencies,
+            conddeps=conddeps,
             macro_prefix=macro_prefix,
             podomain=podomain,
             witness_c_macro=witness_c_macro,

@@ -17,6 +17,7 @@ from .GLInfo import GLInfo
 from .GLMode import GLMode
 from .GLFileSystem import GLFileSystem
 from .GLModuleSystem import GLModule
+from .GLModuleSystem import GLModuleDict
 from .GLModuleSystem import GLModuleSystem
 from .GLImport import GLImport
 

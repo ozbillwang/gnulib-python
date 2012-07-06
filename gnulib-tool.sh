@@ -4248,9 +4248,6 @@ func_import ()
     fi
   fi
 
-  func_get_dependencies "$module"
-  exit
-
   if test "$mode" = import; then
     # In 'import' mode, the new set of specified modules overrides the cached
     # set of modules. Ignore the cached settings.
@@ -4440,36 +4437,13 @@ func_import ()
   inc_all_direct_tests="$inc_all_tests"
   inc_all_indirect_tests="$inc_all_tests"
 
+  # Determine final module list.
   modules="$specified_modules"
-  
   func_modules_transitive_closure
   if test $verbose -ge 0; then
     func_show_module_list
   fi
   final_modules="$modules"
-
-  # Determine final module list.
-  for module in $final_modules; do echo $module; done
-  echo "\$auxdir = $auxdir"
-  echo "\$avoids = $avoids"
-  echo "\$dependencies = $dependencies"
-  echo "\$destdir = $destdir"
-  echo "\$docbase = $docbase"
-  echo "\$lgpl = $lgpl"
-  echo "\$libname = $libname"
-  echo "\$libtool = $libtool"
-  echo "\$localdir = $local_gnulib_dir"
-  echo "\$m4base = $m4base"
-  echo "\$macro_prefix = $macro_prefix"
-  echo "\$makefile = $makefile_name"
-  echo "\$modcache = $modcache"
-  echo "\$modules = $modules"
-  echo "\$pobase = $pobase"
-  echo "\$podomain = $po_domain"
-  echo "\$sourcebase = $sourcebase"
-  echo "\$testsbase = $testsbase"
-  
-  exit
 
   # Determine main module list and tests-related module list separately.
   func_modules_transitive_closure_separately
@@ -4480,7 +4454,7 @@ func_import ()
   # Add the dummy module to the main module list or to the tests-related module
   # list if needed.
   func_modules_add_dummy_separately
-  
+
   # If --lgpl, verify that the licenses of modules are compatible.
   if test -n "$lgpl"; then
     license_incompatibilities=

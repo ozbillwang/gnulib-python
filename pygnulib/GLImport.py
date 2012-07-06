@@ -15,6 +15,7 @@ from . import constants
 from .GLError import GLError
 from .GLMode import GLMode
 from .GLModuleSystem import GLModule
+from .GLModuleSystem import GLModuleDict
 from .GLModuleSystem import GLModuleSystem
 
 
@@ -78,7 +79,7 @@ class GLImport(GLMode):
     lgpl=None,
     makefile=None,
     libtool=None,
-    dependencies=None,
+    conddeps=None,
     macro_prefix=None,
     podomain=None,
     witness_c_macro=None,
@@ -114,7 +115,7 @@ class GLImport(GLMode):
     [
       'auxdir', 'modules', 'avoids', 'sourcebase', 'm4base', 'pobase',
       'docbase', 'testsbase', 'tests', 'libname', 'makefile', 'libtool',
-      'dependencies', 'macro_prefix', 'podomain', 'vc_files', 'lgpl',
+      'conddeps', 'macro_prefix', 'podomain', 'vc_files', 'lgpl',
       'witness_c_macro',
     ]
     for item in keys:
@@ -265,6 +266,7 @@ class GLImport(GLMode):
     
     if self.mode == MODES['import']:
       self.setModules(modules)
+      self.setAvoids(avoids)
     
     else: # if self.mode != MODES['import']
       if self.args['m4base'] != self.cache['m4base']:
@@ -344,14 +346,14 @@ class GLImport(GLMode):
       else: # if makefile != None
         self.setMakefile(makefile)
       
-      # dependencies => self.args['dependencies']
-      if type(dependencies) is bool and dependencies:
+      # conddeps => self.args['conddeps']
+      if type(conddeps) is bool and conddeps:
         self.enableDependencies()
-      elif type(dependencies) is bool and not dependencies:
+      elif type(conddeps) is bool and not conddeps:
         self.disableDependencies()
-      elif type(dependencies) is NoneType and self.cache['dependencies']:
+      elif type(conddeps) is NoneType and self.cache['conddeps']:
         self.enableDependencies()
-      elif type(dependencies) is NoneType and not self.cache['dependencies']:
+      elif type(conddeps) is NoneType and not self.cache['conddeps']:
         self.disableDependencies()
       
       # libtool => self.args['libtool']
@@ -402,57 +404,41 @@ class GLImport(GLMode):
         else: # if not vc_files
           self.disableVCFiles
       
-      if dependencies and TESTS['default'] in self.tests:
-        raise(GLError(9, None))
+      # If user tries to apply conddeps and testflag['tests'] together
+      if self.args['tests'] and self.args['conddeps']:
+        raise(GLError(10, None))
     
-    self.depmodules = list()
-    self.conditions = list()
     
   def __repr__(self):
     '''x.__repr__ <==> repr(x)'''
     return('<pygnulib.GLImport>')
     
-  def transitive_closure(self, module):
-    '''Get dependencies of module and add them to list of modules. For each
-    dependency get its dependencies, etc. Recursive function, which is used to
-    set lists of dependencies and its conditions. If module is added without
-    conditions, then condition is None.'''
-    depmodules = module.getDependencies()
-    for depmodule in depmodules:
-      if '[' in depmodule:
-        depmodule, condition = depmodule.split('[')
-        depmodule = depmodule.strip()
-        condition = '[%s' % condition
-      else: # if '[' not in depmodule
-        condition = None
-      depmodule = self.modulesystem.find(depmodule)
-      if depmodule not in self.depmodules:
-          if depmodule not in self.args['avoids']:
-            self.depmodules += [depmodule]
-            self.conditions += [condition]
-            self.transitive_closure(depmodule)
-    
   def execute(self, dryrun=False):
     '''Run the GLImport and perform necessary actions. If dryrun is True, then
     only print what would have been done.'''
     system = self.modulesystem
-    self.args['modules'] = \
+    modules = \
     [ # Begin creation of GLModule list
       self.modulesystem.find(module) for module in self.getModules()
     ] # Finish creation of GLModule list
-    self.args['avoids'] = \
+    avoids = \
     [ # Begin creation of GLModule list
       self.modulesystem.find(module) for module in self.getAvoids()
     ] # Finish creation of GLModule list
     
+    localdir = self.getLocalDir()
+    self.moduledict = GLModuleDict(localdir, modules, avoids)
+    
     # If testflags are disabled and conditional dependencies are disabled, we
     # just add every module to final modules list.
-    for module in self.args['modules']:
-      self.transitive_closure(module)
+    for module in self.moduledict:
+      deps = self.moduledict.depdict(module)
+    
+    exit()
     
     # If testflags are enabled, filter dependencies whose flag is disabled.
     if self.getTestFlags():
-      for depmodule in self.depmodules:
+      for depmodule in self.moduledict.dependencies():
         index = self.depmodules.index(depmodule)
         status = depmodule.getStatus()
         if self.checkTestFlag(TESTS['tests']):
@@ -489,6 +475,10 @@ class GLImport(GLMode):
     
     # If conditional dependencies are enabled, filter dependencies which can be
     # added if their condition is True.
+    cond1 = '/^ *stdint *$/{ s/^.*$/true/p }'
+    cond2 = '/^ *stdint *\[.*\] *$/{ s/^ *stdint *\[\(.*\)\] *$/\1/p }'
+    args = ['sed', '-e', cond1, '-e', cond2]
+    sp.check_output
     
     exit()
     
@@ -635,19 +625,19 @@ class GLImport(GLMode):
     
   def checkDependencies(self):
     '''Check if user enabled cond. dependencies.'''
-    return(self.args['dependencies'])
+    return(self.args['conddeps'])
     
   def enableDependencies(self):
     '''Enable cond. dependencies (may save configure time and object code).'''
-    self.args['dependencies'] = True
+    self.args['conddeps'] = True
     
   def disableDependencies(self):
     '''Disable cond. dependencies (may save configure time and object code).'''
-    self.args['dependencies'] = False
+    self.args['conddeps'] = False
     
   def resetDependencies(self):
     '''Reset cond. dependencies (may save configure time and object code).'''
-    self.args['dependencies'] = self.cache['dependencies']
+    self.args['conddeps'] = self.cache['conddeps']
     
   def checkLibtool(self):
     '''Check if user enabled libtool rules.'''

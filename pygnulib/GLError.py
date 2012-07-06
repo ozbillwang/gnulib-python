@@ -63,6 +63,7 @@ class GLError(Exception):
       7: missing docbase argument
       8: missing testsbase argument
       9: missing libname argument
+     10: conddeps are not supported with testflag['tests']
     errinfo: additional information'''
     self.errno = errno; self.errinfo = errinfo
     self.args = (self.errno, self.errinfo)
@@ -85,7 +86,7 @@ class GLError(Exception):
         +" so you might have to set this argument"
       "missing libname argument; cache file doesn't contain it,"
         +" so you might have to set this argument",
-      "dependencies and testflag 'default' cannot be used together",
+      "conddeps are not supported with testflag['tests']",
     ] # Complete list of errors
     if not PYTHON3:
       self.message = (b'[Errno %d] %s' % \

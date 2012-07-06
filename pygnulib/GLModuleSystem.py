@@ -57,17 +57,16 @@ class GLModuleSystem(object):
   def __init__(self, localdir):
     '''Create new GLModuleSystem instance. The necessary arguments are localdir
     and modcache, which are the same as usual. Some functions use GLFileSystem
-    class to look up a file in localdir or gnulib directories, or combines it
+    class to look up a file in localdir or gnulib directories, or combine it
     through 'patch' utility.'''
     self.args = dict()
-    self.cache = list()
     if type(localdir) is bytes or type(localdir) is string:
       if type(localdir) is bytes:
         localdir = localdir.decode(ENCS['default'])
       self.args['localdir'] = localdir
     else: # if localdir has not bytes or string type
       raise(TypeError(
-        'argument must be a string, not %s' % type(module).__name__))
+        'localdir must be a string, not' +type(module).__name__))
     
   def __repr__(self):
     '''x.__repr__ <==> repr(x)'''
@@ -100,26 +99,19 @@ class GLModuleSystem(object):
     '''GLModuleSystem.find(module) -> GLModule
     
     Find the given module.'''
-    cache = [module.getName() for module in self.cache]
-    if module not in cache:
-      if type(module) is bytes or string:
-        if type(module) is bytes:
-          module = module.decode(ENCS['default'])
-      else: # if module has not bytes or string type
-        raise(TypeError(
-          'module must be a string, not %s' % type(module).__name__))
-      if self.exists(module):
-        filesystem = GLFileSystem(self.args['localdir'])
-        path, istemp = filesystem.lookup(joinpath('modules', module))
-        result = GLModule(path, istemp)
-        self.cache += [result]
-        return(result)
-      else: # if self.exists(module)
-        raise(GLError(3, module))
-    else: # if module in cache
-      index = cache.index(module)
-      result = self.cache[index]
+    if type(module) is bytes or string:
+      if type(module) is bytes:
+        module = module.decode(ENCS['default'])
+    else: # if module has not bytes or string type
+      raise(TypeError(
+        'module must be a string, not %s' % type(module).__name__))
+    if self.exists(module):
+      filesystem = GLFileSystem(self.args['localdir'])
+      path, istemp = filesystem.lookup(joinpath('modules', module))
+      result = GLModule(path, istemp)
       return(result)
+    else: # if self.exists(module)
+      raise(GLError(3, module))
     
   def list(self):
     '''GLModuleSystem.list() -> list
@@ -171,7 +163,7 @@ class GLModuleSystem(object):
 #===============================================================================
 class GLModule(object):
   
-  def __init__(self, module, patched=False, isdep=False):
+  def __init__(self, module, patched=False):
     '''Create new GLModule instance. Arguments are module and patched, where
     module is a string representing the path to the module and patched is a
     bool indicating that module was created after applying patch.'''
@@ -237,9 +229,9 @@ Include:|Link:|License:|Maintainer:)'
     
   def __hash__(self):
     '''x.__hash__() <==> hash(x)'''
-    moduletype = hash('<pygnulib.GLModule>')
-    modulename = hash(self.getName())
-    result = moduletype ^modulename
+    module = hash(self.args['module'])
+    patched = hash(self.args['patched'])
+    result = module^patched
     return(result)
     
   def __le__(self, module):
@@ -284,8 +276,8 @@ Include:|Link:|License:|Maintainer:)'
     '''GLModule.isTests() -> bool
     
     Check whether module is a -tests version of module.'''
-    name = self.getName()
-    return(name.endswith('-tests'))
+    result = self.getName().endswith('-tests')
+    return(result)
     
   def getTestsName(self):
     '''Return -tests version of the module name.'''
@@ -394,8 +386,8 @@ Include:|Link:|License:|Maintainer:)'
       self.cache['applicability'] = result
     return(self.cache['applicability'])
     
-  def getFiles(self, autoconf_version=2.59):
-    '''GLModule.getFiles() -> list
+  def getFiles(self, autoconf_version):
+    '''GLModule.getFiles(autoconf_version) -> list
     
     Return list of files.'''
     section = 'Files:'
@@ -419,17 +411,17 @@ Include:|Link:|License:|Maintainer:)'
         self.cache['files'] += [joinpath('m4', 'onceonly.m4')]
     return(list(self.cache['files']))
     
-  def getDependencies(self):
-    '''GLModule.getDependencies() -> list
+  def getDependencies(self, localdir):
+    '''GLModule.getDependencies(localdir) -> list
     
     Return list of dependencies.'''
     module = self
     name = self.getName()
     section = 'Depends-on:'
     if self.isTests():
-      modulesystem = GLModuleSystem()
+      modulesystem = GLModuleSystem(localdir)
       if modulesystem.exists(name[:name.find('-tests')]):
-        module = GLModuleSystem.find(name[:name.find('-tests')])
+        module = modulesystem.find(name[:name.find('-tests')])
     if 'dependencies' not in module.cache:
       if section not in module.content:
         result = string()
@@ -442,6 +434,8 @@ Include:|Link:|License:|Maintainer:)'
             result = result[-1].strip().split('\n')
       if result == ['']: result = list()
       result = [dep for dep in result if not dep.startswith('#')]
+      if self.isTests():
+        result += [name[:name.find('-tests')]]
       module.cache['dependencies'] = result
     return(list(module.cache['dependencies']))
     
@@ -485,7 +479,7 @@ Include:|Link:|License:|Maintainer:)'
       self.cache['autoconf'] = result
     return(self.cache['autoconf'])
     
-  def getAutomakeSnippet(self, conditional, autoconf_version=2.59):
+  def getAutomakeSnippet(self, conditional, autoconf_version):
     '''GLModule.getAutomakeSnippet(conditional) -> string
     
     Return automake snippet.'''
@@ -573,4 +567,159 @@ Include:|Link:|License:|Maintainer:)'
         result = result.split('Maintainer:')[0]
       self.cache['maintainer'] = result
     return(self.cache['maintainer'])
+
+
+#===============================================================================
+# Define GLModuleDict class
+#===============================================================================
+class GLModuleDict(object):
+  '''GLModuleDict is a table which is used to store list of modules and their
+  dependencies and conditions of these dependencies.'''
+  
+  def __init__(self, localdir, modules=list(), avoids=list()):
+    '''Create GLModule instance.'''
+    self.table = dict()
+    self.depmodules = list()
+    self.conditions = list()
+    self.modulesystem = GLModuleSystem(localdir)
+    if type(localdir) is bytes or type(localdir) is string:
+      if type(localdir) is bytes:
+        localdir = string(localdir, ENCS['system'])
+    else: # if localdir has not bytes or string type
+      raise(TypeError(
+        'localdir must be a string, not %s' % type(localdir).__name__))
+    self.localdir = localdir
+    for avoid in avoids:
+      if type(avoid) is not GLModule:
+        raise(TypeError('each avoid must be a GLModule instance'))
+    self.avoids = avoids
+    for module in modules:
+      if type(module) is GLModule:
+        self.append(module)
+      else: # if type(module) is not GLModule:
+        raise(TypeError('each module must be a GLModule instance'))
+    
+  def __contains__(self, module):
+    '''x.__contains__(y) = y in x'''
+    if type(module) is not GLModule:
+      raise(TypeError(
+        'module must be a GLModule, not %s' % type(module).__name__))
+    return(self.table.__contains__(module))
+    
+  def __delitem__(self, module):
+    '''x.__delitem__(y) <==> del x[y]'''
+    if type(module) is not GLModule:
+      raise(TypeError(
+        'module must be a GLModule, not %s' % type(module).__name__))
+    self.table.__delitem__(module)
+    
+  def __getitem__(self, module):
+    '''x.__getitem__(y) <==> x[y]'''
+    if type(module) is not GLModule:
+      raise(TypeError(
+        'module must be a GLModule, not %s' % type(module).__name__))
+    return(self.table.__getitem__(module))
+    
+  def __iter__(self):
+    '''x.__iter__() <==> iter(x)'''
+    return(iter(self.table))
+    
+  def __len__(self):
+    '''x.__len__() <==> len(x)'''
+    return(len(self.table))
+    
+  def __repr__(self):
+    '''x.__repr__() <==> repr(x)'''
+    return(repr(self.table))
+    
+  def transitive_closure(self, module):
+    '''Get dependencies of module and add them to list of modules. For each
+    dependency get its dependencies, etc. If module is unconditional, then
+    condition is set to None. This method is a recursive function, so if it
+    runs into RuntimeError, you may fix it by setting sys.setrecursionlimit.'''
+    depmodules = module.getDependencies(self.localdir)
+    for depmodule in depmodules:
+      if '[' in depmodule:
+        depmodule, condition = depmodule.split('[')
+        depmodule = depmodule.strip()
+        condition = '[%s' % condition
+      else: # if '[' not in depmodule
+        condition = None
+      handled = [dep.getName() for dep in self.depmodules]
+      if depmodule not in handled:
+        depmodule = self.modulesystem.find(depmodule)
+      else: # if depmodule in handled
+        depmodule = self.depmodules[handled.index(depmodule)]
+      if depmodule not in self.avoids:
+        if depmodule not in self.depmodules:
+          self.depmodules += [depmodule]
+          self.conditions += [condition]
+          self.transitive_closure(depmodule)
+        else: # if depmodule in self.depmodules
+          append = tuple([depmodule, condition])
+          listing = zip(self.depmodules, self.conditions)
+          if append not in listing:
+            self.depmodules += [depmodule]
+            self.conditions += [condition]
+            self.transitive_closure(depmodule)
+    
+  def append(self, module):
+    '''Append the given GLModule to GLModuleDict, get its dependencies and
+    store them in the dictionary.'''
+    #self.depmodules = list()
+    #self.conditions = list()
+    if type(module) is not GLModule:
+      raise(TypeError(
+        'module must be a GLModule, not %s' % type(module).__name__))
+    if module not in self.table:
+      self.transitive_closure(module)
+    self.table[module] = list()
+    for index in range(0, len(self.depmodules)):
+      listing = [self.depmodules[index], self.conditions[index]]
+      self.table[module].append(tuple(listing))
+    self.table[module] = sorted(self.table[module])
+    
+  def index(self, module):
+    '''Return the index of the given module.'''
+    if type(module) is not GLModule:
+      raise(TypeError(
+        'module must be a GLModule, not %s' % type(module).__name__))
+    result = list(self.table.keys()).index(module)
+    return(result)
+    
+  def remove(self, module):
+    '''Remove the given module from the GLModuleDict.'''
+    if type(module) is not GLModule:
+      raise(TypeError(
+        'module must be a GLModule, not %s' % type(module).__name__))
+    if module in self.table:
+      self.table.pop(module)
+    else: # if module not in self.table
+      raise(KeyError(module))
+    
+  def depdict(self, module):
+    '''Return a usual Python dict object, which consists of dependencies as
+    keys and conditions as values.'''
+    result = dict(zip(self.deplist(module), self.condlist(module)))
+    return(result)
+    
+  def deplist(self, module):
+    '''Return the dependencies of the module as list.'''
+    if type(module) is not GLModule:
+      raise(TypeError(
+        'module must be a GLModule, not %s' % type(module).__name__))
+    result = [dep for dep, cond in self.table[module]]
+    return(result)
+    
+  def condlist(self, module):
+    '''Return the conditions of the module as list.'''
+    if type(module) is not GLModule:
+      raise(TypeError(
+        'module must be a GLModule, not %s' % type(module).__name__))
+    result = [cond for dep, cond in self.table[module]]
+    return(result)
+    
+  def table(self):
+    '''Return modules and their dependencies as dict object.'''
+    return(dict(self.table))
 

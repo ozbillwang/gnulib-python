@@ -1,3 +1,16 @@
+6 July 2012, Dmitriy Selyutin
+GLImport module now has argument conddeps instead of dependencies. Both its
+cache and args versions now also has keys 'conddeps' instead of 'dependencies'.
+I've changed the name to show the conditional nature of such dependencies.
+A new error was added to GLImport class which is raised if user tries to apply
+both testsflag['tests'] and conddeps arguments.
+A new class GLModuleDict was added to GLModuleSystem module to provide an easy
+way to operate with module tables. I've first decided to use dicts, but they
+are too ugly without some modifications. I also wanted this library to be a
+more flexible, so I've thought it can be a cool idea to add a new class.
+Some code that was used to work with cache inside GLModuleSystem was deleted,
+because with the introdution of GLModuleDict we do not need any cache.
+
 4 July 2012, Dmitriy Selyutin
 Recursive method transitive_closure was added to GLImport module. Now it seems
 to make the work as follows. It takes about two seconds to get list of modules
