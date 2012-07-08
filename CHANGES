@@ -1,3 +1,12 @@
+8 July 2012, Dmitriy Selyutin
+Transitive closure system was reimplemented from zero. I've followed the way
+which was inside the old gnulib-tool, so with small modifications inside
+'-tests' part it will work as follows.
+Some small fixes inside other parts of code, e.g. str(GLModule) now returns the
+same result as GLModule.getName(). GLModule.getDependencies(localdir) now
+returns list of tuples, where each tuple contains GLModule instance and
+its condition. Condition can be string or None.
+
 6 July 2012, Dmitriy Selyutin
 GLImport module now has argument conddeps instead of dependencies. Both its
 cache and args versions now also has keys 'conddeps' instead of 'dependencies'.

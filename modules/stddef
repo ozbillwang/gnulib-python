@@ -7,7 +7,7 @@ m4/stddef_h.m4
 m4/wchar_t.m4
 
 Depends-on:
-include_next [$JUST_TO_TEST_DIFFERENT_SITUATIONS = 1]
+include_next
 
 configure.ac:
 gl_STDDEF_H

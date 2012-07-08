@@ -15,7 +15,7 @@ from . import constants
 from .GLError import GLError
 from .GLMode import GLMode
 from .GLModuleSystem import GLModule
-from .GLModuleSystem import GLModuleDict
+from .GLModuleSystem import GLModuleTable
 from .GLModuleSystem import GLModuleSystem
 
 
@@ -348,13 +348,13 @@ class GLImport(GLMode):
       
       # conddeps => self.args['conddeps']
       if type(conddeps) is bool and conddeps:
-        self.enableDependencies()
+        self.enableCondDeps()
       elif type(conddeps) is bool and not conddeps:
-        self.disableDependencies()
+        self.disableCondDeps()
       elif type(conddeps) is NoneType and self.cache['conddeps']:
-        self.enableDependencies()
+        self.enableCondDeps()
       elif type(conddeps) is NoneType and not self.cache['conddeps']:
-        self.disableDependencies()
+        self.disableCondDeps()
       
       # libtool => self.args['libtool']
       if libtool == None:
@@ -416,69 +416,32 @@ class GLImport(GLMode):
   def execute(self, dryrun=False):
     '''Run the GLImport and perform necessary actions. If dryrun is True, then
     only print what would have been done.'''
-    system = self.modulesystem
-    modules = \
-    [ # Begin creation of GLModule list
-      self.modulesystem.find(module) for module in self.getModules()
-    ] # Finish creation of GLModule list
-    avoids = \
-    [ # Begin creation of GLModule list
-      self.modulesystem.find(module) for module in self.getAvoids()
-    ] # Finish creation of GLModule list
-    
     localdir = self.getLocalDir()
-    self.moduledict = GLModuleDict(localdir, modules, avoids)
+    testflags = self.getTestFlags()
+    conddeps = self.checkCondDeps()
+    modulesystem = self.modulesystem
+    modules = [modulesystem.find(module) for module in self.getModules()]
+    avoids = [modulesystem.find(avoid) for avoid in self.getAvoids()]
+    table = GLModuleTable(localdir, avoids, testflags, conddeps)
+    modules = table.transitive_closure(modules)
     
-    # If testflags are disabled and conditional dependencies are disabled, we
-    # just add every module to final modules list.
-    for module in self.moduledict:
-      deps = self.moduledict.depdict(module)
+    bold_on = ''
+    bold_off = ''
+    term = os.getenv('TERM')
+    if term == 'xterm':
+      bold_on = '\x1b[1m'
+      bold_off = '\x1b[0m'
     
-    exit()
+    #exit()
     
-    # If testflags are enabled, filter dependencies whose flag is disabled.
-    if self.getTestFlags():
-      for depmodule in self.moduledict.dependencies():
-        index = self.depmodules.index(depmodule)
-        status = depmodule.getStatus()
-        if self.checkTestFlag(TESTS['tests']):
-          testsname = depmodule.getTestsName()
-          if self.modulesystem.exists(testsname):
-            testsmodule = self.modulesystem.find(testsname)
-            if testsmodule not in self.depmodules:
-              self.depmodules += [testsmodule]
-        if status == 'obsolete':
-          if self.checkTestFlag(TESTS['obsolete']) or \
-          self.checkTestFlag(TESTS['all-test']):
-            self.depmodules.remove(depmodule)
-            self.conditions.pop(index)
-        elif status == 'c++-test':
-          if self.checkTestFlag(TESTS['c++-test']) or \
-          self.checkTestFlag(TESTS['all-test']):
-            self.depmodules.remove(depmodule)
-            self.conditions.pop(index)
-        elif status == 'longrunning-test':
-          if self.checkTestFlag(TESTS['longrunning-test']) or \
-          self.checkTestFlag(TESTS['all-test']):
-            self.depmodules.remove(depmodule)
-            self.conditions.pop(index)
-        elif status == 'privileged-test':
-          if self.checkTestFlag(TESTS['privileged-test']) or \
-          self.checkTestFlag(TESTS['all-test']):
-            self.depmodules.remove(depmodule)
-            self.conditions.pop(index)
-        elif status == 'all-test':
-          if self.checkTestFlag(TESTS['all-test']) or \
-          self.checkTestFlag(TESTS['all-test']):
-            self.depmodules.remove(depmodule)
-            self.conditions.pop(index)
-    
-    # If conditional dependencies are enabled, filter dependencies which can be
-    # added if their condition is True.
-    cond1 = '/^ *stdint *$/{ s/^.*$/true/p }'
-    cond2 = '/^ *stdint *\[.*\] *$/{ s/^ *stdint *\[\(.*\)\] *$/\1/p }'
-    args = ['sed', '-e', cond1, '-e', cond2]
-    sp.check_output
+    print('Module list with included dependencies (indented):')
+    for module in modules:
+      bold_on = ''
+      bold_off = ''
+      if str(module) in self.getModules():
+        print('  %s%s%s' % (bold_on, module, bold_off))
+      else: # if str(module) not in self.getModules()
+        print('    %s' % module)
     
     exit()
     
@@ -623,19 +586,19 @@ class GLImport(GLMode):
     '''Reset test flags (only default flag will be enabled).'''
     self.setTestFlags(self.cache['tests'])
     
-  def checkDependencies(self):
+  def checkCondDeps(self):
     '''Check if user enabled cond. dependencies.'''
     return(self.args['conddeps'])
     
-  def enableDependencies(self):
+  def enableCondDeps(self):
     '''Enable cond. dependencies (may save configure time and object code).'''
     self.args['conddeps'] = True
     
-  def disableDependencies(self):
+  def disableCondDeps(self):
     '''Disable cond. dependencies (may save configure time and object code).'''
     self.args['conddeps'] = False
     
-  def resetDependencies(self):
+  def resetCondDeps(self):
     '''Reset cond. dependencies (may save configure time and object code).'''
     self.args['conddeps'] = self.cache['conddeps']
     

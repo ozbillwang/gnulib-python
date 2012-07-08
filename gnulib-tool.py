@@ -60,7 +60,6 @@ relpath = os.path.relpath
 # Define main part
 #===============================================================================
 if __name__ == '__main__':
-  
   mode = 1
   m4base = None
   destdir = '.'
@@ -68,13 +67,13 @@ if __name__ == '__main__':
   modcache = None
   verbose = None
   auxdir = None
-  modules = list(['string-tests', 'stddef'])
+  modules = list(['string-tests'])
   avoids = list()
   sourcebase = None
   pobase = None
   docbase = None
   testsbase = None
-  tests = [0, 1]
+  tests = None
   libname = None
   lgpl = None
   makefile = None

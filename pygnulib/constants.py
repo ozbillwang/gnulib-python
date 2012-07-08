@@ -1,6 +1,8 @@
 #!/usr/bin/python
 # encoding: UTF-8
 
+'''An easy access to pygnulib constants.'''
+
 from __future__ import unicode_literals
 #===============================================================================
 # Define global imports
@@ -62,11 +64,14 @@ TESTS = dict() # Tests
 # Set ENCS dictionary
 import __main__ as interpreter
 if not hasattr(interpreter, '__file__'):
-  ENCS['default'] = sys.stdout.encoding.upper()
+  if sys.stdout.encoding != None:
+    ENCS['default'] = sys.stdout.encoding
+  else: # sys.stdout.encoding == None
+    ENCS['default'] = 'UTF-8'
 else: # if hasattr(interpreter, '__file__'):
   ENCS['default'] = 'UTF-8'
-ENCS['system'] = sys.getfilesystemencoding().upper()
-ENCS['shell'] = sys.stdout.encoding.upper()
+ENCS['system'] = sys.getfilesystemencoding()
+ENCS['shell'] = sys.stdout.encoding
 if ENCS['shell'] == None:
   ENCS['shell'] = 'UTF-8'
 

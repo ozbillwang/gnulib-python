@@ -1,6 +1,8 @@
 #!/usr/bin/python
 # encoding: UTF-8
 
+'''An easy access to pygnulib classes.'''
+
 from __future__ import unicode_literals
 #===============================================================================
 # Define global imports
@@ -17,7 +19,7 @@ from .GLInfo import GLInfo
 from .GLMode import GLMode
 from .GLFileSystem import GLFileSystem
 from .GLModuleSystem import GLModule
-from .GLModuleSystem import GLModuleDict
+from .GLModuleSystem import GLModuleTable
 from .GLModuleSystem import GLModuleSystem
 from .GLImport import GLImport
 
@@ -52,4 +54,5 @@ normpath = os.path.normpath
 relpath = os.path.relpath
 
 
-__all__ = ['GLError', 'GLMode', 'GLModule', 'GLImport']
+__all__ = ['GLError', 'GLInfo', 'GLFileSystem', 'GLMode', 'GLModule',
+'GLModuleTable', 'GLModuleSystem', 'GLImport']
