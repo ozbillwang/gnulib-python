@@ -49,7 +49,7 @@ relpath = os.path.relpath
 # Define GLError class
 #===============================================================================
 class GLError(Exception):
-  '''Exception handler for GL classes.'''
+  '''Exception handler for pygnulib classes.'''
 
   def __init__(self, errno, errinfo=None):
     '''Each error has following parameters:

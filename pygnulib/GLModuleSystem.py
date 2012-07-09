@@ -378,6 +378,13 @@ Include:|Link:|License:|Maintainer:)'
             result = string()
           else: # if result != list()
             result = result[-1]
+      if result == '':
+        if self.getName().endswith('-tests'):
+          result = 'tests'
+        else: # if not self.getName().endswith('-tests')
+          result = 'main'
+      if type(result) is bytes:
+        result = result.decode(ENCS['default'])
       self.cache['applicability'] = result
     return(self.cache['applicability'])
     
@@ -583,7 +590,7 @@ Include:|Link:|License:|Maintainer:)'
 class GLModuleTable(object):
   '''GLModuleTable is used to work with the list of the modules.'''
   
-  def __init__(self, localdir, avoids=list(), testflags=list(), conddeps=True):
+  def __init__(self, localdir, avoids=list(), testflags=list(),conddeps=True):
     '''GLModuleTable.__init__(*args, **kwargs) -> GLModuleTable
     
     Create new GLModuleTable instance. If modules are specified, then add
@@ -591,7 +598,9 @@ class GLModuleTable(object):
     then in transitive_closure every dependency which is in avoids won't be
     included in the final modules list. If testflags iterable is enabled, then
     don't add module which status is in the testflags. If conddeps are enabled,
-    then store condition for each dependency if it has a condition.'''
+    then store condition for each dependency if it has a condition.
+    The only necessary argument is localdir, which is needed just to create
+    modulesystem instance to look for dependencies.'''
     self.avoids = list() # Avoids
     self.dependers = dict() # Dependencies
     self.conditionals = dict() # Conditional modules
@@ -680,12 +689,15 @@ class GLModuleTable(object):
     return(result)
     
   def transitive_closure(self, modules):
-    '''Use transitive closure to add module and its dependencies. Add every
+    '''GLModuleTable.transitive_closure(modules) -> list
+    
+    Use transitive closure to add module and its dependencies. Add every
     module and its dependencies from modules list, but do not add dependencies
     which contain in avoids list. If any testflag is enabled, then do not add
     dependencies which have the status as this flag. If conddeps are enabled,
     then store condition for each dependency if it has a condition. This method
-    is used to update final list of modules.'''
+    is used to update final list of modules.
+    Method returns list of modules together '''
     for module in modules:
       if type(module) is not GLModule:
         raise(TypeError('each module must be a GLModule instance'))
@@ -712,37 +724,39 @@ class GLModuleTable(object):
         conditions = [pair[1] for pair in dependencies]
         if TESTS['tests'] in self.testflags:
           testsname = module.getTestsName()
-        if self.modulesystem.exists(testsname):
-          testsmodule = self.modulesystem.find(testsname)
-          depmodules += [testsmodule]
+          if self.modulesystem.exists(testsname):
+            testsmodule = self.modulesystem.find(testsname)
+            depmodules += [testsmodule]
         for depmodule in depmodules:
           include = True
+          includes = list()
           status = depmodule.getStatus()
           for word in status:
             if word == 'obsolete':
               if TESTS['obsolete'] in self.testflags or \
               TESTS['all-test'] in self.testflags:
-                include = False
+                includes += [False]
             elif word == 'c++-test':
               if TESTS['c++-test'] in self.testflags or \
               TESTS['all-test'] in self.testflags:
-                include = False
+                includes += [False]
             elif word == 'longrunning-test':
               if TESTS['longrunning-test'] in self.testflags or \
               TESTS['all-test'] in self.testflags:
-                include = False
+                includes += [False]
             elif word == 'privileged-test':
               if TESTS['privileged-test'] in self.testflags or \
               TESTS['all-test'] in self.testflags:
-                include = False
+                includes += [False]
             elif word == 'all-test':
               if TESTS['all-test'] in self.testflags or \
               TESTS['all-test'] in self.testflags:
-                include = False
+                includes += [False]
             else: # if any other word
               if word.endswith('-tests'):
                 if TESTS['all-test'] in self.testflags:
-                  include = False
+                  includes += [False]
+            include = any(includes)
           if include and depmodule not in self.avoids:
             inmodules += [depmodule]
             if self.conddeps:
@@ -756,11 +770,33 @@ class GLModuleTable(object):
                 else: # if not conditional
                   self.addUnconditional(self, module)
       listing = list() # Create empty list
-      handledmodules = sorted(handledmodules +inmodules_this_round)
+      inmodules = sorted(set(inmodules))
+      handledmodules = sorted(set(handledmodules +inmodules_this_round))
       for module in inmodules:
         if module not in handledmodules:
           listing += [module]
-      inmodules = list(listing)
+      inmodules = sorted(set(listing))
     modules = sorted(set(outmodules))
     return(modules)
+    
+  def transitive_closure_separately(self, basemodules, modules, lgpl=False):
+    '''GLModuleTable.transitive_closure_separately(*args, **kwargs) -> tuple
+    
+    Determine main module list and tests-related module list separately.
+    The main module list is the transitive closure of the specified modules,
+    ignoring tests modules. Its lib/* sources go into $sourcebase/. If lgpl is
+    specified, it will consist only of LGPLed source.
+    The tests-related module list is the transitive closure of the specified
+    modules, including tests modules, minus the main module list excluding
+    modules of applicability 'all'. Its lib/* sources (brought in through
+    dependencies of *-tests modules) go into $testsbase/. It may contain GPLed
+    source, even if lgpl is specified.
+    Method returns tuple which contains two lists: the list of main modules and
+    the list of tests-related modules. Both lists contain dependencies.'''
+    main_modules = list()
+    tests_modules = list()
+    for module in modules:
+      if type(module) is not GLModule:
+        raise(TypeError('each module must be a GLModule instance'))
+    main_modules = self.transitive_closure_separately(basemodules)
 

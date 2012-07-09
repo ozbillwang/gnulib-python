@@ -26,6 +26,7 @@ __author__ = constants.__author__
 __license__ = constants.__license__
 __copyright__ = constants.__copyright__
 __version__ = constants.__version__
+__all__ = ['GLImport']
 
 
 #===============================================================================
@@ -55,8 +56,11 @@ relpath = os.path.relpath
 # Define GLImport class
 #===============================================================================
 class GLImport(GLMode):
-  '''GLImport class is used to provide methods for --import, --add-import
-  and --remove-import actions.'''
+  '''GLImport class is used to provide methods for --import, --add-import,
+  --remove-import and --update actions. This is a high-level class, so
+  developers may  have to use lower-level classes to create their own
+  scripts. However, if user needs just to use power of gnulib-tool, this class
+  is a very good choice.'''
   
   def __init__\
   (
@@ -419,31 +423,38 @@ class GLImport(GLMode):
     localdir = self.getLocalDir()
     testflags = self.getTestFlags()
     conddeps = self.checkCondDeps()
+    lgpl = self.getLGPL()
     modulesystem = self.modulesystem
-    modules = [modulesystem.find(module) for module in self.getModules()]
+    basemodules = [modulesystem.find(module) for module in self.getModules()]
     avoids = [modulesystem.find(avoid) for avoid in self.getAvoids()]
+    modules = sorted(set(basemodules))
+    avoids = sorted(set(avoids))
+    
+    # Perform transitive closure
     table = GLModuleTable(localdir, avoids, testflags, conddeps)
     modules = table.transitive_closure(modules)
     
-    bold_on = ''
-    bold_off = ''
-    term = os.getenv('TERM')
-    if term == 'xterm':
-      bold_on = '\x1b[1m'
-      bold_off = '\x1b[0m'
-    
-    #exit()
-    
-    print('Module list with included dependencies (indented):')
-    for module in modules:
+    # Show module list
+    if self.getVerbosity() >= 0:
       bold_on = ''
       bold_off = ''
-      if str(module) in self.getModules():
-        print('  %s%s%s' % (bold_on, module, bold_off))
-      else: # if str(module) not in self.getModules()
-        print('    %s' % module)
+      term = os.getenv('TERM')
+      if term == 'xterm':
+        bold_on = '\x1b[1m'
+        bold_off = '\x1b[0m'
+        # bold_on = '' # Uncomment these lines to let diff work
+        # bold_off = '' # Uncomment these lines to let diff work
+      print('Module list with included dependencies (indented):')
+      for module in modules:
+        if str(module) in self.getModules():
+          print('  %s%s%s' % (bold_on, module, bold_off))
+        else: # if str(module) not in self.getModules()
+          print('    %s' % module)
     
     exit()
+    
+    separated = table.transitive_closure_separately(basemodules, modules, lgpl)
+    
     
   def addModule(self, module):
     '''Add the module to the modules list.'''

@@ -1,4 +1,7 @@
-8 July 2012, Dmitriy Selyutin
+10 July 2012, Dmitriy Selyutin
+Transitive closure now works as follows. I've also done some small fixes.
+
+9 July 2012, Dmitriy Selyutin
 Transitive closure system was reimplemented from zero. I've followed the way
 which was inside the old gnulib-tool, so with small modifications inside
 '-tests' part it will work as follows.

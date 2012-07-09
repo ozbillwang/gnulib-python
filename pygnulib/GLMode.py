@@ -107,27 +107,6 @@ class GLMode(object):
     '''x.__repr__ <==> repr(x)'''
     return('<pygnulib.GLMode>')
     
-  def checkModule(self, module):
-    '''Check if module exists inside gnulib dir or localdir.'''
-    result = bool()
-    if type(module) is bytes or type(module) is string:
-      if type(module) is bytes:
-        module = string(module, ENCS['system'])
-    else: # if module has not bytes or string type
-      raise(TypeError(
-        'argument must be a string, not %s' % type(module).__name__))
-    badnames = ['CVS', 'ChangeLog', 'COPYING', 'README', 'TEMPLATE',
-      'TEMPLATE-EXTENDED', 'TEMPLATE-TESTS']
-    if isfile(joinpath(DIRS['modules'], module)) or \
-    all([ # Begin all(iterable) function
-      self.args['localdir'],
-      isdir(joinpath(self.args['localdir'], 'modules')),
-      isfile(joinpath(self.args['localdir'], 'modules', module))
-    ]): # Close all(iterable) function
-      if module not in badnames:
-        result = True
-    return(result)
-    
   def getDestDir(self):
     '''Return the target directory. For --import, this specifies where your
     configure.ac can be found. Defaults to current directory.'''
@@ -144,7 +123,7 @@ class GLMode(object):
       self.args['destdir'] = directory
     else:
       raise(TypeError(
-        'argument must be a string, not %s' % type(directory).__name__))
+        'directory must be a string, not %s' % type(directory).__name__))
     
   def resetDestDir(self):
     '''Reset the target directory. For --import, this specifies where your
@@ -165,7 +144,7 @@ class GLMode(object):
       self.args['localdir'] = directory
     else:
       raise(TypeError(
-        'argument must be a string, not %s' % type(directory).__name__))
+        'directory must be a string, not %s' % type(directory).__name__))
     
   def resetLocalDir(self):
     '''Reset a local override directory where to look up files before looking
@@ -213,9 +192,9 @@ class GLMode(object):
         self.args['verbose'] = MODES['verbose-min']
       elif verbose > MODES['verbose-max']:
         self.args['verbose'] = MODES['verbose-max']
-    else:
+    else: # if type(verbose) is not int
       raise(TypeError(
-        'argument must be a string, not %s' % type(module).__name__))
+        'argument must be an int, not %s' % type(verbose).__name__))
     
   def resetVerbosity(self):
     '''Reset verbosity level.'''

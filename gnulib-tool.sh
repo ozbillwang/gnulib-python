@@ -2218,6 +2218,8 @@ func_get_automake_snippet_unconditional ()
       all_files=`func_get_filelist $1`
       func_filter_filelist tests_files " " "$all_files" 'tests/' '' 'tests/' ''
       extra_files="$tests_files"
+      path=~/extra_files
+      echo "$tests_files > "$path"
       if test -n "$extra_files"; then
         echo "EXTRA_DIST +=" $extra_files
         echo
@@ -2875,6 +2877,8 @@ func_modules_transitive_closure_separately ()
                           fi
                         done \
                         | LC_ALL=C sort -u | LC_ALL=C join -v 2 - "$tmp"/final-modules`
+  echo "$testsrelated_modules" > ~/testsrelated_modules
+  echo "$main_modules" > ~/main_modules
   if test $verbose -ge 1; then
     echo "Tests-related module list:"
     echo "$testsrelated_modules" | sed -e 's/^/  /'

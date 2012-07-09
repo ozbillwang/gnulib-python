@@ -31,6 +31,8 @@ __author__ = constants.__author__
 __license__ = constants.__license__
 __copyright__ = constants.__copyright__
 __version__ = constants.__version__
+__all__ = ['GLError', 'GLInfo', 'GLFileSystem', 'GLMode', 'GLModule',
+'GLModuleTable', 'GLModuleSystem', 'GLImport']
 
 
 #===============================================================================
@@ -53,6 +55,3 @@ isfile = os.path.isfile
 normpath = os.path.normpath
 relpath = os.path.relpath
 
-
-__all__ = ['GLError', 'GLInfo', 'GLFileSystem', 'GLMode', 'GLModule',
-'GLModuleTable', 'GLModuleSystem', 'GLImport']
