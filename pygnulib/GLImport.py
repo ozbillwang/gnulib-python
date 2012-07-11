@@ -427,12 +427,12 @@ class GLImport(GLMode):
     modulesystem = self.modulesystem
     basemodules = [modulesystem.find(module) for module in self.getModules()]
     avoids = [modulesystem.find(avoid) for avoid in self.getAvoids()]
-    modules = sorted(set(basemodules))
+    basemodules = sorted(set(basemodules))
     avoids = sorted(set(avoids))
     
     # Perform transitive closure
     table = GLModuleTable(localdir, avoids, testflags, conddeps)
-    modules = table.transitive_closure(modules)
+    finalmodules = table.transitive_closure(basemodules)
     
     # Show module list
     if self.getVerbosity() >= 0:
@@ -445,15 +445,16 @@ class GLImport(GLMode):
         # bold_on = '' # Uncomment these lines to let diff work
         # bold_off = '' # Uncomment these lines to let diff work
       print('Module list with included dependencies (indented):')
-      for module in modules:
+      for module in finalmodules:
         if str(module) in self.getModules():
           print('  %s%s%s' % (bold_on, module, bold_off))
         else: # if str(module) not in self.getModules()
           print('    %s' % module)
     
+    separated = table.transitive_closure_separately(basemodules, finalmodules)
+    
     exit()
     
-    separated = table.transitive_closure_separately(basemodules, modules, lgpl)
     
     
   def addModule(self, module):

@@ -385,7 +385,7 @@ Include:|Link:|License:|Maintainer:)'
           result = 'main'
       if type(result) is bytes:
         result = result.decode(ENCS['default'])
-      self.cache['applicability'] = result
+      self.cache['applicability'] = result.strip()
     return(self.cache['applicability'])
     
   def getFiles(self, autoconf_version):
@@ -772,14 +772,16 @@ class GLModuleTable(object):
       listing = list() # Create empty list
       inmodules = sorted(set(inmodules))
       handledmodules = sorted(set(handledmodules +inmodules_this_round))
-      for module in inmodules:
-        if module not in handledmodules:
-          listing += [module]
-      inmodules = sorted(set(listing))
+      inmodules = \
+      [ # Begin to filter inmodules
+        module for module in inmodules if module not in handledmodules
+      ] # Finish to filter inmodules
+      inmodules = sorted(set(inmodules))
     modules = sorted(set(outmodules))
+    self.modules = modules
     return(modules)
     
-  def transitive_closure_separately(self, basemodules, modules, lgpl=False):
+  def transitive_closure_separately(self, basemodules, finalmodules):
     '''GLModuleTable.transitive_closure_separately(*args, **kwargs) -> tuple
     
     Determine main module list and tests-related module list separately.
@@ -791,12 +793,31 @@ class GLModuleTable(object):
     modules of applicability 'all'. Its lib/* sources (brought in through
     dependencies of *-tests modules) go into $testsbase/. It may contain GPLed
     source, even if lgpl is specified.
+    Arguments are basemodules and finalmodules, where basemodules argument
+    represents modules specified by user and finalmodules represents modules
+    list after previous transitive_closure.
     Method returns tuple which contains two lists: the list of main modules and
     the list of tests-related modules. Both lists contain dependencies.'''
+    inctests = False
     main_modules = list()
     tests_modules = list()
-    for module in modules:
+    if TESTS['tests'] in self.testflags:
+      self.testflags.pop(TESTS['tests'])
+      inctests = True
+    for module in basemodules:
       if type(module) is not GLModule:
         raise(TypeError('each module must be a GLModule instance'))
-    main_modules = self.transitive_closure_separately(basemodules)
+    for module in finalmodules:
+      if type(module) is not GLModule:
+        raise(TypeError('each module must be a GLModule instance'))
+    main_modules = self.transitive_closure(basemodules)
+    tests_modules = \
+      [m for m in finalmodules if m not in main_modules] + \
+      [m for m in main_modules if m.getApplicability() != 'main']
+    tests_modules = sorted(set(tests_modules))
+    if inctests:
+      self.testflags = sorted(set(self.testflags +[TESTS['tests']]))
+    result = tuple([main_modules, tests_modules])
+    pprint(result)
+    return(result)
 

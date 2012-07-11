@@ -1,3 +1,6 @@
+11 July 2012, Dmitriy Selyutin
+Method transitive_closure_separately now works as follows.
+
 10 July 2012, Dmitriy Selyutin
 Transitive closure now works as follows. I've also done some small fixes.
 
