@@ -1,3 +1,12 @@
+13 July 2012, Dmitriy Selyutin
+GLError was renamed to GLErrorHandler. New GLError is now a high-level
+interface for GLErrorHandler, which allows to raise errors and warnings using
+both bash and Pythonic styles.
+Extraction of automake snippets was partially rewritten. Still there is a need
+to write extraction of automake snippets for non-tests modules.
+License incompatibilities were added to code of GLImport.
+Some fixes and improvements in other parts of code.
+
 11 July 2012, Dmitriy Selyutin
 Method transitive_closure_separately now works as follows.
 

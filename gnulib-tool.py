@@ -59,7 +59,7 @@ relpath = os.path.relpath
 #===============================================================================
 # Define main part
 #===============================================================================
-if __name__ == '__main__':
+def main():
   mode = 1
   m4base = None
   destdir = '.'
@@ -75,7 +75,7 @@ if __name__ == '__main__':
   testsbase = None
   tests = None
   libname = None
-  lgpl = None
+  lgpl = 3
   makefile = None
   libtool = None
   conddeps = None
@@ -282,4 +282,11 @@ if __name__ == '__main__':
             witness_c_macro=witness_c_macro,
             vc_files=vc_files,
           ).execute(dryrun)
-      
+
+if __name__ == '__main__':
+  try: # Try to execute
+    main()
+  except classes.GLErrorHandler as error:
+    errno = error.errno
+    errinfo = error.errinfo
+    error = classes.GLError(errno, errinfo, fatal=False, style=0)

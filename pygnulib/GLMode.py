@@ -119,7 +119,7 @@ class GLMode(object):
       if type(directory) is bytes:
         directory = string(directory, ENCS['system'])
       if not isdir(directory):
-        raise(GLError(1, directory))
+        pass # TODO: correct OSError
       self.args['destdir'] = directory
     else:
       raise(TypeError(

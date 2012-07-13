@@ -14,9 +14,10 @@ import locale
 import codecs
 import subprocess as sp
 from . import constants
-from .GLError import GLError
 from .GLInfo import GLInfo
 from .GLMode import GLMode
+from .GLError import GLError
+from .GLError import GLErrorHandler
 from .GLFileSystem import GLFileSystem
 from .GLModuleSystem import GLModule
 from .GLModuleSystem import GLModuleTable
@@ -31,8 +32,8 @@ __author__ = constants.__author__
 __license__ = constants.__license__
 __copyright__ = constants.__copyright__
 __version__ = constants.__version__
-__all__ = ['GLError', 'GLInfo', 'GLFileSystem', 'GLMode', 'GLModule',
-'GLModuleTable', 'GLModuleSystem', 'GLImport']
+__all__ = ['GLError', 'GLErrorHandler', 'GLInfo', 'GLFileSystem', 'GLMode',
+'GLModule', 'GLModuleTable', 'GLModuleSystem', 'GLImport']
 
 
 #===============================================================================

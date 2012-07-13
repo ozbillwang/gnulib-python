@@ -11,7 +11,6 @@ import locale
 import codecs
 import subprocess as sp
 from . import constants
-from .GLError import GLError
 
 
 #===============================================================================

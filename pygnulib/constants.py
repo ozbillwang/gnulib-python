@@ -60,6 +60,8 @@ ENCS = dict() # Encodings
 FILES = dict() # Files
 MODES = dict() # Modes
 TESTS = dict() # Tests
+NL = '''
+''' # Newline character
 
 # Set ENCS dictionary
 import __main__ as interpreter
@@ -76,7 +78,7 @@ if ENCS['shell'] == None:
   ENCS['shell'] = 'UTF-8'
 
 # Set APP dictionary
-APP['name'] = os.path.basename(sys.argv[0])
+APP['name'] = sys.argv[0]
 APP['path'] = os.path.realpath(sys.argv[0])
 if type(APP['name']) is bytes:
   APP['name'] = string(APP['name'], ENCS['system'])
@@ -123,6 +125,8 @@ TESTS = \
   'all-test':         6,
 }
 
+# Define AUTOCONF minimum version
+DEFAULT_AUTOCONF_MINVERSION = 2.59
 # You can set AUTOCONFPATH to empty if autoconf 2.57 is already in your PATH
 AUTOCONFPATH = ''
 # You can set AUTOMAKEPATH to empty if automake 1.9.x is already in your PATH
@@ -235,7 +239,7 @@ def joinpath(head, *tail):
   result = os.path.normpath(os.path.join(head, *tail))
   return(result)
 
-def filter_filelist(filelist,
+def filter_filelist(separator, filelist,
   prefix, suffix, removed_prefix, removed_suffix,
   added_prefix=string(), added_suffix=string()):
   '''filter_filelist(*args) -> list
@@ -244,11 +248,13 @@ def filter_filelist(filelist,
   prefix and ending with suffix are considered. Processing: removed_prefix
   and removed_suffix are removed from each element, added_prefix and
   added_suffix are added to each element.'''
-  result = list()
+  listing = list()
   for filename in filelist:
     if filename.startswith(prefix) and filename.endswith(suffix):
       pattern = compiler('^%s(.*?)%s$' % (removed_prefix, removed_suffix))
-      result += [pattern.sub('%s\\1%s' % (added_prefix, added_suffix))]
+      result = pattern.sub('%s\\1%s' % (added_prefix, added_suffix), filename)
+      listing += [result]
+  result = separator.join(listing)
   return(result)
 
 __all__ += ['APP', 'DIRS', 'FILES', 'MODES', 'UTILS']

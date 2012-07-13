@@ -10,7 +10,7 @@ import sys
 import codecs
 import subprocess as sp
 from . import constants
-from .GLError import GLError
+from .GLError import GLErrorHandler
 from .GLFileSystem import GLFileSystem
 from pprint import pprint
 
@@ -112,7 +112,7 @@ class GLModuleSystem(object):
       result = GLModule(path, istemp)
       return(result)
     else: # if self.exists(module)
-      raise(GLError(3, module))
+      raise(GLErrorHandler(3, module))
     
   def list(self):
     '''GLModuleSystem.list() -> list
@@ -494,34 +494,41 @@ Include:|Link:|License:|Maintainer:)'
       self.cache['autoconf'] = result
     return(self.cache['autoconf'])
     
-  def getAutomakeSnippet(self, conditional, autoconf_version):
-    '''GLModule.getAutomakeSnippet(conditional) -> string
+  def getAutomakeSnippet_Conditional(self):
+    '''GLModule.getAutomakeSnippet_Conditional() -> string
     
-    Return automake snippet.'''
+    Return conditional automake snippet.'''
     section = 'Makefile.am:'
-    if type(conditional) is not bool:
-      raise(TypeError(
-        'conditional must be bool, not %s' % type(conditional).__name__))
-    if conditional:
-      if 'makefile' not in self.cache:
-        if section not in self.content:
-          result = string()
-        else: # if section in self.content
-          pattern = '^%s[\t ]*(.*?)%s' % (section, self.regex)
-          pattern = compiler(pattern, re.DOTALL | re.MULTILINE)
-          result = pattern.findall(self.content)
-          if type(result) is list:
-            if result == list():
-              result = string()
-            else: # if result != list()
-              result = result[-1]
-        self.cache['makefile'] = result
-      return(self.cache['makefile'])
-    else: # if not conditional
-      if self.isTests():
-        all_files = self.getFiles(autoconf_version)
-        extra_files = filter_filelist(all_files, 'tests/', '', 'tests/', '')
-        
+    if 'makefile-conditional' not in self.cache:
+      if section not in self.content:
+        result = string()
+      else: # if section in self.content
+        pattern = '^%s[\t ]*(.*?)%s' % (section, self.regex)
+        pattern = compiler(pattern, re.DOTALL | re.MULTILINE)
+        result = pattern.findall(self.content)
+        if type(result) is list:
+          if result == list():
+            result = string()
+          else: # if result != list()
+            result = result[-1]
+      self.cache['makefile-conditional'] = result
+    return(self.cache['makefile-conditional'])
+    
+  def getAutomakeSnippet_Unconditional(self, autoconf_version):
+    '''getAutomakeSnippet_Unconditional(autoconf_version) -> string
+    
+    Return unconditional automake snippet.'''
+    if self.isTests():
+      files = self.getFiles(autoconf_version)
+      files = filter_filelist(' ', files, 'tests/', '', 'tests/', '')
+      if files:
+        files = 'EXTRA_DIST += %s' % files
+      return(files)
+    else: # if not tests module
+      # TODO: unconditional automake snippet for nontests modules
+      pass
+    
+    
   def getInclude(self):
     '''GLModule.getInclude() -> string
     
@@ -563,23 +570,55 @@ Include:|Link:|License:|Maintainer:)'
     return(self.cache['link'])
     
   def getLicense(self):
-    '''GLModule.getLicense() -> string
+    '''GLModule.getLicense(self) -> string
+    
+    Get license and warn user if module lacks a license.'''
+    license = self.getLicense_Raw()
+    if not self.isTests():
+      if not license:
+        sys.stderr.write('gnulib-tool: warning: ')
+        sys.stderr.write('module %s lacks a license\n' % str(self))
+    if not license:
+      license = 'GPL'
+    return(license)
+    
+  def getLicense_Raw(self):
+    '''GLModule.getLicense_Raw() -> string
     
     Return module license.'''
-    pass # TODO: see the latest commit
+    section = 'License:'
+    if 'license' not in self.cache:
+      if section not in self.content:
+        result = string()
+      else: # if section in self.content
+        pattern = '^%s[\t ]*(.*?)%s' % (section, self.regex)
+        pattern = compiler(pattern, re.DOTALL | re.MULTILINE)
+        result = pattern.findall(self.content)
+        if type(result) is list:
+          if result == list():
+            result = string()
+          else: # if result != list()
+            result = result[-1]
+      self.cache['license'] = result.strip()
+    return(self.cache['license'])
     
   def getMaintainer(self):
     '''GLModule.getMaintainer() -> string
     
     Return maintainer directive.'''
+    section = 'Maintainer:'
     if 'maintainer' not in self.cache:
-      if 'Maintainer:' not in self.content:
+      if section not in self.content:
         result = string()
-      else: # if 'Maintainer:' in self.content
-        result = self.content.split('Maintainer:')[1]
-        if result.startswith('\t') or result.startswith(' '):
-          result = result[1:]
-        result = result.split('Maintainer:')[0]
+      else: # if section in self.content
+        pattern = '^%s[\t ]*(.*?)%s' % (section, self.regex)
+        pattern = compiler(pattern, re.DOTALL | re.MULTILINE)
+        result = pattern.findall(self.content)
+        if type(result) is list:
+          if result == list():
+            result = string()
+          else: # if result != list()
+            result = result[-1]
       self.cache['maintainer'] = result
     return(self.cache['maintainer'])
 
@@ -714,7 +753,7 @@ class GLModuleTable(object):
         outmodules += [module]
         if self.conddeps:
           automake_snippet = \
-            module.getAutomakeSnippet(True, self.autoconf_version)
+            module.getAutomakeSnippet_Conditional(self.autoconf_version)
           pattern = compiler('^if')
           if not pattern.findall(automake_snippet):
             self.addUnconditional(module)
@@ -818,6 +857,5 @@ class GLModuleTable(object):
     if inctests:
       self.testflags = sorted(set(self.testflags +[TESTS['tests']]))
     result = tuple([main_modules, tests_modules])
-    pprint(result)
     return(result)
 

@@ -12,7 +12,7 @@ import codecs
 import subprocess as sp
 from pprint import pprint
 from . import constants
-from .GLError import GLError
+from .GLError import GLErrorHandler
 from .GLMode import GLMode
 from .GLModuleSystem import GLModule
 from .GLModuleSystem import GLModuleTable
@@ -88,6 +88,8 @@ class GLImport(GLMode):
     podomain=None,
     witness_c_macro=None,
     vc_files=None,
+    symbolic=False,
+    lsymbolic=False,
   ):
     '''Create GLImport instance. There are some variables which can be used
     in __init__ section. However, you can set them later using methods inside
@@ -149,7 +151,7 @@ class GLImport(GLMode):
     if not isfile(path):
       path = joinpath(self.args['destdir'], 'configure.in')
       if not isfile(path):
-        raise(GLError(3, path))
+        raise(GLErrorHandler(3, path))
     with codecs.open(path, 'rb', 'UTF-8') as file:
       data = file.read()
     pattern = compiler(r'^AC_CONFIG_AUX_DIR\((.*?)\)$', re.S | re.M)
@@ -166,7 +168,7 @@ class GLImport(GLMode):
     else: # if versions
       version = sorted(set([float(version) for version in versions]))[-1]
     if version < 2.59:
-      raise(GLError(4, version))
+      raise(GLErrorHandler(4, version))
     self.autoconf_version = version
     
     # Get other cached variables
@@ -274,7 +276,7 @@ class GLImport(GLMode):
     
     else: # if self.mode != MODES['import']
       if self.args['m4base'] != self.cache['m4base']:
-        raise(GLError(5, m4base))
+        raise(GLErrorHandler(5, m4base))
       
       # Perform actions with modules. In --add-import, append each given module
       # to the list of cached modules; in --remove-import, remove each given
@@ -306,7 +308,7 @@ class GLImport(GLMode):
       else: # if sourcebase != None
         self.setSourceBase(sourcebase)
       if not self.args['sourcebase']:
-        raise(GLError(6, None))
+        raise(GLErrorHandler(6, None))
       
       # pobase => self.args['pobase']
       if pobase == None:
@@ -320,7 +322,7 @@ class GLImport(GLMode):
       else: # if docbase != None
         self.setDocBase(docbase)
       if not self.args['docbase']:
-        raise(GLError(7, None))
+        raise(GLErrorHandler(7, None))
       
       # testsbase => self.args['testsbase']
       if testsbase == None:
@@ -328,7 +330,7 @@ class GLImport(GLMode):
       else: # if testsbase != None
         self.setTestsBase(testsbase)
       if not self.args['testsbase']:
-        raise(GLError(8, None))
+        raise(GLErrorHandler(8, None))
       
       # libname => self.args['libname']
       if libname == None:
@@ -336,7 +338,7 @@ class GLImport(GLMode):
       else: # if libname != None
         self.setLibName(libname)
       if not self.args['libname']:
-        raise(GLError(9, None))
+        raise(GLErrorHandler(9, None))
       
       # lgpl => self.args['lgpl']
       if lgpl == None:
@@ -410,7 +412,7 @@ class GLImport(GLMode):
       
       # If user tries to apply conddeps and testflag['tests'] together
       if self.args['tests'] and self.args['conddeps']:
-        raise(GLError(10, None))
+        raise(GLErrorHandler(10, None))
     
     
   def __repr__(self):
@@ -424,6 +426,7 @@ class GLImport(GLMode):
     testflags = self.getTestFlags()
     conddeps = self.checkCondDeps()
     lgpl = self.getLGPL()
+    verbose = self.getVerbosity()
     modulesystem = self.modulesystem
     basemodules = [modulesystem.find(module) for module in self.getModules()]
     avoids = [modulesystem.find(avoid) for avoid in self.getAvoids()]
@@ -435,7 +438,7 @@ class GLImport(GLMode):
     finalmodules = table.transitive_closure(basemodules)
     
     # Show module list
-    if self.getVerbosity() >= 0:
+    if verbose >= 0:
       bold_on = ''
       bold_off = ''
       term = os.getenv('TERM')
@@ -451,11 +454,50 @@ class GLImport(GLMode):
         else: # if str(module) not in self.getModules()
           print('    %s' % module)
     
-    separated = table.transitive_closure_separately(basemodules, finalmodules)
+    # Separate modules into main_modules and tests_modules
+    modules = table.transitive_closure_separately(basemodules, finalmodules)
+    main_modules, tests_modules = modules
     
-    exit()
+    # Print main_modules and tests_modules
+    if verbose >= 1:
+      print('Main module list:')
+      for module in main_modules:
+        print('  %s' % str(module))
+      print('Tests-related module list:')
+      for module in tests_modules:
+        print('  %s' % str(module))
     
+    # Determine whether a $testsbase/libtests.a is needed
+    libtests = False
+    for module in tests_modules:
+      files = module.getFiles(self.autoconf_version)
+      for file in files:
+        if file.startswith('lib/'):
+          libtests = True
+          break
     
+    # TODO: add dummy package
+    
+    # Check license incompatibilities
+    listing = list()
+    compatibilities = dict()
+    incompatibilities = string()
+    compatibilities['all'] = ['GPLed build tool', 'public domain', 'unlimited',
+      'unmodifiable license text']
+    compatibilities[3] = ['LGPL', 'LGPLv2+', 'LGPLv3+']
+    compatibilities[2] = ['LGPLv2+']
+    if lgpl:
+      for module in main_modules:
+        license = module.getLicense()
+        if license not in compatibilities['all']:
+          if lgpl == 3 or lgpl == True:
+            if license not in compatibilities[3]:
+              listing.append(tuple([str(module), license]))
+          elif lgpl == 2:
+            if license not in compatibilities[2]:
+              listing.append(tuple([str(module), license]))
+      if listing:
+        raise(GLErrorHandler(11, listing))
     
   def addModule(self, module):
     '''Add the module to the modules list.'''
@@ -494,9 +536,9 @@ class GLImport(GLMode):
         except TypeError as error:
           self.args['modules'] = old_modules
           raise(TypeError('each module must be a string'))
-        except GLError as error:
+        except GLErrorHandler as error:
           self.args['modules'] = old_modules
-          raise(GLError(error.errno, error.errinfo))
+          raise(GLErrorHandler(error.errno, error.errinfo))
     else: # if type of modules is not list or tuple
       raise(TypeError(
         'modules must be a list or a tuple, not %s' % type(modules).__name__))
@@ -541,9 +583,9 @@ class GLImport(GLMode):
         except TypeError as error:
           self.args['avoids'] = old_avoids
           raise(TypeError('each module must be a string'))
-        except GLError as error:
+        except GLErrorHandler as error:
           self.args['avoids'] = old_avoids
-          raise(GLError(error.errno, error.errinfo))
+          raise(GLErrorHandler(error.errno, error.errinfo))
     else: # if type of modules is not list or tuple
       raise(TypeError(
         'modules must be a list or a tuple, not %s' % type(modules).__name__))
@@ -780,8 +822,10 @@ class GLImport(GLMode):
     
   def setLGPL(self, lgpl):
     '''Abort if modules aren't available under the LGPL.'''
-    if (type(lgpl) is int and 2 <= lgpl <= 3) or lgpl == False:
-        self.args['lgpl'] = lgpl
+    if (type(lgpl) is int and 2 <= lgpl <= 3) or type(lgpl) is bool:
+      if type(lgpl) is bool and lgpl:
+        lgpl = 3
+      self.args['lgpl'] = lgpl
     else: # if lgpl is not False, 2 or 3
       raise(TypeError(
         "invalid LGPL version: %s" % repr(lgpl)))
