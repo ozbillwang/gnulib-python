@@ -26,6 +26,7 @@ from __future__ import unicode_literals
 #===============================================================================
 import os
 import re
+import sys
 import codecs
 import argparse
 from pygnulib import constants
@@ -60,14 +61,18 @@ relpath = os.path.relpath
 # Define main part
 #===============================================================================
 def main():
-  mode = 1
+  # Define default error handling
+  #errmode = 1 # pygnulib-style errors
+  
+  # Define default arguments
+  mode = 0
   m4base = None
   destdir = '.'
   localdir = None
   modcache = None
   verbose = None
   auxdir = None
-  modules = list(['string-tests'])
+  modules = list(['string'])
   avoids = list()
   sourcebase = None
   pobase = None
@@ -75,7 +80,7 @@ def main():
   testsbase = None
   tests = None
   libname = None
-  lgpl = 3
+  lgpl = None
   makefile = None
   libtool = None
   conddeps = None
@@ -286,7 +291,61 @@ def main():
 if __name__ == '__main__':
   try: # Try to execute
     main()
-  except classes.GLErrorHandler as error:
+  except classes.GLError as error:
+    errmode = 0 # gnulib-style errors
     errno = error.errno
     errinfo = error.errinfo
-    error = classes.GLError(errno, errinfo, fatal=False, style=0)
+    if errmode == 0:
+      message = '%s: *** ' % constants.APP['name']
+      if errinfo == None:
+        errinfo = string()
+      if errno == 1:
+        message += 'file %s not found' % errinfo
+      elif errno == 2:
+        message += 'patch file %s didn\'t apply cleanly' % errinfo
+      elif errno == 3:
+        message += 'cannot find %s - make sure ' % errinfo
+        message += 'you run gnulib-tool from within your package\'s directory'
+      elif errno == 4:
+        message += 'minimum supported autoconf version is 2.59. Try adding'
+        message += 'AC_PREREQ([%s])' % constants.DEFAULT_AUTOCONF_MINVERSION
+        message += ' to your configure.ac.'
+      elif errno == 5:
+        "%s is expected to contain gl_M4_BASE([%s])" % \
+          (repr(os.path.join(errinfo, 'gnulib-comp.m4')), repr(errinfo))
+      elif errno == 6:
+        message += 'missing --source-base option'
+      elif errno == 7:
+        message += 'missing --doc-base option. --doc-base has been introduced '
+        message += 'on 2006-07-11; if your last invocation of \'gnulib-tool '
+        message += '--import\' is before that date, you need to run'
+        message += '\'gnulib-tool --import\' once, with a --doc-base option.'
+      elif errno == 8:
+        message += 'missing --tests-base option'
+      elif errno == 9:
+        message += 'missing --lib option'
+      elif errno == 10:
+        message += 'gnulib-tool: option --conditional-dependencies is not '
+        message += 'supported with --with-tests'
+      elif errno == 11:
+        incompatibilities = string()
+        message += 'incompatible license on modules:%s' % constants.NL
+        for pair in errinfo:
+          incompatibilities += pair[0]
+          incompatibilities += ' %s' % pair[1]
+          incompatibilities += constants.NL
+        tempname = tempfile.mktemp()
+        with codecs.open(tempname, 'wb', 'UTF-8') as file:
+          file.write(incompatibilities)
+        sed_table = 's,^\\([^ ]*\\) ,\\1' +' ' *51 +',\n'
+        sed_table += 's,^\\(' +'.'*49 +'[^ ]*\) *,' +' '*17 +'\\1 ,'
+        args = ['sed', '-e', sed_table, tempname]
+        incompatibilities = sp.check_output(args).decode(ENCS['default'])
+        message += incompatibilities
+        os.remove(tempname)
+      elif errno == 12:
+        message += 'refusing to do nothing'
+      message += '\n%s: *** Exit.\n' % constants.APP['name']
+      sys.stderr.write(message)
+      sys.exit(1)
+

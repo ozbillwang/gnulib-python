@@ -10,7 +10,7 @@ import sys
 import codecs
 import subprocess as sp
 from . import constants
-from .GLError import GLErrorHandler
+from .GLError import GLError
 from .GLFileSystem import GLFileSystem
 from pprint import pprint
 
@@ -112,7 +112,7 @@ class GLModuleSystem(object):
       result = GLModule(path, istemp)
       return(result)
     else: # if self.exists(module)
-      raise(GLErrorHandler(3, module))
+      raise(GLError(3, module))
     
   def list(self):
     '''GLModuleSystem.list() -> list
@@ -293,13 +293,14 @@ Include:|Link:|License:|Maintainer:)'
         result = string()
       else: # if section in self.content
         pattern = '^%s[\t ]*(.*?)%s' % (section, self.regex)
-        pattern = compiler(pattern, re.DOTALL | re.MULTILINE)
+        pattern = compiler(pattern, re.S | re.M)
         result = pattern.findall(self.content)
         if type(result) is list:
           if result == list():
             result = string()
           else: # if result != list()
             result = result[-1]
+      result = result.strip()
       self.cache['description'] = result
     return(self.cache['description'])
     
@@ -313,13 +314,14 @@ Include:|Link:|License:|Maintainer:)'
         result = string()
       else: # if section in self.content
         pattern = '^%s[\t ]*(.*?)%s' % (section, self.regex)
-        pattern = compiler(pattern, re.DOTALL | re.MULTILINE)
+        pattern = compiler(pattern, re.S | re.M)
         result = pattern.findall(self.content)
         if type(result) is list:
           if result == list():
             result = string()
           else: # if result != list()
             result = result[-1]
+      result = result.strip()
       self.cache['comment'] = result
     return(self.cache['comment'])
     
@@ -333,7 +335,7 @@ Include:|Link:|License:|Maintainer:)'
         result = string()
       else: # if section in self.content
         pattern = '^%s[\t ]*(.*?)%s' % (section, self.regex)
-        pattern = compiler(pattern, re.DOTALL | re.MULTILINE)
+        pattern = compiler(pattern, re.S | re.M)
         result = pattern.findall(self.content)
         if type(result) is list:
           if result != list():
@@ -351,13 +353,14 @@ Include:|Link:|License:|Maintainer:)'
         result = string()
       else: # if section in self.content
         pattern = '^%s[\t ]*(.*?)%s' % (section, self.regex)
-        pattern = compiler(pattern, re.DOTALL | re.MULTILINE)
+        pattern = compiler(pattern, re.S | re.M)
         result = pattern.findall(self.content)
         if type(result) is list:
           if result == list():
             result = string()
           else: # if result != list()
             result = result[-1]
+      result = result.strip()
       self.cache['notice'] = result
     return(self.cache['notice'])
     
@@ -371,7 +374,7 @@ Include:|Link:|License:|Maintainer:)'
         result = string()
       else: # if section in self.content
         pattern = '^%s[\t ]*(.*?)%s' % (section, self.regex)
-        pattern = compiler(pattern, re.DOTALL | re.MULTILINE)
+        pattern = compiler(pattern, re.S | re.M)
         result = pattern.findall(self.content)
         if type(result) is list:
           if result == list():
@@ -385,23 +388,24 @@ Include:|Link:|License:|Maintainer:)'
           result = 'main'
       if type(result) is bytes:
         result = result.decode(ENCS['default'])
-      self.cache['applicability'] = result.strip()
+      result = result.strip()
+      self.cache['applicability'] = result
     return(self.cache['applicability'])
     
-  def getFiles(self, autoconf_version):
-    '''GLModule.getFiles(autoconf_version) -> list
+  def getFiles(self, ac_version):
+    '''GLModule.getFiles(ac_version) -> list
     
     Return list of files.'''
     section = 'Files:'
-    if type(autoconf_version) is not float:
-      raise(TypeError('autoconf_version must be a float, not %s' % \
-        type(autoconf_version).__name__))
+    if type(ac_version) is not float:
+      raise(TypeError('ac_version must be a float, not %s' % \
+        type(ac_version).__name__))
     if 'files' not in self.cache:
       if section not in self.content:
         result = list()
       else: # if section in self.content
         pattern = '^%s[\t ]*(.*?)%s' % (section, self.regex)
-        pattern = compiler(pattern, re.DOTALL | re.MULTILINE)
+        pattern = compiler(pattern, re.S | re.M)
         result = pattern.findall(self.content)
         if type(result) is list:
           if result != list():
@@ -409,7 +413,7 @@ Include:|Link:|License:|Maintainer:)'
       self.cache['files'] = result
       self.cache['files'] += [joinpath('m4', '00gnulib.m4')]
       self.cache['files'] += [joinpath('m4', 'gnulib-common.m4')]
-      if autoconf_version == 2.59:
+      if ac_version == 2.59:
         self.cache['files'] += [joinpath('m4', 'onceonly.m4')]
     return(list(self.cache['files']))
     
@@ -425,7 +429,7 @@ Include:|Link:|License:|Maintainer:)'
         depmodules = list()
       else: # if section in self.content
         pattern = '^%s[\t ]*(.*?)%s' % (section, self.regex)
-        pattern = compiler(pattern, re.DOTALL | re.MULTILINE)
+        pattern = compiler(pattern, re.S | re.M)
         depmodules = pattern.findall(self.content)
         if type(depmodules) is list:
           if depmodules != list():
@@ -454,8 +458,8 @@ Include:|Link:|License:|Maintainer:)'
       self.cache['dependencies'] = sorted(result)
     return(list(self.cache['dependencies']))
     
-  def getAutoconf_EarlySnippet(self):
-    '''GLModule.getAutoconf_EarlySnippet() -> string
+  def getAutoconfSnippet_Early(self):
+    '''GLModule.getAutoconfSnippet_Early() -> string
     
     Return autoconf-early snippet.'''
     section = 'configure.ac-early:'
@@ -464,13 +468,15 @@ Include:|Link:|License:|Maintainer:)'
         result = string()
       else: # if section in self.content
         pattern = '^%s[\t ]*(.*?)%s' % (section, self.regex)
-        pattern = compiler(pattern, re.DOTALL | re.MULTILINE)
+        pattern = compiler(pattern, re.S | re.M)
         result = pattern.findall(self.content)
         if type(result) is list:
           if result == list():
             result = string()
           else: # if result != list()
             result = result[-1]
+      result = result.strip()
+      result += constants.NL *2
       self.cache['autoconf-early'] = result
     return(self.cache['autoconf-early'])
     
@@ -484,15 +490,26 @@ Include:|Link:|License:|Maintainer:)'
         result = string()
       else: # if section in self.content
         pattern = '^%s[\t ]*(.*?)%s' % (section, self.regex)
-        pattern = compiler(pattern, re.DOTALL | re.MULTILINE)
+        pattern = compiler(pattern, re.S | re.M)
         result = pattern.findall(self.content)
         if type(result) is list:
           if result == list():
             result = string()
           else: # if result != list()
             result = result[-1]
+      result = result.strip()
+      result += constants.NL *2
       self.cache['autoconf'] = result
     return(self.cache['autoconf'])
+    
+  def getAutomakeSnippet(self, auxdir, ac_version):
+    '''getAutomakeSnippet(auxdir, ac_version) -> string
+    
+    Get automake snippet.'''
+    result = string() # Define stack variable
+    result += self.getAutomakeSnippet_Conditional()
+    result += self.getAutomakeSnippet_Unconditional(auxdir, ac_version)
+    return(result)
     
   def getAutomakeSnippet_Conditional(self):
     '''GLModule.getAutomakeSnippet_Conditional() -> string
@@ -504,30 +521,73 @@ Include:|Link:|License:|Maintainer:)'
         result = string()
       else: # if section in self.content
         pattern = '^%s[\t ]*(.*?)%s' % (section, self.regex)
-        pattern = compiler(pattern, re.DOTALL | re.MULTILINE)
+        pattern = compiler(pattern, re.S | re.M)
         result = pattern.findall(self.content)
         if type(result) is list:
           if result == list():
             result = string()
           else: # if result != list()
             result = result[-1]
+      result = result.strip()
+      result += constants.NL *2
       self.cache['makefile-conditional'] = result
     return(self.cache['makefile-conditional'])
     
-  def getAutomakeSnippet_Unconditional(self, autoconf_version):
-    '''getAutomakeSnippet_Unconditional(autoconf_version) -> string
+  def getAutomakeSnippet_Unconditional(self, auxdir, ac_version):
+    '''getAutomakeSnippet_Unconditional(auxdir, ac_version) -> string
     
     Return unconditional automake snippet.'''
-    if self.isTests():
-      files = self.getFiles(autoconf_version)
-      files = filter_filelist(' ', files, 'tests/', '', 'tests/', '')
-      if files:
-        files = 'EXTRA_DIST += %s' % files
-      return(files)
-    else: # if not tests module
-      # TODO: unconditional automake snippet for nontests modules
-      pass
-    
+    result = string()
+    if 'makefile-unconditional' not in self.cache:
+      if self.isTests():
+        files = self.getFiles(ac_version)
+        extra_files = filter_filelist(constants.NL, files,
+          'tests/', '', 'tests/', '').split(constants.NL)
+        if extra_files:
+          result += string('EXTRA_DIST += %s' % ' '.join(extra_files))
+          result += constants.NL *2
+      else: # if not tests module
+        # TODO: unconditional automake snippet for nontests modules
+        snippet = self.getAutomakeSnippet_Conditional()
+        snippet = snippet.replace('\\\n', ' ')
+        pattern = compiler('^lib_SOURCES[\t ]*\\+=[\t ]*(.*?)$', re.S | re.M)
+        mentioned_files = pattern.findall(snippet)
+        if mentioned_files != list():
+          mentioned_files = mentioned_files[-1].split(' ')
+          mentioned_files = [f.strip() for f in mentioned_files]
+          mentioned_files = [f for f in mentioned_files if f != '']
+        all_files = self.getFiles(ac_version)
+        lib_files = filter_filelist(constants.NL, all_files,
+          'lib/', '', 'lib/', '').split(constants.NL)
+        extra_files = [f for f in lib_files if f not in mentioned_files]
+        if extra_files != ['']:
+          result += string('EXTRA_DIST += %s' % ''.join(extra_files))
+          result += constants.NL *2
+        # Synthesize also an EXTRA_lib_SOURCES augmentation
+        if str(self) != 'relocatable-prog-wrapper' and str(self) != 'pt_chown':
+          extra_files = filter_filelist(constants.NL, extra_files,
+            '', '.c', '', '').split(constants.NL)
+          if extra_files != ['']:
+            result += string('EXTRA_lib_SOURCES += %s' % ''.join(extra_files))
+            result += constants.NL *2
+        # Synthesize an EXTRA_DIST augmentation also for the files in build-aux
+        buildaux_files = filter_filelist(constants.NL, all_files,
+          'build-aux/', '', 'build-aux/', '').split(constants.NL)
+        if buildaux_files != ['']:
+          buildaux_files = ''.join(buildaux_files)
+          buildaux_files = joinpath('$(top_srcdir)', auxdir, buildaux_files)
+          result += string('EXTRA_DIST += %s' % buildaux_files)
+          result += constants.NL *2
+        # Synthesize an EXTRA_DIST augmentation also for the files from top/.
+        top_files = filter_filelist(constants.NL, all_files,
+          'top/', '', 'top/', '').split(constants.NL)
+        if top_files != ['']:
+          top_files = ''.join(top_files)
+          top_files = joinpath('$(top_srcdir)', top_files)
+          result += string('EXTRA_DIST += %s' % top_files)
+          result += constants.NL *2
+      self.cache['makefile-unconditional'] = result
+    return(self.cache['makefile-unconditional'])
     
   def getInclude(self):
     '''GLModule.getInclude() -> string
@@ -539,13 +599,14 @@ Include:|Link:|License:|Maintainer:)'
         result = string()
       else: # if section in self.content
         pattern = '^%s[\t ]*(.*?)%s' % (section, self.regex)
-        pattern = compiler(pattern, re.DOTALL | re.MULTILINE)
+        pattern = compiler(pattern, re.S | re.M)
         result = pattern.findall(self.content)
         if type(result) is list:
           if result == list():
             result = string()
           else: # if result != list()
             result = result[-1]
+      result = result.strip()
       self.cache['include'] = result
     return(self.cache['include'])
     
@@ -559,13 +620,14 @@ Include:|Link:|License:|Maintainer:)'
         result = string()
       else: # if section in self.content
         pattern = '^%s[\t ]*(.*?)%s' % (section, self.regex)
-        pattern = compiler(pattern, re.DOTALL | re.MULTILINE)
+        pattern = compiler(pattern, re.S | re.M)
         result = pattern.findall(self.content)
         if type(result) is list:
           if result == list():
             result = string()
           else: # if result != list()
             result = result[-1]
+      result = result.strip()
       self.cache['link'] = result
     return(self.cache['link'])
     
@@ -592,14 +654,15 @@ Include:|Link:|License:|Maintainer:)'
         result = string()
       else: # if section in self.content
         pattern = '^%s[\t ]*(.*?)%s' % (section, self.regex)
-        pattern = compiler(pattern, re.DOTALL | re.MULTILINE)
+        pattern = compiler(pattern, re.S | re.M)
         result = pattern.findall(self.content)
         if type(result) is list:
           if result == list():
             result = string()
           else: # if result != list()
             result = result[-1]
-      self.cache['license'] = result.strip()
+      result = result.strip()
+      self.cache['license'] = result
     return(self.cache['license'])
     
   def getMaintainer(self):
@@ -612,13 +675,14 @@ Include:|Link:|License:|Maintainer:)'
         result = string()
       else: # if section in self.content
         pattern = '^%s[\t ]*(.*?)%s' % (section, self.regex)
-        pattern = compiler(pattern, re.DOTALL | re.MULTILINE)
+        pattern = compiler(pattern, re.S | re.M)
         result = pattern.findall(self.content)
         if type(result) is list:
           if result == list():
             result = string()
           else: # if result != list()
             result = result[-1]
+      result = result.strip()
       self.cache['maintainer'] = result
     return(self.cache['maintainer'])
 
@@ -659,9 +723,9 @@ class GLModuleTable(object):
       if testflag not in TESTS.values():
         raise(TypeError('unknown testflag %s' % type(testflag).__name__))
     self.testflags = sorted(set(testflags))
-    if type(conddeps) is not bool:
+    if type(conddeps) is not bool and conddeps != None:
       raise(TypeError(
-        'conddeps must be bool, not %s' % type(conddeps).__name__))
+        'conddeps must be bool or None, not %s' % type(conddeps).__name__))
     self.conddeps = conddeps
     self.modulesystem = GLModuleSystem(localdir)
     
@@ -753,7 +817,7 @@ class GLModuleTable(object):
         outmodules += [module]
         if self.conddeps:
           automake_snippet = \
-            module.getAutomakeSnippet_Conditional(self.autoconf_version)
+            module.getAutomakeSnippet_Conditional(self.ac_version)
           pattern = compiler('^if')
           if not pattern.findall(automake_snippet):
             self.addUnconditional(module)
@@ -818,7 +882,7 @@ class GLModuleTable(object):
       inmodules = sorted(set(inmodules))
     modules = sorted(set(outmodules))
     self.modules = modules
-    return(modules)
+    return(list(modules))
     
   def transitive_closure_separately(self, basemodules, finalmodules):
     '''GLModuleTable.transitive_closure_separately(*args, **kwargs) -> tuple
@@ -858,4 +922,59 @@ class GLModuleTable(object):
       self.testflags = sorted(set(self.testflags +[TESTS['tests']]))
     result = tuple([main_modules, tests_modules])
     return(result)
+    
+  def add_dummy(self, modules, auxdir, ac_version):
+    '''GLModuleTable.add_dummy(modules, auxdir, ac_version) -> list
+
+    Add dummy package to list of modules if dummy package is needed. If not,
+    return original list of modules.'''
+    have_lib_sources = False
+    for module in modules:
+      if type(module) is not GLModule:
+        raise(TypeError('each module must be a GLModule instance'))
+      snippet = module.getAutomakeSnippet(auxdir, ac_version)
+      snippet = snippet.replace('\\\n', '')
+      pattern = compiler('^lib_SOURCES[\t ]*\\+=[\t ]*(.*?)$', re.S | re.M)
+      files = pattern.findall(snippet)
+      if files: # if source files were found
+        files = files[-1].split(' ')
+        for file in files:
+          if not file.endswith('.h'):
+            have_lib_sources = True
+            break
+    if not have_lib_sources:
+      dummy = self.modulesystem.find('dummy')
+      modules = sorted(set(modules +[dummy]))
+    return(list(modules))
+    
+  def filelist(self, modules, ac_version):
+    '''GLModuleTable.filelist(modules, ac_version) -> list
+
+    Determine the final file list for the given list of modules. The list of
+    modules must already include dependencies.'''
+    filelist = list()
+    for module in modules:
+      if type(module) is not GLModule:
+        raise(TypeError('each module must be a GLModule instance'))
+      filelist += module.getFiles(ac_version)
+    filelist = sorted(set(filelist))
+    return(filelist)
+    
+  def filelist_separately(self, main_modules, tests_modules, ac_version):
+    '''GLModuleTable.filelist_separately(**kwargs) -> list
+
+    Determine the final file lists. They must be computed separately, because
+    files in lib/* go into $sourcebase/ if they are in the main file list but
+    into $testsbase/ if they are in the tests-related file list. Furthermore
+    lib/dummy.c can be in both.'''
+    main_filelist = self.filelist(main_modules, ac_version)
+    tests_filelist = self.filelist(tests_modules, ac_version)
+    tests_filelist = \
+    [ # Begin to sort filelist
+      file.replace('lib/', 'tests=lib/', 1) \
+      for file in tests_filelist \
+      if file.startswith('lib/')
+    ] # Finish to sort filelist
+    filelist = sorted(set(main_filelist +tests_filelist))
+    return(filelist)
 

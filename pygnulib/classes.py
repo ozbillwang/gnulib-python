@@ -17,7 +17,6 @@ from . import constants
 from .GLInfo import GLInfo
 from .GLMode import GLMode
 from .GLError import GLError
-from .GLError import GLErrorHandler
 from .GLFileSystem import GLFileSystem
 from .GLModuleSystem import GLModule
 from .GLModuleSystem import GLModuleTable

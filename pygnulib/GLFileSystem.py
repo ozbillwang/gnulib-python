@@ -13,7 +13,7 @@ import tempfile
 from io import BytesIO
 import subprocess as sp
 from . import constants
-from .GLError import GLErrorHandler
+from .GLError import GLError
 
 
 #===============================================================================
@@ -78,7 +78,7 @@ class GLFileSystem(object):
     
     Lookup a file in gnulib and localdir directories or combine it using Linux
     'patch' utility. If file was found, method returns string, else it raises
-    GLErrorHandler telling that file was not found.'''
+    GLError telling that file was not found.'''
     if type(name) is bytes or type(name) is string:
       if type(name) is bytes:
         name = name.decode(ENCS['default'])
@@ -101,11 +101,11 @@ class GLFileSystem(object):
           try: # Try to apply patch
             sp.check_call(command, shell=True)
           except sp.CalledProcessError as error:
-            raise(GLErrorHandler(2, name))
+            raise(GLError(2, name))
           result = (path_temp, True)
         else: # if path_diff does not exist
           result = (path_gnulib, False)
       else: # if path_gnulib does not exist
-        raise(GLErrorHandler(1, name))
+        raise(GLError(1, name))
     return(result)
 

@@ -1,3 +1,9 @@
+21 July 2012, Dmitriy Selyutin
+A lot of fixes and changes in GLModuleSystem and GLImport. It seems that almost
+all work except rewriting of the old files is done.
+GLErrorHandler is deprecated, all its functionality is moved to gnulib-tool's
+main() function. GLError was returned back.
+
 13 July 2012, Dmitriy Selyutin
 GLError was renamed to GLErrorHandler. New GLError is now a high-level
 interface for GLErrorHandler, which allows to raise errors and warnings using

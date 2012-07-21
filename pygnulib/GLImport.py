@@ -12,7 +12,7 @@ import codecs
 import subprocess as sp
 from pprint import pprint
 from . import constants
-from .GLError import GLErrorHandler
+from .GLError import GLError
 from .GLMode import GLMode
 from .GLModuleSystem import GLModule
 from .GLModuleSystem import GLModuleTable
@@ -97,7 +97,7 @@ class GLImport(GLMode):
     class. The main variable, mode, must be one of the values of the MODES dict
     object, which is accessible from this module.'''
     
-    # Initialization of the object
+    # Initialization of the object.
     super(GLImport, self).__init__\
     ( # Begin __init__ method
       destdir=destdir,
@@ -112,7 +112,7 @@ class GLImport(GLMode):
       raise(TypeError(
         "mode must be 0 <= mode <= 3, not %s" % repr(mode)))
     
-    # Initialize some values
+    # Initialize some values.
     if modules == None:
       modules = list()
     if avoids == None:
@@ -127,14 +127,16 @@ class GLImport(GLMode):
     for item in keys:
       self.args[item] = ''
       self.cache[item] = ''
+    self.args['conddeps'] = None
     self.cache['libname'] = 'libgnu'
     self.cache['modules'] = list()
     self.cache['avoids'] = list()
     self.cache['flags'] = list()
     self.cache['tests'] = list()
     self.cache['lgpl'] = False
+    self.cache['files'] = list()
     
-    # Set m4base as always needed argument
+    # Set m4base as always needed argument.
     self.setM4Base(m4base)
     
     # mode => self.mode
@@ -145,13 +147,13 @@ class GLImport(GLMode):
       raise(TypeError(
         "mode must be 0 <= mode <= 3, not %s" % repr(mode)))
     
-    # Get cached auxdir and libtool from configure.ac/in
+    # Get cached auxdir and libtool from configure.ac/in.
     self.cache['auxdir'] = '.'
     path = joinpath(self.args['destdir'], 'configure.ac')
     if not isfile(path):
       path = joinpath(self.args['destdir'], 'configure.in')
       if not isfile(path):
-        raise(GLErrorHandler(3, path))
+        raise(GLError(3, path))
     with codecs.open(path, 'rb', 'UTF-8') as file:
       data = file.read()
     pattern = compiler(r'^AC_CONFIG_AUX_DIR\((.*?)\)$', re.S | re.M)
@@ -160,7 +162,7 @@ class GLImport(GLMode):
     pattern = compiler(r'A[CM]_PROG_LIBTOOL', re.S | re.M)
     guessed_libtool = bool(pattern.findall(data))
     
-    # Guess autoconf version
+    # Guess autoconf version.
     pattern = compiler('.*AC_PREREQ\((.*?)\)$', re.S | re.M)
     versions = cleaner(pattern.findall(data))
     if not versions:
@@ -168,16 +170,17 @@ class GLImport(GLMode):
     else: # if versions
       version = sorted(set([float(version) for version in versions]))[-1]
     if version < 2.59:
-      raise(GLErrorHandler(4, version))
-    self.autoconf_version = version
+      raise(GLError(4, version))
+    self.ac_version = version
     
-    # Get other cached variables
+    # Get other cached variables.
     path = joinpath(self.args['m4base'], 'gnulib-cache.m4')
     if isfile(joinpath(self.args['m4base'], 'gnulib-cache.m4')):
       with codecs.open(path, 'rb', 'UTF-8') as file:
         data = file.read()
-      # Create regex object and keys
-      pattern = compiler(r'^(gl_.*?)\((.*?)\)$', re.S | re.M)
+      
+      # Create regex object and keys.
+      pattern = compiler('^(gl_.*?)\\((.*?)\\)$', re.S | re.M)
       keys = \
       [
         'gl_LOCAL_DIR', 'gl_MODULES', 'gl_AVOID', 'gl_SOURCE_BASE',
@@ -185,7 +188,8 @@ class GLImport(GLMode):
         'gl_MAKEFILE_NAME', 'gl_MACRO_PREFIX', 'gl_PO_DOMAIN',
         'gl_WITNESS_C_MACRO', 'gl_VC_FILES', 'gl_LIB',
       ]
-      # Find bool values
+      
+      # Find bool values.
       self.cache['flags'] = list()
       if 'gl_LGPL(' in data:
         keys.append('gl_LGPL')
@@ -195,6 +199,9 @@ class GLImport(GLMode):
       if 'gl_LIBTOOL' in data:
         self.cache['libtool'] = True
         data = data.replace('gl_LIBTOOL', '')
+      if 'gl_CONDITIONAL_DEPENDENCIES' in data:
+        self.cache['conddeps'] = True
+        data = data.replace('gl_CONDITIONAL_DEPENDENCIES', '')
       if 'gl_WITH_TESTS' in data:
         self.cache['tests'].append(TESTS['tests'])
         data = data.replace('gl_WITH_TESTS', '')
@@ -252,6 +259,16 @@ class GLImport(GLMode):
         self.cache['podomain'] = cleaner(tempdict['gl_PO_DOMAIN'])
       if tempdict['gl_WITNESS_C_MACRO']:
         self.cache['witness_c_macro'] = cleaner(tempdict['gl_WITNESS_C_MACRO'])
+      
+      # Get cached filelist from gnulib-comp.m4.
+      path = joinpath(self.getDestDir(), self.getM4Base(), 'gnulib-comp.m4')
+      if isfile(path):
+        with codecs.open(path, 'rb', 'UTF-8') as file:
+          data = file.read()
+        regex = 'AC_DEFUN\\(\\[%s_FILE_LIST\\], \\[(.*?)\\]\\)' % \
+          self.cache['macro_prefix']
+        pattern = compiler(regex, re.S | re.M)
+        self.cache['files'] = pattern.findall(data)[-1].strip().split()
     
     # The self.args['localdir'] defaults to the cached one. Recall that the 
     # cached one is relative to $destdir, whereas the one we use is relative
@@ -276,7 +293,7 @@ class GLImport(GLMode):
     
     else: # if self.mode != MODES['import']
       if self.args['m4base'] != self.cache['m4base']:
-        raise(GLErrorHandler(5, m4base))
+        raise(GLError(5, m4base))
       
       # Perform actions with modules. In --add-import, append each given module
       # to the list of cached modules; in --remove-import, remove each given
@@ -308,7 +325,7 @@ class GLImport(GLMode):
       else: # if sourcebase != None
         self.setSourceBase(sourcebase)
       if not self.args['sourcebase']:
-        raise(GLErrorHandler(6, None))
+        raise(GLError(6, None))
       
       # pobase => self.args['pobase']
       if pobase == None:
@@ -322,7 +339,7 @@ class GLImport(GLMode):
       else: # if docbase != None
         self.setDocBase(docbase)
       if not self.args['docbase']:
-        raise(GLErrorHandler(7, None))
+        raise(GLError(7, None))
       
       # testsbase => self.args['testsbase']
       if testsbase == None:
@@ -330,7 +347,7 @@ class GLImport(GLMode):
       else: # if testsbase != None
         self.setTestsBase(testsbase)
       if not self.args['testsbase']:
-        raise(GLErrorHandler(8, None))
+        raise(GLError(8, None))
       
       # libname => self.args['libname']
       if libname == None:
@@ -338,7 +355,7 @@ class GLImport(GLMode):
       else: # if libname != None
         self.setLibName(libname)
       if not self.args['libname']:
-        raise(GLErrorHandler(9, None))
+        raise(GLError(9, None))
       
       # lgpl => self.args['lgpl']
       if lgpl == None:
@@ -412,8 +429,11 @@ class GLImport(GLMode):
       
       # If user tries to apply conddeps and testflag['tests'] together
       if self.args['tests'] and self.args['conddeps']:
-        raise(GLErrorHandler(10, None))
-    
+        raise(GLError(10, None))
+
+    self.copyrights = True
+    if symbolic:
+      self.copyrights = False
     
   def __repr__(self):
     '''x.__repr__ <==> repr(x)'''
@@ -423,21 +443,24 @@ class GLImport(GLMode):
     '''Run the GLImport and perform necessary actions. If dryrun is True, then
     only print what would have been done.'''
     localdir = self.getLocalDir()
+    auxdir = self.getAuxDir()
     testflags = self.getTestFlags()
     conddeps = self.checkCondDeps()
     lgpl = self.getLGPL()
     verbose = self.getVerbosity()
     modulesystem = self.modulesystem
+    ac_version = self.ac_version
+    copyrights = self.copyrights
     basemodules = [modulesystem.find(module) for module in self.getModules()]
     avoids = [modulesystem.find(avoid) for avoid in self.getAvoids()]
     basemodules = sorted(set(basemodules))
     avoids = sorted(set(avoids))
     
-    # Perform transitive closure
+    # Perform transitive closure.
     table = GLModuleTable(localdir, avoids, testflags, conddeps)
     finalmodules = table.transitive_closure(basemodules)
     
-    # Show module list
+    # Show module list.
     if verbose >= 0:
       bold_on = ''
       bold_off = ''
@@ -454,11 +477,11 @@ class GLImport(GLMode):
         else: # if str(module) not in self.getModules()
           print('    %s' % module)
     
-    # Separate modules into main_modules and tests_modules
+    # Separate modules into main_modules and tests_modules.
     modules = table.transitive_closure_separately(basemodules, finalmodules)
     main_modules, tests_modules = modules
     
-    # Print main_modules and tests_modules
+    # Print main_modules and tests_modules.
     if verbose >= 1:
       print('Main module list:')
       for module in main_modules:
@@ -467,18 +490,21 @@ class GLImport(GLMode):
       for module in tests_modules:
         print('  %s' % str(module))
     
-    # Determine whether a $testsbase/libtests.a is needed
+    # Determine whether a $testsbase/libtests.a is needed.
     libtests = False
     for module in tests_modules:
-      files = module.getFiles(self.autoconf_version)
+      files = module.getFiles(self.ac_version)
       for file in files:
         if file.startswith('lib/'):
           libtests = True
           break
     
-    # TODO: add dummy package
+    # Add dummy package if it is needed.
+    main_modules = table.add_dummy(main_modules, auxdir, ac_version)
+    if libtests: # if we need to use libtests.a
+      tests_modules = table.add_dummy(tests_modules, auxdir, ac_version)
     
-    # Check license incompatibilities
+    # Check license incompatibilities.
     listing = list()
     compatibilities = dict()
     incompatibilities = string()
@@ -497,7 +523,81 @@ class GLImport(GLMode):
             if license not in compatibilities[2]:
               listing.append(tuple([str(module), license]))
       if listing:
-        raise(GLErrorHandler(11, listing))
+        raise(GLError(11, listing))
+    
+    # Print notices from modules.
+    for module in main_modules:
+      notice = module.getNotice()
+      if notice:
+        print('Notice from module %s:' % str(module))
+        pattern = compiler('^(.*?)$', re.S | re.M)
+        notice = pattern.sub('  \\1', notice)
+        print(notice)
+
+    # Determine script to apply to imported library files.
+    lgpl2gpl = '''
+      s/GNU Lesser General/GNU General/g
+      s/Lesser General Public License/General Public License/g
+      s/GNU Library General/GNU General/g
+      s/Library General Public License/General Public License/g
+      s/version 2\\(.1\\)\\{0,1\\}\\([ ,]\\)/version 3\\2/g'''
+    sed_transform_lib_file = string()
+    if 'config-h' in [str(module) for module in main_modules]:
+      sed_transform_lib_file += '''
+        s/^#ifdef[\t ]*HAVE_CONFIG_H[\t ]*$/#if 1/
+      '''
+    sed_transform_main_lib_file = sed_transform_lib_file
+    if copyrights:
+      if lgpl: # if lgpl is enabled
+        if lgpl == 3:
+          sed_transform_main_lib_file += '''
+            s/GNU General/GNU Lesser General/g
+            s/General Public License/Lesser General Public License/g
+            s/Lesser Lesser General Public License/Lesser General Public''' \
+              +' License/g'
+        elif lgpl == 2:
+          sed_transform_main_lib_file += '''
+            s/GNU General/GNU Lesser General/g
+            s/General Public License/Lesser General Public License/g
+            s/Lesser Lesser General Public License/Lesser General Public''' \
+              +'''License/g
+            s/version [23]\\([ ,]\\)/version 2.1\\1/g'''
+      else: # if lgpl is disabled
+        sed_transform_main_lib_file += lgpl2gpl
+
+    # Determine script to apply to auxiliary files that go into $auxdir/.
+    sed_transform_build_aux_file = string()
+    if copyrights:
+      sed_transform_build_aux_file += lgpl2gpl
+
+    # Determine script to apply to library files that go into $testsbase/.
+    sed_transform_testsrelated_lib_file = sed_transform_lib_file
+    if copyrights:
+      sed_transform_testsrelated_lib_file += lgpl2gpl
+    
+    # Determine the final file lists.
+    filelist = \
+      table.filelist_separately(main_modules, tests_modules, ac_version)
+    if not filelist:
+      raise(GLError(12, None))
+    
+    # Print list of files
+    if verbose >= 0:
+      print('File list:')
+      for file in filelist:
+        if file.startswith('tests=lib/'):
+          rest = file[10:]
+          print('  lib/%s -> tests/%s' % (rest, rest))
+        else:
+          print('  %s' % file)
+    
+    # Add m4/gnulib-tool.m4 to the file list. It is not part of any module.
+    new_files = files +['m4/gnulib-tool.m4']
+    old_files = self.cache['files']
+    path = joinpath(self.getDestDir(), self.getM4Base(), 'gnulib-tool.m4')
+    if isfile(path):
+      old_files += [joinpath('m4', 'gnulib-tool.m4')]
+    
     
   def addModule(self, module):
     '''Add the module to the modules list.'''
@@ -536,9 +636,9 @@ class GLImport(GLMode):
         except TypeError as error:
           self.args['modules'] = old_modules
           raise(TypeError('each module must be a string'))
-        except GLErrorHandler as error:
+        except GLError as error:
           self.args['modules'] = old_modules
-          raise(GLErrorHandler(error.errno, error.errinfo))
+          raise(GLError(error.errno, error.errinfo))
     else: # if type of modules is not list or tuple
       raise(TypeError(
         'modules must be a list or a tuple, not %s' % type(modules).__name__))
@@ -583,9 +683,9 @@ class GLImport(GLMode):
         except TypeError as error:
           self.args['avoids'] = old_avoids
           raise(TypeError('each module must be a string'))
-        except GLErrorHandler as error:
+        except GLError as error:
           self.args['avoids'] = old_avoids
-          raise(GLErrorHandler(error.errno, error.errinfo))
+          raise(GLError(error.errno, error.errinfo))
     else: # if type of modules is not list or tuple
       raise(TypeError(
         'modules must be a list or a tuple, not %s' % type(modules).__name__))
