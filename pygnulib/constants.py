@@ -237,6 +237,8 @@ def joinpath(head, *tail):
   component is an absolute path, all previous path components will be
   discarded. The second argument may be string or list of strings.'''
   result = os.path.normpath(os.path.join(head, *tail))
+  if type(result) is bytes:
+    result = result.decode(ENCS['default'])
   return(result)
 
 def filter_filelist(separator, filelist,
@@ -255,6 +257,13 @@ def filter_filelist(separator, filelist,
       result = pattern.sub('%s\\1%s' % (added_prefix, added_suffix), filename)
       listing += [result]
   result = separator.join(listing)
+  return(result)
+
+def substart(orig, repl, data):
+  if data.startswith(orig):
+    #pattern = compiler('^%s(.*?)' % orig, re.S | re.M)
+    #result = pattern.sub('%s\\1' % repl, data)
+    result = repl +data[len(orig):]
   return(result)
 
 __all__ += ['APP', 'DIRS', 'FILES', 'MODES', 'UTILS']

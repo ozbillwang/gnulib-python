@@ -4590,6 +4590,8 @@ s,^\(.................................................[^ ]*\) *,                
     func_append old_files " m4/gnulib-tool.m4"
   fi
 
+echo $docbase
+
   rewritten='%REWRITTEN%'
   sed_rewrite_old_files="\
     s,^build-aux/,$rewritten$auxdir/,

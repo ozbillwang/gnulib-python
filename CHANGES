@@ -1,3 +1,9 @@
+25 July 2012, Dmitriy Selyutin
+Some fixes and improvements in GLImport. The --import mode shall now work as
+follows. The preparation and real processing of files are divided in two
+methods: GLImport.prepare and GLImport.execute to improve portability and to
+help the future developers.
+
 21 July 2012, Dmitriy Selyutin
 A lot of fixes and changes in GLModuleSystem and GLImport. It seems that almost
 all work except rewriting of the old files is done.

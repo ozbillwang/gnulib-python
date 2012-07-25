@@ -9,6 +9,7 @@ import re
 import sys
 import locale
 import codecs
+import tempfile
 import subprocess as sp
 from pprint import pprint
 from . import constants
@@ -161,6 +162,10 @@ class GLImport(GLMode):
     self.cache['auxdir'] = joinpath(result, self.args['destdir'])
     pattern = compiler(r'A[CM]_PROG_LIBTOOL', re.S | re.M)
     guessed_libtool = bool(pattern.findall(data))
+    if auxdir == None:
+      self.setAuxDir(self.cache['auxdir'])
+    else: # if auxdir != None
+      self.setAuxDir(auxdir)
     
     # Guess autoconf version.
     pattern = compiler('.*AC_PREREQ\((.*?)\)$', re.S | re.M)
@@ -288,9 +293,15 @@ class GLImport(GLMode):
     self.modulesystem = GLModuleSystem(self.args['localdir'])
     
     if self.mode == MODES['import']:
+      # Override cache settings
       self.setModules(modules)
       self.setAvoids(avoids)
-    
+      self.setSourceBase(sourcebase)
+      self.setM4Base(m4base)
+      self.setDocBase(docbase)
+      self.setTestsBase(testsbase)
+      self.setMacroPrefix(macro_prefix)
+      
     else: # if self.mode != MODES['import']
       if self.args['m4base'] != self.cache['m4base']:
         raise(GLError(5, m4base))
@@ -340,6 +351,8 @@ class GLImport(GLMode):
         self.setDocBase(docbase)
       if not self.args['docbase']:
         raise(GLError(7, None))
+      print(repr(docbase))
+      
       
       # testsbase => self.args['testsbase']
       if testsbase == None:
@@ -430,7 +443,7 @@ class GLImport(GLMode):
       # If user tries to apply conddeps and testflag['tests'] together
       if self.args['tests'] and self.args['conddeps']:
         raise(GLError(10, None))
-
+    
     self.copyrights = True
     if symbolic:
       self.copyrights = False
@@ -439,11 +452,86 @@ class GLImport(GLMode):
     '''x.__repr__ <==> repr(x)'''
     return('<pygnulib.GLImport>')
     
-  def execute(self, dryrun=False):
-    '''Run the GLImport and perform necessary actions. If dryrun is True, then
-    only print what would have been done.'''
+  def rewrite_old_files(self, files):
+    '''Replace auxdir, docbase, sourcebase, m4base and testsbase from default
+    to their version from cache.'''
+    if type(files) is not list:
+      raise(TypeError(
+        'files argument must has list type, not %s' % type(files).__name__))
+    files = \
+    [ # Begin to convert bytes to string
+      file.decode(ENCS['default']) \
+      if type(file) is bytes else file \
+      for file in files
+    ] # Finish to convert bytes to string
+    for file in files:
+      if type(file) is not string:
+        raise(TypeError('each file must be a string instance'))
+    files = sorted(set(files))
+    auxdir = self.cache['auxdir']
+    docbase = self.cache['docbase']
+    sourcebase = self.cache['sourcebase']
+    m4base = self.cache['m4base']
+    testsbase = self.cache['testsbase']
+    result = list()
+    for file in files:
+      if file.startswith('build-aux/'):
+        result += [constants.substart('build-aux/', '%s/' % auxdir, file)]
+      elif file.startswith('doc/'):
+        result += [constants.substart('doc/', '%s/' % docbase, file)]
+      elif file.startswith('lib/'):
+        result += [constants.substart('lib/', '%s/' % sourcebase, file)]
+      elif file.startswith('m4/'):
+        result += [constants.substart('m4/', '%s/' % m4base, file)]
+    result = sorted(set(result))
+    return(list(result))
+    
+  def rewrite_new_files(self, files):
+    '''Replace auxdir, docbase, sourcebase, m4base and testsbase from default
+    to their version from arguments.'''
+    if type(files) is not list:
+      raise(TypeError(
+        'files argument must has list type, not %s' % type(files).__name__))
+    files = \
+    [ # Begin to convert bytes to string
+      file.decode(ENCS['default']) \
+      if type(file) is bytes else file \
+      for file in files
+    ] # Finish to convert bytes to string
+    for file in files:
+      if type(file) is not string:
+        raise(TypeError('each file must be a string instance'))
+    files = sorted(set(files))
+    auxdir = self.args['auxdir']
+    docbase = self.args['docbase']
+    sourcebase = self.args['sourcebase']
+    m4base = self.args['m4base']
+    testsbase = self.args['testsbase']
+    result = list()
+    for file in files:
+      if file.startswith('build-aux/'):
+        result += [constants.substart('build-aux/', '%s/' % auxdir, file)]
+      elif file.startswith('doc/'):
+        result += [constants.substart('doc/', '%s/' % docbase, file)]
+      elif file.startswith('lib/'):
+        result += [constants.substart('lib/', '%s/' % sourcebase, file)]
+      elif file.startswith('m4/'):
+        result += [constants.substart('m4/', '%s/' % m4base, file)]
+    result = sorted(set(result))
+    return(list(result))
+    
+  def prepare(self):
+    '''Make all preparations before the execution of the code. Returns tuple,
+    which consists of two tables. The first table represents old files and the
+    second represents new files.'''
     localdir = self.getLocalDir()
+    destdir = self.getDestDir()
     auxdir = self.getAuxDir()
+    sourcebase = self.getSourceBase()
+    m4base = self.getM4Base()
+    docbase = self.getDocBase()
+    pobase = self.getPoBase()
+    testsbase = self.getTestsBase()
     testflags = self.getTestFlags()
     conddeps = self.checkCondDeps()
     lgpl = self.getLGPL()
@@ -598,6 +686,55 @@ class GLImport(GLMode):
     if isfile(path):
       old_files += [joinpath('m4', 'gnulib-tool.m4')]
     
+    # Construct tables
+    old_table = list()
+    new_table = list()
+    for src in old_files:
+      dest = self.rewrite_old_files([src])[-1]
+      old_table += [tuple([src, dest])]
+    for src in new_files:
+      dest = self.rewrite_new_files([src])[-1]
+      new_table += [tuple([src, dest])]
+    
+    # Return the result.
+    result = tuple([files, old_table, new_table])
+    return(result)
+    
+  def execute(self, files, old_files, new_files, dryrun=False):
+    '''Perform operations on files, which are given in the filetable format.
+    Such filetables can be created using GLImport.prepare function.'''
+    localdir = self.getLocalDir()
+    destdir = self.getDestDir()
+    auxdir = self.getAuxDir()
+    sourcebase = self.getSourceBase()
+    m4base = self.getM4Base()
+    docbase = self.getDocBase()
+    pobase = self.getPoBase()
+    testsbase = self.getTestsBase()
+    testflags = self.getTestFlags()
+    conddeps = self.checkCondDeps()
+    lgpl = self.getLGPL()
+    verbose = self.getVerbosity()
+    
+    # Create all necessary directories.
+    dirs = list()
+    if pobase:
+      dirs += [pobase]
+    if [file for file in files if file.startswith('doc/')]:
+      dirs += [docbase]
+    dirs += [sourcebase, m4base, auxdir]
+    dirs += [os.path.dirname(file) for file in self.rewrite_new_files(files)]
+    dirs = sorted(set([joinpath(destdir, directory) for directory in dirs]))
+    for directory in dirs:
+      if not isdir(directory):
+        if not dryrun:
+          try: # Try to create directory
+            print('Creating directory %s' % directory)
+            os.makedirs(directory)
+          except Exception as error:
+            raise(GLError(13, directory))
+        else:
+          print('Create directory %s' % directory)
     
   def addModule(self, module):
     '''Add the module to the modules list.'''
@@ -784,7 +921,7 @@ class GLImport(GLMode):
       self.args['libname'] = libname
     else: # if type of libname is not bytes or string
       raise(TypeError(
-        'argument must be a string, not %s' % type(module).__name__))
+        'libname must be a string, not %s' % type(module).__name__))
     
   def resetLibName(self):
     '''Specify the library name.  Defaults to 'libgnu'.'''
@@ -801,10 +938,13 @@ class GLImport(GLMode):
     if type(auxdir) is bytes or type(auxdir) is string:
       if type(auxdir) is bytes:
         auxdir = string(auxdir, ENCS['system'])
-      self.args['auxdir'] = joinpath(self.args['destdir'], auxdir)
+      if auxdir:
+        self.args['auxdir'] = joinpath(self.args['destdir'], auxdir)
+      else: # if not auxdir
+        self.args['auxdir'] = auxdir
     else: # if type of auxdir is not bytes or string
       raise(TypeError(
-        'argument must be a string, not %s' % type(auxdir).__name__))
+        'auxdir must be a string, not %s' % type(auxdir).__name__))
     
   def resetAuxDir(self):
     '''Reset directory relative to --dir where auxiliary build tools are
@@ -822,10 +962,13 @@ class GLImport(GLMode):
     if type(sourcebase) is bytes or type(sourcebase) is string:
       if type(sourcebase) is bytes:
         sourcebase = string(sourcebase, ENCS['system'])
-      self.args['sourcebase'] = joinpath(self.args['destdir'], sourcebase)
+      if sourcebase:
+        self.args['sourcebase'] = joinpath(self.args['destdir'], sourcebase)
+      else: # if not sourcebase
+        self.args['sourcebase'] = sourcebase
     else: # if type of sourcebase is not bytes or string
       raise(TypeError(
-        'argument must be a string, not %s' % type(sourcebase).__name__))
+        'sourcebase must be a string, not %s' % type(sourcebase).__name__))
     
   def resetSourceBase(self):
     '''Return directory relative to destdir where source code is placed.
@@ -843,10 +986,13 @@ class GLImport(GLMode):
     if type(m4base) is bytes or type(m4base) is string:
       if type(m4base) is bytes:
         m4base = string(m4base, ENCS['system'])
-      self.args['m4base'] = joinpath(self.args['destdir'], m4base)
+      if m4base:
+        self.args['m4base'] = joinpath(self.args['destdir'], m4base)
+      else: # if not m4base
+        self.args['m4base'] = m4base
     else: # if type of m4base is not bytes or string
       raise(TypeError(
-        'argument must be a string, not %s' % type(m4base).__name__))
+        'm4base must be a string, not %s' % type(m4base).__name__))
     
   def resetM4Base(self):
     '''Reset directory relative to destdir where *.m4 macros are placed.
@@ -864,10 +1010,13 @@ class GLImport(GLMode):
     if type(pobase) is bytes or type(pobase) is string:
       if type(pobase) is bytes:
         pobase = string(pobase, ENCS['system'])
-      self.args['pobase'] = joinpath(self.args['destdir'], pobase)
+      if pobase:
+        self.args['pobase'] = joinpath(self.args['destdir'], pobase)
+      else: # if not pobase
+        self.args['pobase'] = pobase
     else: # if type of pobase is not bytes or string
       raise(TypeError(
-        'argument must be a string, not %s' % type(pobase).__name__))
+        'pobase must be a string, not %s' % type(pobase).__name__))
     
   def resetPoBase(self):
     '''Reset directory relative to destdir where *.po files are placed.
@@ -885,10 +1034,13 @@ class GLImport(GLMode):
     if type(docbase) is bytes or type(docbase) is string:
       if type(docbase) is bytes:
         docbase = string(docbase, ENCS['system'])
-      self.args['docbase'] = joinpath(self.args['destdir'], docbase)
+      if docbase:
+        self.args['docbase'] = joinpath(self.args['destdir'], docbase)
+      else: # if not docbase
+        self.args['docbase'] = docbase
     else: # if type of docbase is not bytes or string
       raise(TypeError(
-        'argument must be a string, not %s' % type(docbase).__name__))
+        'docbase must be a string, not %s' % type(docbase).__name__))
     
   def resetDocBase(self):
     '''Reset directory relative to destdir where doc files are placed.
@@ -906,10 +1058,13 @@ class GLImport(GLMode):
     if type(testsbase) is bytes or type(testsbase) is string:
       if type(testsbase) is bytes:
         testsbase = string(testsbase, ENCS['system'])
-      self.args['testsbase'] = joinpath(self.args['destdir'], testsbase)
+      if testsbase:
+        self.args['testsbase'] = joinpath(self.args['destdir'], testsbase)
+      else: # if not testsbase
+        self.args['testsbase'] = testsbase
     else: # if type of testsbase is not bytes or string
       raise(TypeError(
-        'argument must be a string, not %s' % type(testsbase).__name__))
+        'testsbase must be a string, not %s' % type(testsbase).__name__))
     
   def resetTestsBase(self):
     '''Reset directory relative to destdir where unit tests are placed.
@@ -966,10 +1121,13 @@ class GLImport(GLMode):
     if type(makefile) is bytes or type(makefile) is string:
       if type(makefile) is bytes:
         makefile = string(makefile, ENCS['system'])
-      self.args['makefile'] = makefile
+      if makefile:
+        self.args['makefile'] = makefile
+      else: # if not makefile
+        self.args['makefile'] = 'Makefile.am'
     else: # if type of makefile is not bytes or string
       raise(TypeError(
-        'argument must be a string, not %s' % type(makefile).__name__))
+        'makefile must be a string, not %s' % type(makefile).__name__))
     
   def resetMakefile(self):
     '''Reset the name of makefile in automake syntax in the source-base and
@@ -990,7 +1148,7 @@ class GLImport(GLMode):
       self.args['podomain'] = podomain
     else: # if type of podomain is not bytes or string
       raise(TypeError(
-        'argument must be a string, not %s' % type(podomain).__name__))
+        'podomain must be a string, not %s' % type(podomain).__name__))
     
   def resetPoDomain(self):
     '''Reset the prefix of the i18n domain. Usually use the package name.

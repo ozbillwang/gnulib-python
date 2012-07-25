@@ -101,7 +101,7 @@ def main():
       testsbase = 'tests'
     if not macro_prefix:
       macro_prefix = 'gl'
-    GLImport = classes.GLImport\
+    action = classes.GLImport\
     (
       mode, m4base,
       destdir=destdir,
@@ -125,7 +125,7 @@ def main():
       podomain=podomain,
       witness_c_macro=witness_c_macro,
       vc_files=vc_files,
-    ).execute(dryrun)
+    )
   
   else: # if mode != MODE['--import']
     if m4base:
@@ -138,7 +138,7 @@ def main():
           testsbase = 'tests'
         if not macro_prefix:
           macro_prefix = 'gl'
-        GLImport = classes.GLImport\
+        action = classes.GLImport\
         (
           mode, m4base,
           destdir=destdir,
@@ -162,7 +162,7 @@ def main():
           podomain=podomain,
           witness_c_macro=witness_c_macro,
           vc_files=vc_files,
-        ).execute(dryrun)
+        )
     else: # if not m4base
       m4dirs = list()
       dirisnext = bool()
@@ -208,7 +208,7 @@ def main():
           testsbase = 'tests'
         if not macro_prefix:
           macro_prefix = 'gl'
-        GLImport = classes.GLImport\
+        action = classes.GLImport\
         (
           mode, m4base,
           destdir=destdir,
@@ -232,10 +232,10 @@ def main():
           podomain=podomain,
           witness_c_macro=witness_c_macro,
           vc_files=vc_files,
-        ).execute(dryrun)
+        )
       elif len(m4dirs) == 1:
         m4base = m4dirs[-1]
-        GLImport = classes.GLImport\
+        action = classes.GLImport\
         (
           mode, m4base,
           destdir=destdir,
@@ -259,10 +259,10 @@ def main():
           podomain=podomain,
           witness_c_macro=witness_c_macro,
           vc_files=vc_files,
-        ).execute(dryrun)
+        )
       else: # if len(m4dirs) > 1
         for m4base in m4dirs:
-          GLImport = classes.GLImport\
+          action = classes.GLImport\
           (
             mode, m4base,
             destdir=destdir,
@@ -286,7 +286,12 @@ def main():
             podomain=podomain,
             witness_c_macro=witness_c_macro,
             vc_files=vc_files,
-          ).execute(dryrun)
+          )
+  
+  # Execute operations depending on type of action
+  if type(action) is classes.GLImport:
+    files, old_files, new_files = action.prepare()
+    action.execute(files, old_files, new_files, dryrun)
 
 if __name__ == '__main__':
   try: # Try to execute
