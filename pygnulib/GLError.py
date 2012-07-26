@@ -67,7 +67,11 @@ class GLError(Exception):
      10: conddeps are not supported with testflag['tests']
      11: incompatible licenses on modules: <modules>
      12: cannot process empy filelist
-     13: cannot create a directory <directory>
+     13: cannot create the given directory: <directory>
+     14: cannot delete the given file: <file>
+     15: cannot create the given file: <file>
+     16: cannot transform the given file: <file>
+     17: cannot update the given file: <file>
     errinfo: additional information;
     style: 0 or 1, wheter old-style'''
     self.errno = errno; self.errinfo = errinfo
@@ -94,7 +98,11 @@ class GLError(Exception):
       "conddeps are not supported with testflag['tests']",
       "incompatible licenses on modules: %s" % repr(errinfo),
       "cannot process empy filelist",
-      "cannot create a directory: %s" % repr(errinfo),
+      "cannot create the given directory: %s" % repr(errinfo),
+      "cannot remove the given file: %s" % repr(errinfo),
+      "cannot create the given file: %s" % repr(errinfo),
+      "cannot transform the given file: %s" % repr(errinfo),
+      "cannot update the given file: %s" % repr(errinfo),
     ] # Complete list of errors
     if not PYTHON3:
       self.message = (b'[Errno %d] %s' % \

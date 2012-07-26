@@ -9,6 +9,7 @@ import re
 import sys
 import locale
 import codecs
+import shutil
 import tempfile
 import subprocess as sp
 from pprint import pprint
@@ -18,6 +19,7 @@ from .GLMode import GLMode
 from .GLModuleSystem import GLModule
 from .GLModuleSystem import GLModuleTable
 from .GLModuleSystem import GLModuleSystem
+from GLFileSystem import GLFileAssistant
 
 
 #===============================================================================
@@ -447,6 +449,8 @@ class GLImport(GLMode):
     self.copyrights = True
     if symbolic:
       self.copyrights = False
+    self.symbolic = symbolic
+    self.lsymbolic = lsymbolic
     
   def __repr__(self):
     '''x.__repr__ <==> repr(x)'''
@@ -686,7 +690,12 @@ class GLImport(GLMode):
     if isfile(path):
       old_files += [joinpath('m4', 'gnulib-tool.m4')]
     
-    # Construct tables
+    # Construct tables and transformers.
+    transformers = dict()
+    transformers['lib'] = string(sed_transform_lib_file)
+    transformers['aux'] = string(sed_transform_build_aux_file)
+    transformers['main'] = string(sed_transform_main_lib_file)
+    transformers['tests'] = string(sed_transform_testsrelated_lib_file)
     old_table = list()
     new_table = list()
     for src in old_files:
@@ -697,10 +706,10 @@ class GLImport(GLMode):
       new_table += [tuple([src, dest])]
     
     # Return the result.
-    result = tuple([files, old_table, new_table])
+    result = tuple([files, old_table, new_table, transformers])
     return(result)
     
-  def execute(self, files, old_files, new_files, dryrun=False):
+  def execute(self, files, old_files, new_files, transformers, dryrun=False):
     '''Perform operations on files, which are given in the filetable format.
     Such filetables can be created using GLImport.prepare function.'''
     localdir = self.getLocalDir()
@@ -716,25 +725,55 @@ class GLImport(GLMode):
     lgpl = self.getLGPL()
     verbose = self.getVerbosity()
     
+    # Store all files to files table.
+    filetable = dict()
+    filetable['all'] = list(files)
+    filetable['old'] = list(old_files)
+    filetable['new'] = list(new_files)
+    filetable['added'] = list()
+    filetable['removed'] = list()
+    
     # Create all necessary directories.
     dirs = list()
     if pobase:
       dirs += [pobase]
-    if [file for file in files if file.startswith('doc/')]:
+    if [file for file in filetable['all'] if file.startswith('doc/')]:
       dirs += [docbase]
     dirs += [sourcebase, m4base, auxdir]
-    dirs += [os.path.dirname(file) for file in self.rewrite_new_files(files)]
+    dirs += [os.path.dirname(pair[1]) for pair in filetable['new']]
     dirs = sorted(set([joinpath(destdir, directory) for directory in dirs]))
     for directory in dirs:
       if not isdir(directory):
         if not dryrun:
-          try: # Try to create directory
             print('Creating directory %s' % directory)
-            os.makedirs(directory)
-          except Exception as error:
-            raise(GLError(13, directory))
-        else:
+            try: # Try to create directory
+              os.makedirs(directory)
+            except Exception as error:
+              raise(GLError(13, directory))
+        else: # if dryrun
           print('Create directory %s' % directory)
+    
+    # Remove every old file which is not in the list of the new files.
+    old_files = [pair[1] for pair in filetable['old']]
+    new_files = [pair[1] for pair in filetable['new']]
+    files = [file for files in old_files if file not in new_files]
+    for file in files:
+      path = joinpath(destdir, file)
+      if isfile(path) or os.path.islink(path):
+        if not dryrun:
+          print('Removing file %s (backup in %s~)' % (path, path))
+          try: # Try to move file
+            shutil.move(path, '%s~' % path)
+          except Exception as error:
+            raise(GLError(14, file))
+        else: # if dryrun
+          print('Remove file %s (backup in %s~)' % (path, path))
+        filetable['removed'] += [file]
+    
+    # Create GLFileAssistant instance and process files.
+    assistant = GLFileAssistant(destdir, localdir, transformers,
+      self.symbolic, self.lsymbolic, dryrun)
+    
     
   def addModule(self, module):
     '''Add the module to the modules list.'''

@@ -290,8 +290,8 @@ def main():
   
   # Execute operations depending on type of action
   if type(action) is classes.GLImport:
-    files, old_files, new_files = action.prepare()
-    action.execute(files, old_files, new_files, dryrun)
+    files, old_files, new_files, transformers = action.prepare()
+    action.execute(files, old_files, new_files, transformers, dryrun)
 
 if __name__ == '__main__':
   try: # Try to execute
@@ -350,6 +350,8 @@ if __name__ == '__main__':
         os.remove(tempname)
       elif errno == 12:
         message += 'refusing to do nothing'
+      elif errno in [13, 14, 15, 16, 17]:
+        message += 'failed'
       message += '\n%s: *** Exit.\n' % constants.APP['name']
       sys.stderr.write(message)
       sys.exit(1)

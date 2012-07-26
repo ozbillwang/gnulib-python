@@ -241,6 +241,43 @@ def joinpath(head, *tail):
     result = result.decode(ENCS['default'])
   return(result)
 
+def link_relative(self, src, dest):
+    '''Like ln -s, except that src is given relative to the current directory
+    (or absolute), not given relative to the directory of dest.'''
+    if type(src) is bytes or type(src) is string:
+      if type(src) is bytes:
+        src = src.decode(ENCS['default'])
+    else: # if src has not bytes or string type
+      raise(TypeError(
+        'src must be a string, not %s' % (type(src).__name__)))
+    if type(dest) is bytes or type(dest) is string:
+      if type(dest) is bytes:
+        dest = dest.decode(ENCS['default'])
+    else: # if dest has not bytes or string type
+      raise(TypeError(
+        'dest must be a string, not %s' % (type(dest).__name__)))
+    if src.startswith('/'):
+      os.symlink(src, dest)
+    else: # if not src.startswith('/')
+      if dest.startswith('/'):
+        if not constants.PYTHON3:
+          cwd = os.getcwdu()
+        else: # if constants.PYTHON3
+          cwd = os.getcwd()
+        os.symlink('%s%s' % (cwd, src), dest)
+      else: # if not dest.startswith('/')
+        destdir = os.path.dirname(dest)
+        if not destdir:
+          destdir = '.'
+        if type(destdir) is bytes:
+          destdir = destdir.decode(ENCS['default'])
+        reldir = relpath()
+
+def relativize(dir1, dir2):
+  '''Compute a relative pathname reldir such that dir1/reldir = dir2.'''
+  dir0 = os.getcwd()
+  # TODO: finish this function
+
 def filter_filelist(separator, filelist,
   prefix, suffix, removed_prefix, removed_suffix,
   added_prefix=string(), added_suffix=string()):

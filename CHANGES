@@ -1,3 +1,7 @@
+26 July 2012, Dmitriy Selyutin
+Some fixes and improvements in GLImport. GLImport was extended a bit.
+GLFileAssistant was added to GLFileSystem module. It helps to process files.
+
 25 July 2012, Dmitriy Selyutin
 Some fixes and improvements in GLImport. The --import mode shall now work as
 follows. The preparation and real processing of files are divided in two
