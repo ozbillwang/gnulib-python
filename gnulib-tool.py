@@ -88,7 +88,7 @@ def main():
   podomain = None
   witness_c_macro = None
   vc_files = None
-  dryrun = False
+  dryrun = True
   
   if mode == MODES['import']:
     if not sourcebase:
@@ -290,8 +290,8 @@ def main():
   
   # Execute operations depending on type of action
   if type(action) is classes.GLImport:
-    files, old_files, new_files, transformers = action.prepare()
-    action.execute(files, old_files, new_files, transformers, dryrun)
+    filelist, old_files, new_files, transformers = action.prepare()
+    action.execute(filelist, old_files, new_files, transformers, dryrun)
 
 if __name__ == '__main__':
   try: # Try to execute
@@ -354,5 +354,6 @@ if __name__ == '__main__':
         message += 'failed'
       message += '\n%s: *** Exit.\n' % constants.APP['name']
       sys.stderr.write(message)
+      print(errno, errinfo)
       sys.exit(1)
 

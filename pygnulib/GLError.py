@@ -102,7 +102,7 @@ class GLError(Exception):
       "cannot remove the given file: %s" % repr(errinfo),
       "cannot create the given file: %s" % repr(errinfo),
       "cannot transform the given file: %s" % repr(errinfo),
-      "cannot update the given file: %s" % repr(errinfo),
+      "cannot update/replace the given file: %s" % repr(errinfo),
     ] # Complete list of errors
     if not PYTHON3:
       self.message = (b'[Errno %d] %s' % \

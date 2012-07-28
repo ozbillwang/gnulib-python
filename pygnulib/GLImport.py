@@ -19,7 +19,7 @@ from .GLMode import GLMode
 from .GLModuleSystem import GLModule
 from .GLModuleSystem import GLModuleTable
 from .GLModuleSystem import GLModuleSystem
-from GLFileSystem import GLFileAssistant
+from .GLFileSystem import GLFileAssistant
 
 
 #===============================================================================
@@ -560,8 +560,8 @@ class GLImport(GLMode):
       if term == 'xterm':
         bold_on = '\x1b[1m'
         bold_off = '\x1b[0m'
-        # bold_on = '' # Uncomment these lines to let diff work
-        # bold_off = '' # Uncomment these lines to let diff work
+        bold_on = '' # Uncomment these lines to let diff work
+        bold_off = '' # Uncomment these lines to let diff work
       print('Module list with included dependencies (indented):')
       for module in finalmodules:
         if str(module) in self.getModules():
@@ -684,7 +684,7 @@ class GLImport(GLMode):
           print('  %s' % file)
     
     # Add m4/gnulib-tool.m4 to the file list. It is not part of any module.
-    new_files = files +['m4/gnulib-tool.m4']
+    new_files = filelist +['m4/gnulib-tool.m4']
     old_files = self.cache['files']
     path = joinpath(self.getDestDir(), self.getM4Base(), 'gnulib-tool.m4')
     if isfile(path):
@@ -706,12 +706,14 @@ class GLImport(GLMode):
       new_table += [tuple([src, dest])]
     
     # Return the result.
-    result = tuple([files, old_table, new_table, transformers])
+    result = tuple([filelist, old_table, new_table, transformers])
     return(result)
     
-  def execute(self, files, old_files, new_files, transformers, dryrun=False):
-    '''Perform operations on files, which are given in the filetable format.
-    Such filetables can be created using GLImport.prepare function.'''
+  def execute(self, filelist, old_files, new_files,
+    transformers, dryrun=False):
+    '''Perform operations on the lists of files, which are given in a special
+    format except filelist argument. Such lists of files can be created using
+    GLImport.prepare() function.'''
     localdir = self.getLocalDir()
     destdir = self.getDestDir()
     auxdir = self.getAuxDir()
@@ -727,9 +729,9 @@ class GLImport(GLMode):
     
     # Store all files to files table.
     filetable = dict()
-    filetable['all'] = list(files)
-    filetable['old'] = list(old_files)
-    filetable['new'] = list(new_files)
+    filetable['all'] = sorted(set(filelist))
+    filetable['old'] = sorted(set(old_files))
+    filetable['new'] = sorted(set(new_files))
     filetable['added'] = list()
     filetable['removed'] = list()
     
@@ -741,7 +743,7 @@ class GLImport(GLMode):
       dirs += [docbase]
     dirs += [sourcebase, m4base, auxdir]
     dirs += [os.path.dirname(pair[1]) for pair in filetable['new']]
-    dirs = sorted(set([joinpath(destdir, directory) for directory in dirs]))
+    dirs = sorted(set([joinpath(destdir, d) for d in dirs]))
     for directory in dirs:
       if not isdir(directory):
         if not dryrun:
@@ -753,10 +755,15 @@ class GLImport(GLMode):
         else: # if dryrun
           print('Create directory %s' % directory)
     
-    # Remove every old file which is not in the list of the new files.
+    # Create GLFileAssistant instance to process files.
+    assistant = GLFileAssistant(destdir, localdir, transformers,
+      self.symbolic, self.lsymbolic, dryrun)
+    
+    # Files which are in old_files and not in new_files.
+    # They will be removed and added to filetable['removed'] list.
     old_files = [pair[1] for pair in filetable['old']]
     new_files = [pair[1] for pair in filetable['new']]
-    files = [file for files in old_files if file not in new_files]
+    files = [file for file in old_files if file not in new_files]
     for file in files:
       path = joinpath(destdir, file)
       if isfile(path) or os.path.islink(path):
@@ -770,10 +777,29 @@ class GLImport(GLMode):
           print('Remove file %s (backup in %s~)' % (path, path))
         filetable['removed'] += [file]
     
-    # Create GLFileAssistant instance and process files.
-    assistant = GLFileAssistant(destdir, localdir, transformers,
-      self.symbolic, self.lsymbolic, dryrun)
+    # Files which are in new_files and not in old_files.
+    # They will be added/updated and added to filetable['removed'] list.
+    already_present = False
+    pairs = [pair for pair in filetable['new'] if pair[1] not in old_files]
+    for pair in pairs:
+      original = pair[0]
+      rewritten = pair[1]
+      assistant.setOriginal(original)
+      assistant.setRewritten(rewritten)
+      assistant.add_or_update(already_present)
+    filetable['added'] += assistant.getFiles()
     
+    # Files which are in new_files and old_files.
+    # They will be added/updated and added to filetable['removed'] list.
+    already_present = True
+    pairs = [pair for pair in filetable['new'] if pair[1] in old_files]
+    for pair in pairs:
+      original = pair[0]
+      rewritten = pair[1]
+      assistant.setOriginal(original)
+      assistant.setRewritten(rewritten)
+      assistant.add_or_update(already_present)
+    filetable['added'] += assistant.getFiles()
     
   def addModule(self, module):
     '''Add the module to the modules list.'''

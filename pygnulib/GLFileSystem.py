@@ -154,8 +154,9 @@ class GLFileAssistant(object):
     self.filesystem = GLFileSystem(localdir)
     self.original = None
     self.rewritten = None
+    self.added = list()
     
-  def setOriginal(self, file):
+  def setOriginal(self, original):
     '''Set the name of the original file which will be used.'''
     if type(original) is bytes or type(original) is string:
       if type(original) is bytes:
@@ -165,7 +166,7 @@ class GLFileAssistant(object):
         'original must be a string, not %s' % (type(original).__name__)))
     self.original = original
     
-  def setRewritten(self, file):
+  def setRewritten(self, rewritten):
     '''Set the name of the rewritten file which will be used.'''
     if type(rewritten) is bytes or type(rewritten) is string:
       if type(rewritten) is bytes:
@@ -174,6 +175,20 @@ class GLFileAssistant(object):
       raise(TypeError(
         'rewritten must be a string, not %s' % type(rewritten).__name__))
     self.rewritten = rewritten
+    
+  def addFile(self, file):
+    '''Add file to the list of added files.'''
+    if file not in self.added:
+      self.added += [file]
+    
+  def removeFile(self, file):
+    '''Remove file from the list of added files.'''
+    if file in self.added:
+      self.added.pop(file)
+    
+  def getFiles(self):
+    '''Return list of the added files.'''
+    return(list(self.added))
     
   def tmpfilename(self, path):
     '''Determine the name of a temporary file (file is relative to destdir).'''
@@ -195,17 +210,31 @@ class GLFileAssistant(object):
       result = bytes.decode(ENCS['default'])
     return(result)
     
-  def add(self, original, rewritten, lookedup, tmpflag):
+  def add(self, lookedup, tmpflag):
     '''This method copies a file from gnulib into the destination directory.
     The destination is known to exist. If tmpflag is True, then lookedup file
     is a temporary one.'''
     original = self.original
     rewritten = self.rewritten
+    symbolic = self.symbolic
+    lsymbolic = self.lsymbolic
     if original == None:
       raise(TypeError('original must be set before applying the method'))
     elif rewritten == None:
       raise(TypeError('rewritten must be set before applying the method'))
-    # TODO: finish this method
+    if not self.dryrun:
+      print('Copying file %s' % rewritten)
+      loriginal = joinpath(self.localdir, original)
+      if (symbolic or (lsymbolic and lookedup == loriginal)) \
+      and not tmpflag and filecmp.cmp(lookedup, tmpfile):
+        constants.link_if_changed(lookedup, joinpath(destdir, rewritten))
+      else: # if any of these conditions is not met
+        try: # Try to move file
+          shutil.move(tmpfile, joinpath(destdir, rewritten))
+        except Exception as error:
+          raise(GLError(17, original))
+    else: # if self.dryrun
+      print('Copy file %s' % rewritten)
     
   def update(self, lookedup, tmpflag, tmpfile, already_present):
     '''This method copies a file from gnulib into the destination directory.
@@ -213,6 +242,8 @@ class GLFileAssistant(object):
     is a temporary one.'''
     original = self.original
     rewritten = self.rewritten
+    symbolic = self.symbolic
+    lsymbolic = self.lsymbolic
     if original == None:
       raise(TypeError('original must be set before applying the method'))
     elif rewritten == None:
@@ -238,11 +269,21 @@ class GLFileAssistant(object):
         try: # Try to replace the given file
           shutil.move(rewritten, '%s~' % rewritten)
         except Exception as error:
-          raise(GLError(17, rewritten))
+          raise(GLError(17, original))
         loriginal = joinpath(self.localdir, original)
-        if (symbolic or (symbolic and lookedup == loriginal) \
-        and not tmpflag and filecmp(joinpath(lookedup, tmpfile)):
-          # TODO: finish this method
+        if (symbolic or (lsymbolic and lookedup == loriginal)) \
+        and not tmpflag and filecmp.cmp(lookedup, tmpfile):
+          constants.link_if_changed(lookedup, joinpath(destdir, rewritten))
+        else: # if any of these conditions is not met
+          try: # Try to move file
+            shutil.move(tmpfile, joinpath(destdir, rewritten))
+          except Exception as error:
+            raise(GLError(17, original))
+      else: # if self.dryrun
+        if already_present:
+          print('Update file %s (backup in %s~)' % (rewritten, rewritten))
+        else: # if not already_present
+          print('Replace file %s (backup in %s~)' % (rewritten, rewritten))
     
   def add_or_update(self, already_present):
     '''This method handles a file that ought to be present afterwards.'''
@@ -255,6 +296,7 @@ class GLFileAssistant(object):
     if type(already_present) is not bool:
       raise(TypeError('already_present must be a bool, not %s' % \
           type(already_present).__name__))
+    xoriginal = original
     if original.startswith('tests=lib/'):
       xoriginal = substart('tests=lib/', 'lib/', original)
     lookedup, tmpflag = self.filesystem.lookup(xoriginal)
@@ -278,14 +320,20 @@ class GLFileAssistant(object):
       if sed_transform_testsrelated_lib_file:
         transformer = sed_transform_testsrelated_lib_file
     if transformer:
-      args = ['sed', '-e', transformer, lookedup]
+      args = ['sed', '-e', transformer]
+      stdin = codecs.open(lookedup, 'rb', 'UTF-8')
       try: # Try to transform file
-        data = sp.check_output(args, shell=True)
+        data = sp.check_output(args, stdin=stdin, shell=False)
+        data = data.decode(ENCS['shell'])
       except Exception as error:
         raise(GLError(16, lookedup))
       with codecs.open(tmpfile, 'wb', 'UTF-8') as file:
         file.write(data)
-    if isfile(joinpath(self.destdir, rewritten)):
+    path = joinpath(self.destdir, rewritten)
+    if isfile(path):
       self.update(self, lookedup, tmpflag, tmpfile, already_present)
-    else: # if not isfile(joinpath(self.destdir, rewritten))
-      self.add()
+    else: # if not isfile(path)
+      self.add(lookedup, tmpflag)
+      self.addFile(rewritten)
+    os.remove(tmpfile)
+

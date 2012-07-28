@@ -216,7 +216,7 @@ def compiler(pattern, flags=0):
   else: # if PYTHON3
     pattern = re.compile(pattern, flags)
   return(pattern)
-  
+
 def cleaner(sequence):
   '''Clean string or list of strings after using regex.'''
   if type(sequence) is string:
@@ -229,19 +229,59 @@ def cleaner(sequence):
     sequence = [True if value == 'true' else value for value in sequence]
     sequence = [value.strip() for value in sequence]
   return(sequence)
-  
+
 def joinpath(head, *tail):
   '''joinpath(head, *tail) -> string
   
   Join two or more pathname components, inserting '/' as needed. If any
   component is an absolute path, all previous path components will be
   discarded. The second argument may be string or list of strings.'''
+  newtail = list()
+  if type(head) is bytes:
+    head = head.decode(ENCS['default'])
+  for item in tail:
+    if type(item) is bytes:
+      item = item.decode(ENCS['default'])
+    newtail += [item]
   result = os.path.normpath(os.path.join(head, *tail))
   if type(result) is bytes:
     result = result.decode(ENCS['default'])
   return(result)
 
-def link_relative(self, src, dest):
+def relativize(dir1, dir2):
+  '''Compute a relative pathname reldir such that dir1/reldir = dir2.'''
+  dir0 = os.getcwd()
+  if type(dir1) is bytes:
+    dir1 = dir1.decode(ENCS['default'])
+  if type(dir2) is bytes:
+    dir2 = dir2.decode(ENCS['default'])
+  while dir1:
+    dir1 = '%s%s' % (os.path.normpath(dir1), os.path.sep)
+    dir2 = '%s%s' % (os.path.normpath(dir2), os.path.sep)
+    if dir1.startswith(os.path.sep):
+      first = dir1[:dir1.find(os.path.sep, 1)]
+    else: # if not dir1.startswith('/')
+      first = dir1[:dir1.find(os.path.sep)]
+    if first != '.':
+      if first == '..':
+        dir2 = os.path.basename(joinpath(dir0, dir2))
+        dir0 = os.path.dirname(dir0)
+      else: # if first != '..'
+        # Get first component of dir2
+        if dir2.startswith(os.path.sep):
+          first2 = dir2[:dir2.find(os.path.sep, 1)]
+        else: # if not dir1.startswith('/')
+          first2 = dir2[:dir2.find(os.path.sep)]
+        if first == first2:
+          dir2 = dir2[dir2.find(os.path.sep)+1:]
+        else: # if first != first2
+          dir2 = joinpath('..', dir2)
+        dir0 = joinpath(dir0, first)
+    dir1 = dir1[dir1.find(os.path.sep)+1:]
+  result = dir2
+  return(result)
+
+def link_relative(src, dest):
     '''Like ln -s, except that src is given relative to the current directory
     (or absolute), not given relative to the directory of dest.'''
     if type(src) is bytes or type(src) is string:
@@ -264,19 +304,26 @@ def link_relative(self, src, dest):
           cwd = os.getcwdu()
         else: # if constants.PYTHON3
           cwd = os.getcwd()
-        os.symlink('%s%s' % (cwd, src), dest)
+        os.symlink(joinpath(cwd, src), dest)
       else: # if not dest.startswith('/')
         destdir = os.path.dirname(dest)
         if not destdir:
           destdir = '.'
         if type(destdir) is bytes:
           destdir = destdir.decode(ENCS['default'])
-        reldir = relpath()
+        src = relativize(destdir, src)
+        os.symlink(src, dest)
 
-def relativize(dir1, dir2):
-  '''Compute a relative pathname reldir such that dir1/reldir = dir2.'''
-  dir0 = os.getcwd()
-  # TODO: finish this function
+def link_if_changed(src, dest):
+  '''Create a symlink, but avoids munging timestamps if the link is correct.'''
+  if type(src) is bytes:
+    src = src.decode(ENCS['default'])
+  if type(dest) is bytes:
+    dest = dest.decode(ENCS['default'])
+  ln_target = os.path.realpath(src)
+  if not (os.path.islink(dest) and src == ln_target):
+    os.remove(dest)
+    link_relative(src, dest)
 
 def filter_filelist(separator, filelist,
   prefix, suffix, removed_prefix, removed_suffix,
@@ -297,10 +344,14 @@ def filter_filelist(separator, filelist,
   return(result)
 
 def substart(orig, repl, data):
+  result = data
   if data.startswith(orig):
-    #pattern = compiler('^%s(.*?)' % orig, re.S | re.M)
-    #result = pattern.sub('%s\\1' % repl, data)
     result = repl +data[len(orig):]
+  return(result)
+
+def subend(orig, repl, data):
+  if data.endswith(orig):
+    result = repl +data[:len(repl)]
   return(result)
 
 __all__ += ['APP', 'DIRS', 'FILES', 'MODES', 'UTILS']

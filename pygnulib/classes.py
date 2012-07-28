@@ -18,6 +18,7 @@ from .GLInfo import GLInfo
 from .GLMode import GLMode
 from .GLError import GLError
 from .GLFileSystem import GLFileSystem
+from .GLFileSystem import GLFileAssistant
 from .GLModuleSystem import GLModule
 from .GLModuleSystem import GLModuleTable
 from .GLModuleSystem import GLModuleSystem

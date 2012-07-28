@@ -1,3 +1,8 @@
+28 July 2012, Dmitriy Selyutin
+Some file utilities were added to constants, especially relativize.
+GLFileAssistant was improved and extended. These improvements still require
+hard testing (except for dryrun part, which works good).
+
 26 July 2012, Dmitriy Selyutin
 Some fixes and improvements in GLImport. GLImport was extended a bit.
 GLFileAssistant was added to GLFileSystem module. It helps to process files.
