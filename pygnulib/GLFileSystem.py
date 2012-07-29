@@ -298,7 +298,7 @@ class GLFileAssistant(object):
           type(already_present).__name__))
     xoriginal = original
     if original.startswith('tests=lib/'):
-      xoriginal = substart('tests=lib/', 'lib/', original)
+      xoriginal = constants.substart('tests=lib/', 'lib/', original)
     lookedup, tmpflag = self.filesystem.lookup(xoriginal)
     tmpfile = self.tmpfilename(rewritten)
     sed_transform_lib_file = self.transformers.get('lib', '')

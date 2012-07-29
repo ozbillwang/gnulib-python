@@ -67,7 +67,7 @@ class GLModuleSystem(object):
       self.localdir = localdir
     else: # if localdir has not bytes or string type
       raise(TypeError(
-        'localdir must be a string, not' +type(module).__name__))
+        'localdir must be a string, not %s' % type(localdir).__name__))
     
   def __repr__(self):
     '''x.__repr__ <==> repr(x)'''
@@ -415,6 +415,8 @@ Include:|Link:|License:|Maintainer:)'
       self.cache['files'] += [joinpath('m4', 'gnulib-common.m4')]
       if ac_version == 2.59:
         self.cache['files'] += [joinpath('m4', 'onceonly.m4')]
+      self.cache['files'] = \
+        [file for file in self.cache['files'] if file != '']
     return(list(self.cache['files']))
     
   def getDependencies(self, localdir):
@@ -456,6 +458,8 @@ Include:|Link:|License:|Maintainer:)'
         depmodule = modulesystem.find(depmodule)
         result.append(tuple([depmodule, condition]))
       self.cache['dependencies'] = sorted(result)
+      self.cache['dependencies'] = \
+        [dep for dep in self.cache['dependencies'] if dep != '']
     return(list(self.cache['dependencies']))
     
   def getAutoconfSnippet_Early(self):
@@ -956,8 +960,11 @@ class GLModuleTable(object):
     for module in modules:
       if type(module) is not GLModule:
         raise(TypeError('each module must be a GLModule instance'))
-      filelist += module.getFiles(ac_version)
-    filelist = sorted(set(filelist))
+    listings = [module.getFiles(ac_version) for module in modules]
+    for listing in listings:
+      for file in listing:
+        if file not in filelist:
+          filelist += [file]
     return(filelist)
     
   def filelist_separately(self, main_modules, tests_modules, ac_version):
@@ -972,9 +979,9 @@ class GLModuleTable(object):
     tests_filelist = \
     [ # Begin to sort filelist
       file.replace('lib/', 'tests=lib/', 1) \
-      for file in tests_filelist \
-      if file.startswith('lib/')
+      if file.startswith('lib/') else file
+      for file in tests_filelist
     ] # Finish to sort filelist
-    filelist = sorted(set(main_filelist +tests_filelist))
-    return(filelist)
+    result = tuple([main_filelist, tests_filelist])
+    return(result)
 

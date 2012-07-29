@@ -130,14 +130,15 @@ class GLImport(GLMode):
     for item in keys:
       self.args[item] = ''
       self.cache[item] = ''
-    self.args['conddeps'] = None
     self.cache['libname'] = 'libgnu'
+    self.cache['conddeps'] = False
     self.cache['modules'] = list()
     self.cache['avoids'] = list()
     self.cache['flags'] = list()
     self.cache['tests'] = list()
     self.cache['lgpl'] = False
     self.cache['files'] = list()
+    self.cache['vc_files'] = None
     
     # Set m4base as always needed argument.
     self.setM4Base(m4base)
@@ -170,7 +171,7 @@ class GLImport(GLMode):
       self.setAuxDir(auxdir)
     
     # Guess autoconf version.
-    pattern = compiler('.*AC_PREREQ\((.*?)\)$', re.S | re.M)
+    pattern = compiler('.*AC_PREREQ\((.*?)\)', re.S | re.M)
     versions = cleaner(pattern.findall(data))
     if not versions:
       version = 2.59
@@ -209,6 +210,9 @@ class GLImport(GLMode):
       if 'gl_CONDITIONAL_DEPENDENCIES' in data:
         self.cache['conddeps'] = True
         data = data.replace('gl_CONDITIONAL_DEPENDENCIES', '')
+      if 'gl_VC_FILES' in data:
+        self.cache['vc_files'] = True
+        data = data.replace('gl_VC_FILES', '')
       if 'gl_WITH_TESTS' in data:
         self.cache['tests'].append(TESTS['tests'])
         data = data.replace('gl_WITH_TESTS', '')
@@ -303,9 +307,20 @@ class GLImport(GLMode):
       self.setDocBase(docbase)
       self.setTestsBase(testsbase)
       self.setMacroPrefix(macro_prefix)
+      if not conddeps:
+        self.disableCondDeps()
+      else: # if not conddeps
+        self.enableCondDeps(conddeps)
+      if tests == None:
+        self.setTestFlags(list())
+      else: # if tests != None
+        self.setTestFlags(tests)
+      if libname == None:
+        self.setLibName('libgnu')
       
     else: # if self.mode != MODES['import']
-      if self.args['m4base'] != self.cache['m4base']:
+      if self.cache['m4base'] and \
+      (self.args['m4base'] != self.cache['m4base']):
         raise(GLError(5, m4base))
       
       # Perform actions with modules. In --add-import, append each given module
@@ -327,7 +342,7 @@ class GLImport(GLMode):
         self.setTestFlags(tests)
         for testflag in self.cache['tests']:
           self.enableTestFlag(testflag)
-      self.args['tests'] = sorted(self.args['tests'])
+      self.args['tests'] = sorted(set(self.args['tests']))
       
       # avoids => self.args['avoids']
       self.setAvoids(avoids +self.cache['avoids'])
@@ -353,8 +368,6 @@ class GLImport(GLMode):
         self.setDocBase(docbase)
       if not self.args['docbase']:
         raise(GLError(7, None))
-      print(repr(docbase))
-      
       
       # testsbase => self.args['testsbase']
       if testsbase == None:
@@ -385,14 +398,19 @@ class GLImport(GLMode):
         self.setMakefile(makefile)
       
       # conddeps => self.args['conddeps']
-      if type(conddeps) is bool and conddeps:
-        self.enableCondDeps()
-      elif type(conddeps) is bool and not conddeps:
-        self.disableCondDeps()
-      elif type(conddeps) is NoneType and self.cache['conddeps']:
-        self.enableCondDeps()
-      elif type(conddeps) is NoneType and not self.cache['conddeps']:
-        self.disableCondDeps()
+      if conddeps == None:
+        if not self.cache['conddeps']:
+          self.disableCondDeps()
+        else: # if self.cache['conddeps']
+          self.enableCondDeps()
+      else: # if conddeps != None
+        if conddeps == True:
+          self.enableCondDeps()
+        elif conddeps == False:
+          self.disableCondDeps()
+        else: # if not True or False
+          raise(TypeError(
+            'conddeps must be a bool, not %s' % type(conddeps).__name__))
       
       # libtool => self.args['libtool']
       if libtool == None:
@@ -432,11 +450,11 @@ class GLImport(GLMode):
       
       # vc_files => self.args['vc_files']
       if vc_files == None:
-        if self.cache['vc_files']:
-          self.disableVCFiles()
-        else: # if not self.cache['vc_files']
+        if not self.cache['vc_files']:
+          self.resetVCFiles()
+        else: # if self.cache['vc_files']
           self.enableVCFiles()
-      elif type(vc_files) is bool: # if not vc_files
+      elif type(vc_files) is bool:
         if vc_files:
           self.enableVCFiles()
         else: # if not vc_files
@@ -487,6 +505,14 @@ class GLImport(GLMode):
         result += [constants.substart('lib/', '%s/' % sourcebase, file)]
       elif file.startswith('m4/'):
         result += [constants.substart('m4/', '%s/' % m4base, file)]
+      elif file.startswith('tests=lib/'):
+        result += [constants.substart('tests=lib/', '%s/' % testsbase, file)]
+      elif file.startswith('tests/'):
+        result += [constants.substart('tests/', '%s/' % testsbase, file)]
+      elif file.startswith('top/'):
+        result += [constants.substart('top/', '', file)]
+      else: # file is not a special file
+        result += [file]
     result = sorted(set(result))
     return(list(result))
     
@@ -521,8 +547,97 @@ class GLImport(GLMode):
         result += [constants.substart('lib/', '%s/' % sourcebase, file)]
       elif file.startswith('m4/'):
         result += [constants.substart('m4/', '%s/' % m4base, file)]
+      elif file.startswith('tests=lib/'):
+        result += [constants.substart('tests=lib/', '%s/' % testsbase, file)]
+      elif file.startswith('tests/'):
+        result += [constants.substart('tests/', '%s/' % testsbase, file)]
+      elif file.startswith('top/'):
+        result += [constants.substart('top/', '', file)]
+      else: # file is not a special file
+        result += [file]
     result = sorted(set(result))
     return(list(result))
+    
+  def actioncmd(self):
+    '''Return command-line invocation comment.'''
+    modules = self.getModules()
+    avoids = self.getAvoids()
+    destdir = self.getDestDir()
+    localdir = self.getLocalDir()
+    auxdir = self.getAuxDir()
+    sourcebase = self.getSourceBase()
+    m4base = self.getM4Base()
+    docbase = self.getDocBase()
+    pobase = self.getPoBase()
+    testsbase = self.getTestsBase()
+    testflags = self.getTestFlags()
+    conddeps = self.checkCondDeps()
+    libname = self.getLibName()
+    lgpl = self.getLGPL()
+    makefile = self.getMakefile()
+    libtool = self.checkLibtool()
+    macro_prefix = self.getMacroPrefix()
+    witness_c_macro = self.getWitnessCMacro()
+    podomain = self.getPoDomain()
+    vc_files = self.checkVCFiles()
+    verbose = self.getVerbosity()
+    
+    # Create command-line invocation comment.
+    actioncmd = 'gnulib-tool --import'
+    actioncmd += ' --dir=%s' % destdir
+    if localdir:
+      actioncmd += ' --localdir=%s' % localdir
+    actioncmd += ' --lib=%s' % libname
+    actioncmd += ' --source-base=%s' % sourcebase
+    actioncmd += ' --m4-base=%s' % m4base
+    if pobase:
+      actioncmd += ' --po-base=%s' % pobase
+    actioncmd += ' --doc-base=%s' % docbase
+    actioncmd += ' --tests-base=%s' % testsbase
+    actioncmd += ' --aux-dir=%s' % auxdir
+    if self.checkTestFlag(TESTS['tests']):
+      actioncmd += ' --with-tests'
+    if self.checkTestFlag(TESTS['obsolete']):
+      actioncmd += ' --with-obsolete'
+    if self.checkTestFlag(TESTS['c++-test']):
+      actioncmd += ' --with-c++-tests'
+    if self.checkTestFlag(TESTS['longrunning-test']):
+      actioncmd += ' --with-longrunning-tests'
+    if self.checkTestFlag(TESTS['privileged-test']):
+      actioncmd += ' --with-privileged-test'
+    if self.checkTestFlag(TESTS['unportable-test']):
+      actioncmd += ' --with-unportable-tests'
+    if self.checkTestFlag(TESTS['all-test']):
+      actioncmd += ' --with-all-tests'
+    for module in avoids:
+      actioncmd += ' --avoid=%s' % module
+    if lgpl:
+      if lgpl == True:
+        actioncmd += ' --lgpl'
+      else: # if lgpl != True
+        actioncmd += ' --lgpl=%s' % lgpl
+    if makefile:
+      actioncmd += ' --makefile-name=%s' % makefile
+    if conddeps:
+      actioncmd += ' --conditional-dependencies'
+    else: # if not conddeps
+      actioncmd += ' --no-conditional-dependencies'
+    if libtool:
+      actioncmd += ' --libtool'
+    else: # if not libtool
+      actioncmd += ' --no-libtool'
+    actioncmd += ' --macro-prefix=%s' % macro_prefix
+    if podomain:
+      actioncmd = ' --podomain=%s' % podomain
+    if witness_c_macro:
+      actioncmd += ' --witness_c_macro=%s' % witness_c_macro
+    if vc_files == True:
+      actioncmd += ' --vc-files'
+    elif vc_files == False:
+      actioncmd += ' --no-vc-files'
+    actioncmd += ' ' # Add a space
+    actioncmd += ' '.join(modules)
+    return(actioncmd)
     
   def prepare(self):
     '''Make all preparations before the execution of the code. Returns tuple,
@@ -668,12 +783,15 @@ class GLImport(GLMode):
       sed_transform_testsrelated_lib_file += lgpl2gpl
     
     # Determine the final file lists.
-    filelist = \
+    main_filelist, tests_filelist = \
       table.filelist_separately(main_modules, tests_modules, ac_version)
+    filelist = sorted(set(main_filelist +tests_filelist))
+    print(len(filelist))
+    exit()
     if not filelist:
       raise(GLError(12, None))
     
-    # Print list of files
+    # Print list of files.
     if verbose >= 0:
       print('File list:')
       for file in filelist:
@@ -683,9 +801,10 @@ class GLImport(GLMode):
         else:
           print('  %s' % file)
     
-    # Add m4/gnulib-tool.m4 to the file list. It is not part of any module.
+    # Prepare basic filelist and basic old_files/new_files variables.
+    filelist = sorted(set(filelist))
     new_files = filelist +['m4/gnulib-tool.m4']
-    old_files = self.cache['files']
+    old_files = list(self.cache['files'])
     path = joinpath(self.getDestDir(), self.getM4Base(), 'gnulib-tool.m4')
     if isfile(path):
       old_files += [joinpath('m4', 'gnulib-tool.m4')]
@@ -704,6 +823,8 @@ class GLImport(GLMode):
     for src in new_files:
       dest = self.rewrite_new_files([src])[-1]
       new_table += [tuple([src, dest])]
+    old_table = sorted(set(old_table))
+    new_table = sorted(set(new_table))
     
     # Return the result.
     result = tuple([filelist, old_table, new_table, transformers])
@@ -714,8 +835,10 @@ class GLImport(GLMode):
     '''Perform operations on the lists of files, which are given in a special
     format except filelist argument. Such lists of files can be created using
     GLImport.prepare() function.'''
-    localdir = self.getLocalDir()
+    modules = self.getModules()
+    avoids = self.getAvoids()
     destdir = self.getDestDir()
+    localdir = self.getLocalDir()
     auxdir = self.getAuxDir()
     sourcebase = self.getSourceBase()
     m4base = self.getM4Base()
@@ -724,7 +847,14 @@ class GLImport(GLMode):
     testsbase = self.getTestsBase()
     testflags = self.getTestFlags()
     conddeps = self.checkCondDeps()
+    libname = self.getLibName()
     lgpl = self.getLGPL()
+    makefile = self.getMakefile()
+    libtool = self.checkLibtool()
+    macro_prefix = self.getMacroPrefix()
+    witness_c_macro = self.getWitnessCMacro()
+    podomain = self.getPoDomain()
+    vc_files = self.checkVCFiles()
     verbose = self.getVerbosity()
     
     # Store all files to files table.
@@ -781,9 +911,12 @@ class GLImport(GLMode):
     # They will be added/updated and added to filetable['removed'] list.
     already_present = False
     pairs = [pair for pair in filetable['new'] if pair[1] not in old_files]
+    path = '/home/ghostmansd/Проекты/added_files_py'
+    file = codecs.open(path, 'wb', 'UTF-8')
     for pair in pairs:
       original = pair[0]
       rewritten = pair[1]
+      file.write('%s\t%s\n' % (original, rewritten))
       assistant.setOriginal(original)
       assistant.setRewritten(rewritten)
       assistant.add_or_update(already_present)
@@ -800,6 +933,9 @@ class GLImport(GLMode):
       assistant.setRewritten(rewritten)
       assistant.add_or_update(already_present)
     filetable['added'] += assistant.getFiles()
+    
+    # Create command-line invocation comment.
+    actioncmd = self.actioncmd()
     
   def addModule(self, module):
     '''Add the module to the modules list.'''
@@ -1143,8 +1279,6 @@ class GLImport(GLMode):
   def setLGPL(self, lgpl):
     '''Abort if modules aren't available under the LGPL.'''
     if (type(lgpl) is int and 2 <= lgpl <= 3) or type(lgpl) is bool:
-      if type(lgpl) is bool and lgpl:
-        lgpl = 3
       self.args['lgpl'] = lgpl
     else: # if lgpl is not False, 2 or 3
       raise(TypeError(
@@ -1254,9 +1388,13 @@ class GLImport(GLMode):
     self.args['vc_files'] = False
     
   def resetVCFiles(self):
-    '''Reset update of the version control files.'''
+    '''Reset update of the version control files and set it to None.'''
+    self.args['vc_files'] = None
+    
+  def restoreVCFiles(self):
+    '''Restore update of the version control files.'''
     if not self.cache['vc_files']:
-      self.disableVCFiles()
+      self.resetVCFiles()
     else: # if self.cache['vc_files']
       self.enableVCFiles()
 

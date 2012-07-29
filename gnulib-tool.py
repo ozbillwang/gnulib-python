@@ -65,7 +65,7 @@ def main():
   #errmode = 1 # pygnulib-style errors
   
   # Define default arguments
-  mode = 0
+  mode = 1
   m4base = None
   destdir = '.'
   localdir = None
@@ -290,8 +290,8 @@ def main():
   
   # Execute operations depending on type of action
   if type(action) is classes.GLImport:
-    filelist, old_files, new_files, transformers = action.prepare()
-    action.execute(filelist, old_files, new_files, transformers, dryrun)
+    files, old_files, new_files, transformers = action.prepare()
+    action.execute(files, old_files, new_files, transformers, dryrun)
 
 if __name__ == '__main__':
   try: # Try to execute
@@ -354,6 +354,5 @@ if __name__ == '__main__':
         message += 'failed'
       message += '\n%s: *** Exit.\n' % constants.APP['name']
       sys.stderr.write(message)
-      print(errno, errinfo)
       sys.exit(1)
 

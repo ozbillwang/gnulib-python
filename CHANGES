@@ -1,3 +1,10 @@
+29 July 2012, Dmitriy Selyutin
+A lot of fixes and improvements in GLImport and GLFileSystem. Some critical
+errors like when GLModuleTable returned wrong filelist were fixed.
+GLImport has received a special method cmdaction to get a command-line
+invocation as a comment string (cmdaction). I've separated it in a standalone
+method because some developers may want to get it in the process of work.
+
 28 July 2012, Dmitriy Selyutin
 Some file utilities were added to constants, especially relativize.
 GLFileAssistant was improved and extended. These improvements still require
