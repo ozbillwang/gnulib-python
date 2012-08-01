@@ -24,7 +24,7 @@ __author__ = \
   'Dmitriy Selyutin',
 ]
 __license__ = 'GNU GPLv3+'
-__copyright__ = '2012 Free Software Foundation, Inc.'
+__copyright__ = '2002-2012 Free Software Foundation, Inc.'
 __version__ = 0.1
 
 

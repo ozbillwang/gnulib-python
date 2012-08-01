@@ -10,6 +10,7 @@ import sys
 import locale
 import codecs
 import shutil
+import filecmp
 import tempfile
 import subprocess as sp
 from pprint import pprint
@@ -19,6 +20,7 @@ from .GLMode import GLMode
 from .GLModuleSystem import GLModule
 from .GLModuleSystem import GLModuleTable
 from .GLModuleSystem import GLModuleSystem
+from .GLFileSystem import GLFileSystem
 from .GLFileSystem import GLFileAssistant
 
 
@@ -474,6 +476,15 @@ class GLImport(GLMode):
     '''x.__repr__ <==> repr(x)'''
     return('<pygnulib.GLImport>')
     
+  def compute_guardprefix(self):
+    '''Determine and return include_guard_prefix.'''
+    macro_prefix = self.getMacroPrefix()
+    if macro_prefix == 'gl':
+      include_guard_prefix = 'GL'
+    else: # macro_prefix != 'gl'
+      include_guard_prefix = 'GL_%s' % macro_prefix.upper()
+    return(include_guard_prefix)
+    
   def rewrite_old_files(self, files):
     '''Replace auxdir, docbase, sourcebase, m4base and testsbase from default
     to their version from cache.'''
@@ -898,8 +909,11 @@ class GLImport(GLMode):
       path = joinpath(destdir, file)
       if isfile(path) or os.path.islink(path):
         if not dryrun:
-          print('Removing file %s (backup in %s~)' % (path, path))
+          backup = string('%s~' % path)
+          print('Removing file %s (backup in )' % (path, backup))
           try: # Try to move file
+            if os.path.exists(backup):
+              os.remove(backup)
             shutil.move(path, '%s~' % path)
           except Exception as error:
             raise(GLError(14, file))
@@ -936,6 +950,114 @@ class GLImport(GLMode):
     
     # Create command-line invocation comment.
     actioncmd = self.actioncmd()
+    
+    # Determine include_guard_prefix.
+    include_guard_prefix = self.include_guard_prefix()
+    
+    # Determine makefile name.
+    if not makefile:
+      makefile_am = string('Makefile.am')
+    else: # if makefile
+      makefile_am = makefile
+    
+    # Create normal Makefile.ams.
+    for_test = False
+    
+    # Setup list of Makefile.am edits that are to be performed afterwards.
+    # Some of these edits apply to files that we will generate; others are
+    # under the responsibility of the developer.
+    makefile_am_edits = dict()
+    if makefile_am == 'Makefile.am':
+      sourcebase_dir = os.path.dirname(sourcebase)
+      sourcebase_base = os.path.basename(sourcebase)
+      assistant.makefileEditor(sourcebase_dir, 'SUBDIRS', sourcebase_base)
+    if pobase:
+      pobase_dir = os.path.dirname(pobase)
+      pobase_base = os.path.basename(pobase)
+      assistant.makefileEditor(pobase_dir, 'SUBDIRS', pobase_base)
+    if self.checkTestFlag(TESTS['tests']):
+      if makefile_am == 'Makefile.am':
+        testsbase_dir = os.path.dirname(testsbase)
+        testsbase_base = os.path.basename(testsbase)
+        assistant.makefileEditor(testsbase_dir, 'SUBDIRS', testsbase_base)
+    assistant.makefileEditor('', 'ACLOCAL_AMFLAGS', '-I ${m4base}')
+    assistant.makefileParentDir(m4base, sourcebase, testsbase, testflags,
+      makefile_am)
+    
+    # Create library makefile.
+    path = joinpath(sourcebase, makefile_am)
+    tmpfile = assistant.tmpfilename(path)
+    dest = joinpath(sourcebase, makefile_am)
+    if isfile(joinpath(destdir, dest)):
+      if filecmp.cmp(joinpath(destdir, dest), tmpfile):
+        os.remove(tmpfile)
+      else: # if not filecmp.cmp(joinpath(destdir, dest), tmpfile)
+        backup = '%s~' % joinpath(destdir, dest)
+        if not dryrun:
+          print('Updating file %s (backup in %s)' % (dest, backup))
+          dest = joinpath(destdir, dest)
+          backup = joinpath(destdir, backup)
+          if isfile(backup):
+            os.remove(backup)
+          shutil.move(dest, backup)
+          if isfile(dest):
+            os.remove(dest)
+          shutil.move(tmpfile, dest)
+        else: # if dryrun
+          print('Update file %s (backup in %s)' % (dest, backup))
+      else: # if not filecmp.cmp(joinpath(destdir, dest), tmpfile)
+        if not dryrun:
+          print('Creating %s' % dest)
+          if isfile(joinpath(destdir, dest)):
+            os.remove(joinpath(destdir, dest))
+          shutil.move(tmpfile, joinpath(destdir, dest))
+        else: # if dryrun
+          print('Create %s' % dest)
+          os.remove(tmpfile)
+        filetable['added'] += [dest]
+    
+    # Create po/ directory.
+    filesystem = GLFileSystem(localdir)
+    if pobase:
+      # Create po makefile and auxiliary files.
+      for file in ['Makefile.in.in', 'remove-potcdate.sin']:
+        tmpfile = assistant.tmpfilename(joinpath(pobase, file))
+        path = joinpath('build-aux', 'po', file)
+        lookedup, flag = filesystem.lookup(path)
+        shutil.move(lookedup, tmpfile)
+        dest = joinpath(pobase, file)
+        backup = '%s~' % joinpath(pobase, file)
+        if isfile(joinpath(destdir, dest)):
+          if filecmp.cmp(joinpath(destdir, pobase, file), tmpfile):
+            os.remove(tmpfile)
+          else: # if filecmp.cmp(joinpath(destdir, pobase, file), tmpfile
+            if not dryrun:
+              print('Updating %s (backup in %s)' % (dest, backup))
+              dest = joinpath(destdir, dest)
+              backup = joinpath(destdir, backup)
+              if isfile(backup):
+                os.remove(backup)
+              shutil.move(dest, backup)
+              if isfile(dest):
+                os.remove(dest)
+              shutil.move(src, dest)
+            else: # if dryrun
+              print('Update %s (backup in %s)' % (dest, backup))
+              os.remove(tmpfile)
+        else: # if not isfile(joinpath(destdir, dest))
+          if not dryrun:
+            print('Creating %s' % dest)
+            if isfile(joinpath(destdir, dest)):
+              os.remove(joinpath(destdir, dest))
+            shutil.move(tmpfile, joinpath(destdir, dest))
+          else:
+            print('Creating %s' % dest)
+            os.remove(tmpfile)
+          filetable['added'] += [dest]
+      
+      # Create po makefile parameterization, part 1.
+      tmpfile = assistant.tmpfilename(joinpath(pobase, 'Makevars'))
+      
     
   def addModule(self, module):
     '''Add the module to the modules list.'''

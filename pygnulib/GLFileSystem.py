@@ -61,7 +61,6 @@ class GLFileSystem(object):
   def __init__(self, localdir=''):
     '''Create new GLFileSystem instance. The only argument is localdir,
     which can be an empty string too.'''
-    self.args = dict()
     if type(localdir) is bytes or type(localdir) is string:
       if type(localdir) is bytes:
         localdir = localdir.decode(ENCS['default'])
@@ -75,11 +74,12 @@ class GLFileSystem(object):
     return('<pygnulib.GLFileSystem>')
     
   def lookup(self, name):
-    '''GLFileSystem.lookup(name) -> string
+    '''GLFileSystem.lookup(name) -> tuple
     
     Lookup a file in gnulib and localdir directories or combine it using Linux
     'patch' utility. If file was found, method returns string, else it raises
-    GLError telling that file was not found.'''
+    GLError telling that file was not found. Function also returns flag which
+    indicates whether file is a temporary file.'''
     if type(name) is bytes or type(name) is string:
       if type(name) is bytes:
         name = name.decode(ENCS['default'])
@@ -155,6 +155,7 @@ class GLFileAssistant(object):
     self.original = None
     self.rewritten = None
     self.added = list()
+    self.makefile = list()
     
   def setOriginal(self, original):
     '''Set the name of the original file which will be used.'''
@@ -202,10 +203,16 @@ class GLFileAssistant(object):
       # Put the new contents of $file in a file in the same directory (needed
       # to guarantee that an 'mv' to "$destdir/$file" works).
       result = joinpath(self.destdir, '%s.tmp' % path)
+      dirname = os.path.dirname(result)
+      if not isdir(dirname):
+        os.makedirs(dirname)
     else: # if dryrun
       # Put the new contents of $file in a file in a temporary directory
       # (because the directory of "$file" might not exist).
       result = joinpath(self.tempdir, '%s.tmp' % os.path.basename(path))
+      dirname = os.path.dirname(result)
+      if not isdir(dirname):
+        os.makedirs(dirname)
     if type(result) is bytes:
       result = bytes.decode(ENCS['default'])
     return(result)
@@ -258,13 +265,14 @@ class GLFileAssistant(object):
       raise(TypeError('already_present must be a bool, not %s' % \
           type(already_present).__name__))
     if not filecmp.cmp(joinpath(self.destdir, rewritten), tmpfile):
+      backup = string('%s~' % rewritten)
       if not self.dryrun:
         if already_present:
-          print('Updating file %s (backup in %s~)' % (rewritten, rewritten))
+          print('Updating file %s (backup in %s)' % (rewritten, backup))
         else: # if not already_present
           message = 'Replacing file '
           message += '%s (non-gnulib code backed up in ' % rewritten
-          message += '%s~) !!' % rewritten
+          message += '%s) !!' % backup
           print(message)
         try: # Try to replace the given file
           shutil.move(rewritten, '%s~' % rewritten)
@@ -276,14 +284,16 @@ class GLFileAssistant(object):
           constants.link_if_changed(lookedup, joinpath(destdir, rewritten))
         else: # if any of these conditions is not met
           try: # Try to move file
+            if exist(rewritten):
+              os.remove(rewritten)
             shutil.move(tmpfile, joinpath(destdir, rewritten))
           except Exception as error:
             raise(GLError(17, original))
       else: # if self.dryrun
         if already_present:
-          print('Update file %s (backup in %s~)' % (rewritten, rewritten))
+          print('Update file %s (backup in %s)' % (rewritten, backup))
         else: # if not already_present
-          print('Replace file %s (backup in %s~)' % (rewritten, rewritten))
+          print('Replace file %s (backup in %s)' % (rewritten, backup))
     
   def add_or_update(self, already_present):
     '''This method handles a file that ought to be present afterwards.'''
@@ -336,4 +346,79 @@ class GLFileAssistant(object):
       self.add(lookedup, tmpflag)
       self.addFile(rewritten)
     os.remove(tmpfile)
+    
+  def makefileEditor(self, dir, var, val):
+    '''makefileEditor method remembers that ${dir}Makefile.am needs to be
+    edited to that ${var} mentions ${val}.'''
+    if type(dir) is bytes or type(dir) is string:
+      if type(dir) is bytes:
+        dir = dir.decode(ENCS['default'])
+    else: # if dir has not bytes or string type
+      raise(TypeError(
+        'dir must be a string, not %s' % (type(dir).__name__)))
+    if type(var) is bytes or type(var) is string:
+      if type(var) is bytes:
+        var = var.decode(ENCS['default'])
+    else: # if var has not bytes or string type
+      raise(TypeError(
+        'var must be a string, not %s' % (type(var).__name__)))
+    if type(val) is bytes or type(val) is string:
+      if type(val) is bytes:
+        val = val.decode(ENCS['default'])
+    else: # if val has not bytes or string type
+      raise(TypeError(
+        'val must be a string, not %s' % (type(val).__name__)))
+    dictionary = {'dir': dir, 'var': var, 'val': val}
+    self.makefile += [dictionary]
+    
+  def makefileTable(self):
+    '''makefileTable method return list of Makefile.am mappings.'''
+    return(list(self.makefile))
+    
+  def makefileParentDir(self, m4base, sourcebase, testsbase, testflags,
+    makefile):
+    '''makefileParentDir adds a special row to Makefile.am table with the first
+    parent directory which contains or will contain Makefile.am file.'''
+    if type(m4base) is bytes or type(m4base) is string:
+      if type(m4base) is bytes:
+        m4base = m4base.decode(ENCS['default'])
+    else: # if m4base has not bytes or string type
+      raise(TypeError(
+        'm4base must be a string, not %s' % (type(m4base).__name__)))
+    if type(sourcebase) is bytes or type(sourcebase) is string:
+      if type(sourcebase) is bytes:
+        sourcebase = sourcebase.decode(ENCS['default'])
+    else: # if sourcebase has not bytes or string type
+      raise(TypeError(
+        'sourcebase must be a string, not %s' % (type(sourcebase).__name__)))
+    if type(testsbase) is bytes or type(testsbase) is string:
+      if type(testsbase) is bytes:
+        testsbase = testsbase.decode(ENCS['default'])
+    else: # if testsbase has not bytes or string type
+      raise(TypeError(
+        'testsbase must be a string, not %s' % (type(testsbase).__name__)))
+    if type(makefile) is bytes or type(makefile) is string:
+      if type(makefile) is bytes:
+        makefile = makefile.decode(ENCS['default'])
+    else: # if makefile has not bytes or string type
+      raise(TypeError(
+        'makefile must be a string, not %s' % (type(makefile).__name__)))
+    if type(testflags) is not list:
+      raise(TypeError(
+        'testflags must be a list, not %s' % (type(testflags).__name__)))
+    mfd = string('Makefile.am')
+    mfx = makefile
+    m4base = os.path.normpath(m4base)
+    sourcebase = os.path.normpath(sourcebase)
+    testsbase = os.path.normpath(testsbase)
+    inctests = if TESTS['tests'] in testflags
+    dir1 = string('%s%s' % (m4base, os.path.sep))
+    dir2 = string()
+    while dir1 and \
+    (joinpath(self.destdir, dir1, mfd) or \
+    joinpath(dir1, mfd) == joinpath(sourcebase, mfx) or \
+    (inctests and joinpath(dir1, mfd) == joinpath(testsbase, mfx)):
+      dir2 = os.path.basename(dir2)
+      dir1 = os.path.dirname(dir1)
+    self.makefileEditor(dir1, 'EXTRA_DIST', joinpath(dir2, 'gnulib-cache.m4'))
 

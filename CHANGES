@@ -1,3 +1,7 @@
+1 July 2012, Dmitriy Selyutin
+Some changes in GLImport. New class GLEmiter was added and it already has two
+methods, namely GLEmiter.copyrightNotice and GLEmiter.po_Makevars.
+
 29 July 2012, Dmitriy Selyutin
 A lot of fixes and improvements in GLImport and GLFileSystem. Some critical
 errors like when GLModuleTable returned wrong filelist were fixed.
