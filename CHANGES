@@ -1,3 +1,12 @@
+2 July 2012, Dmitriy Selyutin
+Some methods were added to GLEmiter class. I've used special %V#% tags to make
+the replacement of text easy. LOL, don't be confused, that comes from ERM
+Script Language for Heroes III, but it doesn't affect the result. Without this
+construction I needed to count '%s' in text and do something like this:
+"""TEXT WITH 19 %s to be replaced""" % (rep, rep, rep, ..., rep, rep, rep)
+As you see it is really ugly, so I've decided to use my old knowledge.
+Some fixes i GLFileSystem, GLImport and GLEmiter classes.
+
 1 July 2012, Dmitriy Selyutin
 Some changes in GLImport. New class GLEmiter was added and it already has two
 methods, namely GLEmiter.copyrightNotice and GLEmiter.po_Makevars.

@@ -23,6 +23,7 @@ from .GLModuleSystem import GLModule
 from .GLModuleSystem import GLModuleTable
 from .GLModuleSystem import GLModuleSystem
 from .GLImport import GLImport
+from .GLEmiter import GLEmiter
 
 
 #===============================================================================

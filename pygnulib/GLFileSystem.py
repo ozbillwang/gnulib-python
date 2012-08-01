@@ -411,13 +411,13 @@ class GLFileAssistant(object):
     m4base = os.path.normpath(m4base)
     sourcebase = os.path.normpath(sourcebase)
     testsbase = os.path.normpath(testsbase)
-    inctests = if TESTS['tests'] in testflags
+    inctests = TESTS['tests'] in testflags
     dir1 = string('%s%s' % (m4base, os.path.sep))
     dir2 = string()
     while dir1 and \
     (joinpath(self.destdir, dir1, mfd) or \
     joinpath(dir1, mfd) == joinpath(sourcebase, mfx) or \
-    (inctests and joinpath(dir1, mfd) == joinpath(testsbase, mfx)):
+    (inctests and joinpath(dir1, mfd) == joinpath(testsbase, mfx))):
       dir2 = os.path.basename(dir2)
       dir1 = os.path.dirname(dir1)
     self.makefileEditor(dir1, 'EXTRA_DIST', joinpath(dir2, 'gnulib-cache.m4'))

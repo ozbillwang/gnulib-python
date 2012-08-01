@@ -1005,16 +1005,16 @@ class GLImport(GLMode):
           shutil.move(tmpfile, dest)
         else: # if dryrun
           print('Update file %s (backup in %s)' % (dest, backup))
-      else: # if not filecmp.cmp(joinpath(destdir, dest), tmpfile)
-        if not dryrun:
-          print('Creating %s' % dest)
-          if isfile(joinpath(destdir, dest)):
-            os.remove(joinpath(destdir, dest))
-          shutil.move(tmpfile, joinpath(destdir, dest))
-        else: # if dryrun
-          print('Create %s' % dest)
-          os.remove(tmpfile)
-        filetable['added'] += [dest]
+    else: # if not isfile(joinpath(destdir, dest))
+      if not dryrun:
+        print('Creating %s' % dest)
+        if isfile(joinpath(destdir, dest)):
+          os.remove(joinpath(destdir, dest))
+        shutil.move(tmpfile, joinpath(destdir, dest))
+      else: # if dryrun
+        print('Create %s' % dest)
+        os.remove(tmpfile)
+      filetable['added'] += [dest]
     
     # Create po/ directory.
     filesystem = GLFileSystem(localdir)
