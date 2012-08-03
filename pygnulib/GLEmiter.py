@@ -191,10 +191,11 @@ class GLEmiter(object):
     if podomain == '':
       raise(TypeError('podomain must be set to non-zero string'))
     top_subdir = string()
-    if os.path.sep in pobase:
-      dirs = len(pobase.split(os.path.sep))
-      for directory in range(dirs +1):
-        top_subdir += '../'
+    source = '%s/' % os.path.normpath(pobase)
+    if os.path.sep in source:
+      for directory in source.split(os.path.sep):
+        if directory != '':
+          top_subdir += '../'
     top_subdir = os.path.normpath(top_subdir)
     emit += "## DO NOT EDIT! GENERATED AUTOMATICALLY!\n"
     emit += "%s\n" % self.copyright_notice()
@@ -367,6 +368,14 @@ found])])
   def initmacro_done(self, macro_prefix):
     '''Emit a few statements after the gl_INIT macro.'''
     emit = string()
+    if type(macro_prefix) is bytes or type(macro_prefix) is string:
+      if type(macro_prefix) is bytes:
+        macro_prefix = macro_prefix.decode(ENCS['default'])
+    else: # if macro_prefix has not bytes or string type
+      raise(TypeError(
+        'macro_prefix must be a string, not %s' % type(macro_prefix).__name__))
+    if macro_prefix == '':
+      raise(TypeError('macro_prefix must be set to non-zero string'))
     emit += """\
 
 # Like AC_LIBOBJ, except that the module name goes
@@ -400,3 +409,152 @@ AC_DEFUN([%V1%_LIBSOURCES], [
     if type(emit) is bytes:
       emit = emit.decode(ENCS['default'])
     return(emit)
+    
+  def lib_Makefile_am(self, modules, podomain, witness_c_macro, conddeps,
+    libtool=False, libname='libgnu', makefile='Makefile.am', macro_prefix='gl',
+    actioncmd='', for_test=False, include_guard_prefix='GL', ac_version=2.59):
+    '''Emits the contents of library makefile.'''
+    emit = string()
+    auxdir = self.auxdir
+    
+    # Set modules variable.
+    for module in modules:
+      if type(module) is not GLModule:
+        raise(TypeError('each module must be a GLModule instance'))
+    
+    # Set podomain variable.
+    if type(podomain) is bytes or type(podomain) is string:
+      if type(podomain) is bytes:
+        podomain = podomain.decode(ENCS['default'])
+    else: # if podomain has not bytes or string type
+      raise(TypeError(
+        'podomain must be a string, not %s' % type(podomain).__name__))
+    if podomain == '':
+      raise(TypeError('podomain must be set to non-zero string'))
+    
+    # Set witness_c_macro variable.
+    if type(witness_c_macro) is not bool:
+      raise(TypeError('witness_c_macro must be a bool, not %s' % \
+        type(witness_c_macro).__name__))
+    
+    # Set libtool variable.
+    if type(libtool) is not bool:
+      raise(TypeError(
+        'libtool must be a bool, not %s' % type(libtool).__name__))
+    
+    # Set conddeps variable.
+    if type(conddeps) is not bool:
+      raise(TypeError(
+        'conddeps must be a bool, not %s' % type(conddeps).__name__))
+    
+    # Set libname variable.
+    if type(libname) is bytes or type(libname) is string:
+      if type(libname) is bytes:
+        libname = libname.decode(ENCS['default'])
+    else: # if libname has not bytes or string type
+      raise(TypeError(
+        'libname must be a string, not %s' % type(libname).__name__))
+    if libname == '':
+      raise(TypeError('libname must be set to non-zero string'))
+    
+    # Set makefile variable.
+    if type(makefile) is bytes or type(makefile) is string:
+      if type(makefile) is bytes:
+        makefile = makefile.decode(ENCS['default'])
+    else: # if makefile has not bytes or string type
+      raise(TypeError(
+        'makefile must be a string, not %s' % type(makefile).__name__))
+    
+    # Set macro_prefix variable.
+    if type(macro_prefix) is bytes or type(macro_prefix) is string:
+      if type(macro_prefix) is bytes:
+        macro_prefix = macro_prefix.decode(ENCS['default'])
+    else: # if macro_prefix has not bytes or string type
+      raise(TypeError(
+        'macro_prefix must be a string, not %s' % type(macro_prefix).__name__))
+    if macro_prefix == '':
+      raise(TypeError('macro_prefix must be set to non-zero string'))
+    
+    # Set actioncmd variable.
+    if type(actioncmd) is bytes or type(actioncmd) is string:
+      if type(actioncmd) is bytes:
+        actioncmd = actioncmd.decode(ENCS['default'])
+    else: # if actioncmd has not bytes or string type
+      raise(TypeError(
+        'actioncmd must be a string, not %s' % type(actioncmd).__name__))
+    
+    # Set for_test variable.
+    if type(for_test) is not bool:
+      raise(TypeError(
+        'for_test must be a bool, not %s' % type(for_test).__name__))
+    
+    # Set include_guard_prefix variable.
+    if type(include_guard_prefix) is bytes or \
+    type(include_guard_prefix) is string:
+      if type(include_guard_prefix) is bytes:
+        include_guard_prefix = include_guard_prefix.decode(ENCS['default'])
+    else: # if include_guard_prefix has not bytes or string type
+      raise(TypeError('include_guard_prefix must be a string, not %s' % \
+        type(include_guard_prefix).__name__))
+    if include_guard_prefix == '':
+      raise(TypeError('include_guard_prefix must be set to non-zero string'))
+    
+    # Set ac_version variable.
+    if type(ac_version) is not float:
+      raise(TypeError(
+        'ac_version must be a float, not %s' % type(ac_version).__name__))
+    
+    # When creating an includable Makefile.am snippet, augment variables with
+    # += instead of assigning them.
+    if makefile:
+      assign = '+='
+    else: # if not makefile
+      assign = '='
+    if libtool:
+      libext = 'la'
+      perhapsLT = 'LT'
+      repl_LD_flags = False
+    else: # if not libtool
+      libext = 'a'
+      perhapsLT = ''
+      repl_LD_flags = True
+    if for_test:
+      # When creating a package for testing: Attempt to provoke failures,
+      # especially link errors, already during "make" rather than during
+      # "make check", because "make check" is not possible in a cross-compiling
+      # situation. Turn check_PROGRAMS into noinst_PROGRAMS.
+      repl_check_PROGRAMS = True
+    else: # if not for_test
+      repl_check_PROGRAMS = False
+    emit += "## DO NOT EDIT! GENERATED AUTOMATICALLY!\n"
+    emit += "## Process this file with automake to produce Makefile.in.\n"
+    emit += "%s\n" % self.copyright_notice()
+    if actioncmd:
+      if len(actioncmd) <= 3000:
+        emit += "# Reproduce by: %s\n" % actioncmd
+    emit += '\n'
+    uses_subdirs = False
+    for module in modules:
+      # Get conditional snippet, edit it and save to amsnippet1.
+      amsnippet1 = module.getAutomakeSnippet_Conditional()
+      amsnippet1 = amsnippet1.replace('lib_LIBRARIES', 'lib%_LIBRARIES')
+      amsnippet1 = amsnippet1.replace('lib_LTLIBRARIES', 'lib%_LTLIBRARIES')
+      if repl_LD_flags:
+        pattern = compiler('^lib_LDFLAGS[\t ]*\\+=(.*?)$', re.S | re.M)
+        amsnippet1 = pattern.sub('', amsnippet1)
+      pattern = compiler('^lib_([A-Z][A-Z]*)', re.S | re.M)
+      amsnippet1 = pattern.sub('%s_%s_\\1' % (libname, libext), amsnippet1)
+      amsnippet1 = amsnippet1.replace('lib%_LIBRARIES', 'lib_LIBRARIES')
+      amsnippet1 = amsnippet1.replace('lib%_LTLIBRARIES', 'lib_LTLIBRARIES')
+      amsnippet1 = amsnippet1.replace('${gl_include_guard_prefix}',
+        include_guard_prefix)
+      if str(module) == 'alloca':
+        amsnippet1 += '%s_%s_LIBADD += @%sALLOCA@\n' % \
+          (libname, libext, perhapsLT)
+        amsnippet1 += '%s_%s_DEPENDENCIES += @%sALLOCA@\n' % \
+          (libname, libext, perhapsLT)
+      # Get unconditional snippet, edit it and save to amsnippet1.
+      amsnippet2 = module.getAutomakeSnippet_Unconditional(auxdir, ac_version)
+      pattern = compiler('^lib_([A-Z][A-Z]*)', re.S | re.M)
+      amsnippet2 = pattern.sub('%s_%s_\\1' % (libname, libext), amsnippet2)
+      
