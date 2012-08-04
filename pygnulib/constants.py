@@ -278,7 +278,7 @@ def relativize(dir1, dir2):
           dir2 = joinpath('..', dir2)
         dir0 = joinpath(dir0, first)
     dir1 = dir1[dir1.find(os.path.sep)+1:]
-  result = dir2
+  result = os.path.normpath(dir2)
   return(result)
 
 def link_relative(src, dest):

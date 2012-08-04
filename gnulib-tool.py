@@ -101,13 +101,11 @@ def main():
       testsbase = 'tests'
     if not macro_prefix:
       macro_prefix = 'gl'
-    action = classes.GLImport\
+    config = classes.GLConfig\
     (
-      mode, m4base,
       destdir=destdir,
       localdir=localdir,
-      modcache=modcache,
-      verbose=verbose,
+      m4base=m4base,
       auxdir=auxdir,
       modules=modules,
       avoids=avoids,
@@ -125,6 +123,8 @@ def main():
       podomain=podomain,
       witness_c_macro=witness_c_macro,
       vc_files=vc_files,
+      modcache=modcache,
+      verbose=verbose,
     )
   
   else: # if mode != MODE['--import']
@@ -138,13 +138,11 @@ def main():
           testsbase = 'tests'
         if not macro_prefix:
           macro_prefix = 'gl'
-        action = classes.GLImport\
+        config = classes.GLConfig\
         (
-          mode, m4base,
           destdir=destdir,
           localdir=localdir,
-          modcache=modcache,
-          verbose=verbose,
+          m4base=m4base,
           auxdir=auxdir,
           modules=modules,
           avoids=avoids,
@@ -162,6 +160,8 @@ def main():
           podomain=podomain,
           witness_c_macro=witness_c_macro,
           vc_files=vc_files,
+          modcache=modcache,
+          verbose=verbose,
         )
     else: # if not m4base
       m4dirs = list()
@@ -208,13 +208,11 @@ def main():
           testsbase = 'tests'
         if not macro_prefix:
           macro_prefix = 'gl'
-        action = classes.GLImport\
+        config = classes.GLConfig\
         (
-          mode, m4base,
           destdir=destdir,
           localdir=localdir,
-          modcache=modcache,
-          verbose=verbose,
+          m4base=m4base,
           auxdir=auxdir,
           modules=modules,
           avoids=avoids,
@@ -232,16 +230,16 @@ def main():
           podomain=podomain,
           witness_c_macro=witness_c_macro,
           vc_files=vc_files,
+          modcache=modcache,
+          verbose=verbose,
         )
       elif len(m4dirs) == 1:
         m4base = m4dirs[-1]
-        action = classes.GLImport\
+        config = classes.GLConfig\
         (
-          mode, m4base,
           destdir=destdir,
           localdir=localdir,
-          modcache=modcache,
-          verbose=verbose,
+          m4base=m4base,
           auxdir=auxdir,
           modules=modules,
           avoids=avoids,
@@ -259,16 +257,16 @@ def main():
           podomain=podomain,
           witness_c_macro=witness_c_macro,
           vc_files=vc_files,
+          modcache=modcache,
+          verbose=verbose,
         )
       else: # if len(m4dirs) > 1
         for m4base in m4dirs:
-          action = classes.GLImport\
+          config = classes.GLConfig\
           (
-            mode, m4base,
             destdir=destdir,
             localdir=localdir,
-            modcache=modcache,
-            verbose=verbose,
+            m4base=m4base,
             auxdir=auxdir,
             modules=modules,
             avoids=avoids,
@@ -286,12 +284,15 @@ def main():
             podomain=podomain,
             witness_c_macro=witness_c_macro,
             vc_files=vc_files,
+            modcache=modcache,
+            verbose=verbose,
           )
   
   # Execute operations depending on type of action
-  if type(action) is classes.GLImport:
-    files, old_files, new_files, transformers = action.prepare()
-    action.execute(files, old_files, new_files, transformers, dryrun)
+  if mode in range(0, 4):
+    importer = classes.GLImport(config, mode)
+    files, old_files, new_files, transformers = importer.prepare()
+    importer.execute(files, old_files, new_files, transformers, dryrun)
 
 if __name__ == '__main__':
   try: # Try to execute

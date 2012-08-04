@@ -15,7 +15,7 @@ import codecs
 import subprocess as sp
 from . import constants
 from .GLInfo import GLInfo
-from .GLMode import GLMode
+from .GLConfig import GLConfig
 from .GLError import GLError
 from .GLFileSystem import GLFileSystem
 from .GLFileSystem import GLFileAssistant
@@ -33,7 +33,7 @@ __author__ = constants.__author__
 __license__ = constants.__license__
 __copyright__ = constants.__copyright__
 __version__ = constants.__version__
-__all__ = ['GLError', 'GLErrorHandler', 'GLInfo', 'GLFileSystem', 'GLMode',
+__all__ = ['GLError', 'GLErrorHandler', 'GLInfo', 'GLFileSystem', 'GLConfig',
 'GLModule', 'GLModuleTable', 'GLModuleSystem', 'GLImport']
 
 

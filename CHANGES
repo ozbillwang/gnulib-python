@@ -1,3 +1,9 @@
+4 August 2012, Dmitriy Selyutin
+A new class GLConfig was introduced. That allowed to cut code inside GLImport
+class and simplify the calculations of settings. It can be the biggest commit
+ever, however, the work is still not finished (I'm planning to integrate
+GLConfig into the other classes). GLMode was deprecated.
+
 3 August 2012, Dmitriy Selyutin
 The beginning of GLEmiter.lib_Makefile_am method.
 
