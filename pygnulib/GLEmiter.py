@@ -16,6 +16,8 @@ import subprocess as sp
 from . import constants
 from .GLInfo import GLInfo
 from .GLError import GLError
+from .GLConfig import GLConfig
+from .GLModuleSystem import GLModuleTable
 
 
 #===============================================================================
@@ -56,96 +58,13 @@ relpath = os.path.relpath
 class GLEmiter(object):
   '''This class is used to emit the contents of necessary files.'''
   
-  def __init__(self, destdir, localdir, auxdir,
-    sourcebase='lib', m4base='m4', testsbase='tests', pobase='po'):
+  def __init__(self, config):
     '''Create GLEmiter instance.'''
     self.info = GLInfo()
-    
-    # Set destdir variable.
-    if type(destdir) is bytes or type(destdir) is string:
-      if type(destdir) is bytes:
-        destdir = destdir.decode(ENCS['default'])
-      self.destdir = destdir
-    else: # if destdir has not bytes or string type
-      raise(TypeError(
-        'destdir must be a string, not %s' % type(destdir).__name__))
-    if destdir == '':
-      raise(TypeError('destdir must be set to non-zero string'))
-    
-    # Set localdir variable.
-    if type(localdir) is bytes or type(localdir) is string:
-      if type(localdir) is bytes:
-        localdir = localdir.decode(ENCS['default'])
-      self.localdir = localdir
-    else: # if localdir has not bytes or string type
-      raise(TypeError(
-        'localdir must be a string, not %s' % type(localdir).__name__))
-    if localdir == '':
-      raise(TypeError('localdir must be set to non-zero string'))
-    
-    # Set destdir variable.
-    if type(destdir) is bytes or type(destdir) is string:
-      if type(destdir) is bytes:
-        destdir = destdir.decode(ENCS['default'])
-      self.destdir = destdir
-    else: # if destdir has not bytes or string type
-      raise(TypeError(
-        'destdir must be a string, not %s' % type(destdir).__name__))
-    if destdir == '':
-      raise(TypeError('destdir must be set to non-zero string'))
-    
-    # Set sourcebase variable.
-    if type(sourcebase) is bytes or type(sourcebase) is string:
-      if type(sourcebase) is bytes:
-        sourcebase = sourcebase.decode(ENCS['default'])
-      self.sourcebase = sourcebase
-    else: # if sourcebase has not bytes or string type
-      raise(TypeError(
-        'sourcebase must be a string, not %s' % type(sourcebase).__name__))
-    if sourcebase == '':
-      raise(TypeError('sourcebase must be set to non-zero string'))
-    
-    # Set m4base variable.
-    if type(m4base) is bytes or type(m4base) is string:
-      if type(m4base) is bytes:
-        m4base = m4base.decode(ENCS['default'])
-      self.m4base = m4base
-    else: # if m4base has not bytes or string type
-      raise(TypeError(
-        'm4base must be a string, not %s' % type(m4base).__name__))
-    if m4base == '':
-      raise(TypeError('m4base must be set to non-zero string'))
-    
-    # Set testsbase variable.
-    if type(testsbase) is bytes or type(testsbase) is string:
-      if type(testsbase) is bytes:
-        testsbase = testsbase.decode(ENCS['default'])
-      self.testsbase = testsbase
-    else: # if testsbase has not bytes or string type
-      raise(TypeError(
-        'testsbase must be a string, not %s' % type(testsbase).__name__))
-    if testsbase == '':
-      raise(TypeError('testsbase must be set to non-zero string'))
-    
-    # Set pobase variable.
-    if type(pobase) is bytes or type(pobase) is string:
-      if type(pobase) is bytes:
-        pobase = pobase.decode(ENCS['default'])
-      self.pobase = pobase
-    else: # if pobase has not bytes or string type
-      raise(TypeError(
-        'pobase must be a string, not %s' % type(pobase).__name__))
-    if pobase == '':
-      raise(TypeError('pobase must be set to non-zero string'))
-    
-    # Normalize variables.
-    self.destdir = os.path.normpath(destdir)
-    self.localdir = os.path.normpath(localdir)
-    self.auxdir = os.path.normpath(auxdir)
-    self.sourcebase = os.path.normpath(sourcebase)
-    self.m4base = os.path.normpath(m4base)
-    self.testsbase = os.path.normpath(testsbase)
-    self.pobase = os.path.normpath(pobase)
+    if type(config) is not GLConfig:
+      raise(TypeError('config must have GLConfig type, not %s' % \
+        type(config).__name__))
+    self.config = config
     
   def copyright_notice(self):
     '''Emit a header for a generated file.'''
@@ -176,20 +95,18 @@ class GLEmiter(object):
       emit = emit.decode(ENCS['default'])
     return(emit)
     
-  def po_Makevars(self, podomain):
-    '''Emit the contents of po/ makefile parameterization.'''
+  def po_Makevars(self):
+    '''GLEmiter.po_Makevars() -> string
+    
+    Emit the contents of po/ makefile parameterization.
+    GLConfig: pobase, podomain.'''
     emit = string()
-    pobase = '%s%s' % (os.path.normpath(self.pobase), os.path.sep)
-    if type(pobase) is bytes:
-      pobase = pobase.decode(ENCS['default'])
-    if type(podomain) is bytes or type(podomain) is string:
-      if type(podomain) is bytes:
-        podomain = podomain.decode(ENCS['default'])
-    else: # if podomain has not bytes or string type
-      raise(TypeError(
-        'podomain must be a string, not %s' % type(podomain).__name__))
-    if podomain == '':
-      raise(TypeError('podomain must be set to non-zero string'))
+    if not self.config.check('pobase'):
+      raise(ValueError('pobase inside GLConfig must be set'))
+    if not self.config.check('podomain'):
+      raise(ValueError('podomain inside GLConfig must be set'))
+    pobase = self.config['pobase']
+    podomain = self.config['podomain']
     top_subdir = string()
     source = '%s/' % os.path.normpath(pobase)
     if os.path.sep in source:
@@ -250,8 +167,14 @@ USE_MSGCTXT = no\n"""
     return(emit)
     
   def po_POTFILES_in(self, files):
-    '''Emit the file list to be passed to xgettext.'''
+    '''GLEmiter.po_POTFILES_in(files) -> string
+    
+    Emit the file list to be passed to xgettext.
+    GLConfig: sourcebase.'''
     emit = string()
+    if not self.config.check('sourcebase'):
+      raise(ValueError('sourcebase inside GLConfig must be set'))
+    sourcebase = self.config['sourcebase']
     sourcebase = '%s%s' % (self.sourcebase, os.path.sep)
     if type(sourcebase) is bytes:
       sourcebase = sourcebase.decode(ENCS['default'])
@@ -266,17 +189,15 @@ USE_MSGCTXT = no\n"""
       emit = emit.decode(ENCS['default'])
     return(emit)
     
-  def initmacro_start(self, macro_prefix='gl'):
-    '''Emit the first few statements of the gl_INIT macro.'''
+  def initmacro_start(self):
+    '''GLEmiter.initmacro_done() -> string
+    
+    Emit the first few statements of the gl_INIT macro.
+    GLConfig: macro_prefix.'''
     emit = string()
-    if type(macro_prefix) is bytes or type(macro_prefix) is string:
-      if type(macro_prefix) is bytes:
-        macro_prefix = macro_prefix.decode(ENCS['default'])
-    else: # if macro_prefix has not bytes or string type
-      raise(TypeError(
-        'macro_prefix must be a string, not %s' % type(macro_prefix).__name__))
-    if macro_prefix == '':
-      raise(TypeError('macro_prefix must be set to non-zero string'))
+    if not self.config.check('macro_prefix'):
+      raise(ValueError('macro_prefix inside GLConfig must be set'))
+    macro_prefix = self.config['macro_prefix']
     # Overriding AC_LIBOBJ and AC_REPLACE_FUNCS has the effect of storing
     # platform-dependent object files in ${macro_prefix_arg}_LIBOBJS instead
     # of LIBOBJS. The purpose is to allow several gnulib instantiations under
@@ -312,17 +233,15 @@ USE_MSGCTXT = no\n"""
       emit = emit.decode(ENCS['default'])
     return(emit)
     
-  def initmacro_end(self, macro_prefix='gl'):
-    '''Emit the last few statements of the gl_INIT macro.'''
+  def initmacro_end(self):
+    '''GLEmiter.initmacro_done() -> string
+    
+    Emit the last few statements of the gl_INIT macro.
+    GLConfig: macro_prefix.'''
     emit = string()
-    if type(macro_prefix) is bytes or type(macro_prefix) is string:
-      if type(macro_prefix) is bytes:
-        macro_prefix = macro_prefix.decode(ENCS['default'])
-    else: # if macro_prefix has not bytes or string type
-      raise(TypeError(
-        'macro_prefix must be a string, not %s' % type(macro_prefix).__name__))
-    if macro_prefix == '':
-      raise(TypeError('macro_prefix must be set to non-zero string'))
+    if not self.config.check('macro_prefix'):
+      raise(ValueError('macro_prefix inside GLConfig must be set'))
+    macro_prefix = self.config['macro_prefix']
     # Check the presence of files that are mentioned as AC_LIBSOURCES
     # arguments. The check is performed only when autoconf is run from the
     # directory where the configure.ac resides; if it is run from a different
@@ -365,17 +284,18 @@ found])])
       emit = emit.decode(ENCS['default'])
     return(emit)
     
-  def initmacro_done(self, macro_prefix):
-    '''Emit a few statements after the gl_INIT macro.'''
+  def initmacro_done(self):
+    '''GLEmiter.initmacro_done() -> string
+    
+    Emit a few statements after the gl_INIT macro.
+    GLConfig: sourcebase, macro_prefix.'''
     emit = string()
-    if type(macro_prefix) is bytes or type(macro_prefix) is string:
-      if type(macro_prefix) is bytes:
-        macro_prefix = macro_prefix.decode(ENCS['default'])
-    else: # if macro_prefix has not bytes or string type
-      raise(TypeError(
-        'macro_prefix must be a string, not %s' % type(macro_prefix).__name__))
-    if macro_prefix == '':
-      raise(TypeError('macro_prefix must be set to non-zero string'))
+    if not self.config.check('macro_prefix'):
+      raise(ValueError('macro_prefix inside GLConfig must be set'))
+    if not self.config.check('sourcebase'):
+      raise(ValueError('sourcebase inside GLConfig must be set'))
+    sourcebase = self.config['sourcebase']
+    macro_prefix = self.config['macro_prefix']
     emit += """\
 
 # Like AC_LIBOBJ, except that the module name goes
@@ -405,76 +325,62 @@ AC_DEFUN([%V1%_LIBSOURCES], [
   ])
 ])\n"""
     emit = emit.replace('%V1%', macro_prefix)
-    emit = emit.replace('%V2%', self.sourcebase)
+    emit = emit.replace('%V2%', sourcebase)
     if type(emit) is bytes:
       emit = emit.decode(ENCS['default'])
     return(emit)
     
-  def lib_Makefile_am(self, modules, podomain, witness_c_macro, conddeps,
-    libtool=False, libname='libgnu', makefile='Makefile.am', macro_prefix='gl',
-    actioncmd='', for_test=False, include_guard_prefix='GL', ac_version=2.59):
-    '''Emits the contents of library makefile.'''
-    emit = string()
-    auxdir = self.auxdir
+  def lib_Makefile_am(self, destfile, modules, moduletable, actioncmd,
+    for_test=False):
+    '''self.lib_Makefile_am(destfile, modules, moduletable, 
+         actioncmd, for_test) -> string
     
+    Emits the contents of library makefile.
+    GLConfig: localdir, modcache, libname, pobase, auxdir, makefile, libtool,
+    macro_prefix, podomain, conddeps, witness_c_macro.'''
+    emit = string()
+    if not self.config.check('localdir'):
+      raise(ValueError('localdir inside GLConfig must be set'))
+    if not self.config.check('modcache'):
+      raise(ValueError('modcache inside GLConfig must be set'))
+    if not self.config.check('libname'):
+      raise(ValueError('libname inside GLConfig must be set'))
+    if not self.config.check('pobase'):
+      raise(ValueError('pobase inside GLConfig must be set'))
+    if not self.config.check('auxdir'):
+      raise(ValueError('auxdir inside GLConfig must be set'))
+    if not self.config.check('makefile'):
+      raise(ValueError('makefile inside GLConfig must be set'))
+    if not self.config.check('libtool'):
+      raise(ValueError('libtool inside GLConfig must be set'))
+    if not self.config.check('macro_prefix'):
+      raise(ValueError('macro_prefix inside GLConfig must be set'))
+    if not self.config.check('podomain'):
+      raise(ValueError('podomain inside GLConfig must be set'))
+    if not self.config.check('conddeps'):
+      raise(ValueError('conddeps inside GLConfig must be set'))
+    if not self.config.check('witness_c_macro'):
+      raise(ValueError('witness_c_macro inside GLConfig must be set'))
+    localdir = self.config['localdir']
+    modcache = self.config['modcache']
+    libname = self.config['libname']
+    pobase = self.config['pobase']
+    auxdir = self.config['auxdir']
+    makefile = self.config['makefile']
+    libtool = self.config['libtool']
+    macro_prefix = self.config['macro_prefix']
+    podomain = self.config['podomain']
+    conddeps = self.config['conddeps']
+    witness_c_macro = self.config['witness_c_macro']
+    include_guard_prefix = self.config['include_guard_prefix']
     # Set modules variable.
     for module in modules:
       if type(module) is not GLModule:
         raise(TypeError('each module must be a GLModule instance'))
-    
-    # Set podomain variable.
-    if type(podomain) is bytes or type(podomain) is string:
-      if type(podomain) is bytes:
-        podomain = podomain.decode(ENCS['default'])
-    else: # if podomain has not bytes or string type
-      raise(TypeError(
-        'podomain must be a string, not %s' % type(podomain).__name__))
-    if podomain == '':
-      raise(TypeError('podomain must be set to non-zero string'))
-    
-    # Set witness_c_macro variable.
-    if type(witness_c_macro) is not bool:
-      raise(TypeError('witness_c_macro must be a bool, not %s' % \
-        type(witness_c_macro).__name__))
-    
-    # Set libtool variable.
-    if type(libtool) is not bool:
-      raise(TypeError(
-        'libtool must be a bool, not %s' % type(libtool).__name__))
-    
-    # Set conddeps variable.
-    if type(conddeps) is not bool:
-      raise(TypeError(
-        'conddeps must be a bool, not %s' % type(conddeps).__name__))
-    
-    # Set libname variable.
-    if type(libname) is bytes or type(libname) is string:
-      if type(libname) is bytes:
-        libname = libname.decode(ENCS['default'])
-    else: # if libname has not bytes or string type
-      raise(TypeError(
-        'libname must be a string, not %s' % type(libname).__name__))
-    if libname == '':
-      raise(TypeError('libname must be set to non-zero string'))
-    
-    # Set makefile variable.
-    if type(makefile) is bytes or type(makefile) is string:
-      if type(makefile) is bytes:
-        makefile = makefile.decode(ENCS['default'])
-    else: # if makefile has not bytes or string type
-      raise(TypeError(
-        'makefile must be a string, not %s' % type(makefile).__name__))
-    
-    # Set macro_prefix variable.
-    if type(macro_prefix) is bytes or type(macro_prefix) is string:
-      if type(macro_prefix) is bytes:
-        macro_prefix = macro_prefix.decode(ENCS['default'])
-    else: # if macro_prefix has not bytes or string type
-      raise(TypeError(
-        'macro_prefix must be a string, not %s' % type(macro_prefix).__name__))
-    if macro_prefix == '':
-      raise(TypeError('macro_prefix must be set to non-zero string'))
-    
+    # Set moduletable variable.
+    if type(moduletable) is not GLModuleTable:
+      raise(TypeError('moduletable must be a GLModuleTable, not %s' % \
+        type(moduletable).__name__))
     # Set actioncmd variable.
     if type(actioncmd) is bytes or type(actioncmd) is string:
       if type(actioncmd) is bytes:
@@ -482,28 +388,10 @@ AC_DEFUN([%V1%_LIBSOURCES], [
     else: # if actioncmd has not bytes or string type
       raise(TypeError(
         'actioncmd must be a string, not %s' % type(actioncmd).__name__))
-    
     # Set for_test variable.
     if type(for_test) is not bool:
-      raise(TypeError(
-        'for_test must be a bool, not %s' % type(for_test).__name__))
-    
-    # Set include_guard_prefix variable.
-    if type(include_guard_prefix) is bytes or \
-    type(include_guard_prefix) is string:
-      if type(include_guard_prefix) is bytes:
-        include_guard_prefix = include_guard_prefix.decode(ENCS['default'])
-    else: # if include_guard_prefix has not bytes or string type
-      raise(TypeError('include_guard_prefix must be a string, not %s' % \
-        type(include_guard_prefix).__name__))
-    if include_guard_prefix == '':
-      raise(TypeError('include_guard_prefix must be set to non-zero string'))
-    
-    # Set ac_version variable.
-    if type(ac_version) is not float:
-      raise(TypeError(
-        'ac_version must be a float, not %s' % type(ac_version).__name__))
-    
+      raise(TypeError('for_test must be a bool, not %s' % \
+        type(for_test).__name__))
     # When creating an includable Makefile.am snippet, augment variables with
     # += instead of assigning them.
     if makefile:
@@ -535,6 +423,7 @@ AC_DEFUN([%V1%_LIBSOURCES], [
     emit += '\n'
     uses_subdirs = False
     for module in modules:
+      amsnippet = string()
       # Get conditional snippet, edit it and save to amsnippet1.
       amsnippet1 = module.getAutomakeSnippet_Conditional()
       amsnippet1 = amsnippet1.replace('lib_LIBRARIES', 'lib%_LIBRARIES')
@@ -557,4 +446,20 @@ AC_DEFUN([%V1%_LIBSOURCES], [
       amsnippet2 = module.getAutomakeSnippet_Unconditional(auxdir, ac_version)
       pattern = compiler('^lib_([A-Z][A-Z]*)', re.S | re.M)
       amsnippet2 = pattern.sub('%s_%s_\\1' % (libname, libext), amsnippet2)
-      
+      if type(amsnippet1) is bytes:
+        amsnippet1 = amsnippet1.decode(ENCS['default'])
+      if type(amsnippet2) is bytes:
+        amsnippet2 = amsnippet1.decode(ENCS['default'])
+      if not (amsnippet1 +amsnippet2).isspace():
+        amsnippet += '## begin gnulib module %s\n\n' % str(module)
+        if conddeps:
+          if moduletable.isConditional(module):
+            name = module.getConditionalName()
+            amsnippet += 'if %s\n' % name
+        amsnippet += amsnippet1
+        if conddeps:
+          amsnippet += 'endif\n'
+        amsnippet += amsnippet2
+        amsnippet += '## end   gnulib module %s' % str(module)
+        # Test whether there are some source files in subdirectories.
+        #for file in module.getFileList()

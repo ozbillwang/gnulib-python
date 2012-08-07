@@ -56,7 +56,7 @@ class GLConfig(object):
   
   def __init__(self, destdir=None, localdir=None, auxdir=None,
     sourcebase=None, m4base=None, pobase=None, docbase=None, testsbase=None,
-    modules=None, avoids=None, tests=None, libname=None, lgpl=None,
+    modules=None, avoids=None, files=None, tests=None, libname=None, lgpl=None,
     makefile=None, libtool=None, conddeps=None, macro_prefix=None,
     podomain=None, witness_c_macro=None, vc_files=None, symbolic=None,
     lsymbolic=None, modcache=None, ac_version=None, verbose=None):
@@ -102,6 +102,10 @@ class GLConfig(object):
     self.resetAvoids()
     if avoids != None:
       self.setAvoids(avoids)
+    # files
+    self.resetFiles()
+    if files != None:
+      self.setFiles(files)
     # tests
     self.resetTestFlags()
     if tests != None:
@@ -221,6 +225,9 @@ class GLConfig(object):
   def __getitem__(self, y):
     '''x.__getitem__(y) <==> x[y]'''
     if y in self.table:
+      result = self.table[y]
+      if type(y) is list:
+        result = list(self.table[y])
       return(self.table[y])
     else: # if y not in self.table
       raise(KeyError('GLConfig does not contain key: %s' % repr(y)))
@@ -244,12 +251,20 @@ class GLConfig(object):
         result[key] = dictionary[key]
       else: # src != dest
         if dest != None:
-          if key == 'modules' or key == 'avoids' or key == 'tests':
+          if key in ['modules', 'avoids', 'tests']:
             dest = sorted(set(src +dest))
           result[key] = dest
         else: # if dest == None
           result[key] = src
     self.table = dict(result)
+    
+  def check(self, key):
+    '''Return True if the specified key has not default value. If key is not
+    presented, raise KeyError.'''
+    if key in self.table:
+      return(self.table[key] != None)
+    else: # if key not in self.table
+      raise(KeyError('GLConfig does not contain key: %s' % repr(key)))
     
     
   # Define destdir methods.
@@ -536,52 +551,103 @@ class GLConfig(object):
     self.table['avoids'] = list()
     
     
-  # Define tests methods
+  # Define files methods.
+  def addFile(self, module):
+    '''Add file to the list of files.'''
+    if type(module) is bytes or type(module) is string:
+      if type(module) is bytes:
+        module = module.decode(ENCS['default'])
+      if file not in self.table['files']:
+        self.table['files'].append(module)
+    else: # if module has not bytes or string type
+      raise(TypeError('file must be a string, not %s' % \
+        type(module).__name__))
+    
+  def removeFile(self, module):
+    '''Remove the given file from the list of files.'''
+    if type(module) is bytes or type(module) is string:
+      if type(module) is bytes:
+        module = module.decode(ENCS['default'])
+      if file in self.table['files']:
+        self.table['files'].remove(module)
+    else: # if module has not bytes or string type
+      raise(TypeError('file must be a string, not %s' % \
+        type(module).__name__))
+    
+  def getFiles(self):
+    '''Return the list of the fileed modules.'''
+    return(list(self.table['files']))
+    
+  def setFiles(self, modules):
+    '''Specify the list of files.'''
+    if type(modules) is list or type(modules) is tuple:
+      old_files = self.table['files']
+      self.table['files'] = list()
+      for module in modules:
+        try: # Try to add each module
+          self.addFile(module)
+        except TypeError as error:
+          self.table['files'] = old_files
+          raise(TypeError('each module must be a string'))
+        except GLError as error:
+          self.table['files'] = old_files
+          raise(GLError(error.errno, error.errinfo))
+    else: # if type of modules is not list or tuple
+      raise(TypeError('modules must be a list or a tuple, not %s' % \
+          type(modules).__name__))
+    
+  def resetFiles(self):
+    '''Reset the list of files.'''
+    self.table['files'] = list()
+    
+    
+  # Define tests/testflags methods
   def checkTestFlag(self, flag):
     '''Return the status of the test flag.'''
     if flag in TESTS.values():
-      return(flag in self.table['tests'])
+      return(flag in self.table['testflags'])
     else: # if flag is not in TESTS
       raise(TypeError('unknown flag: %s' % repr(flag)))
     
   def enableTestFlag(self, flag):
     '''Enable test flag. You can get flags from TESTS variable.'''
     if flag in TESTS.values():
-      if flag not in self.table['tests']:
-        self.table['tests'].append(flag)
+      if flag not in self.table['testflags']:
+        self.table['testflags'].append(flag)
     else: # if flag is not in TESTS
       raise(TypeError('unknown flag: %s' % repr(flag)))
     
   def disableTestFlag(self, flag):
     '''Disable test flag. You can get flags from TESTS variable.'''
     if flag in TESTS.values():
-      if flag in self.table['tests']:
-        self.table['tests'].remove(flag)
+      if flag in self.table['testflags']:
+        self.table['testflags'].remove(flag)
     else: # if flag is not in TESTS
       raise(TypeError('unknown flag: %s' % repr(flag)))
     
   def getTestFlags(self):
     '''Return test flags. You can get flags from TESTS variable.'''
-    return(list(self.table['tests']))
+    return(list(self.table['testflags']))
     
   def setTestFlags(self, flags):
     '''Specify test flags. You can get flags from TESTS variable.'''
     if type(flags) is list or type(flags) is tuple:
-      old_flags = self.table['tests']
-      self.table['tests'] = list()
+      old_flags = self.table['testflags']
+      self.table['testflags'] = list()
       for flag in flags:
         try: # Try to enable each flag
           self.enableTestFlag(flag)
         except TypeError as error:
           raise(TypeError('each flag must be one of TESTS integers'))
-      self.table['tests'] = flags
+      self.table['testflags'] = flags
     else: # if type of flags is not list or tuple
       raise(TypeError('flags must be a list or a tuple, not %s' % \
         type(flags).__name__))
     
   def resetTestFlags(self):
     '''Reset test flags (only default flag will be enabled).'''
-    self.table['tests'] = list()
+    self.table['testflags'] = list()
+    self.table['tests'] = self.table['testflags']
     
     
   # Define libname methods.
@@ -662,6 +728,10 @@ class GLConfig(object):
     
     
   # Define macro_prefix methods.
+  def getIncludeGuardPrefix(self):
+    '''Return include_guard_prefix to use inside GLEmiter class.'''
+    return(self.table['include_guard_prefix'])
+    
   def getMacroPrefix(self):
     '''Return the prefix of the macros 'gl_EARLY' and 'gl_INIT'.
     Default macro_prefix is 'gl'.'''
@@ -678,11 +748,22 @@ class GLConfig(object):
     else: # if type of macro_prefix is not bytes or string
       raise(TypeError('macro_prefix must be a string, not %s' % \
           type(macro_prefix).__name__))
+    if macro_prefix == 'gl':
+      include_guard_prefix = 'GL'
+    else: # macro_prefix != 'gl'
+      include_guard_prefix = 'GL_%s' % macro_prefix.upper()
+    if type(include_guard_prefix) is bytes:
+      include_guard_prefix = include_guard_prefix.decode(ENCS['default'])
+    self.table['include_guard_prefix'] = include_guard_prefix
     
   def resetMacroPrefix(self):
     '''Reset the prefix of the macros 'gl_EARLY' and 'gl_INIT'.
     Default macro_prefix is 'gl'.'''
     self.table['macro_prefix'] = string('gl')
+    include_guard_prefix = 'GL'
+    if type(include_guard_prefix) is bytes:
+      include_guard_prefix = include_guard_prefix.decode(ENCS['default'])
+    self.table['include_guard_prefix'] = include_guard_prefix
     
     
   # Define makefile methods.
@@ -706,7 +787,7 @@ class GLConfig(object):
   def resetMakefile(self):
     '''Reset the name of makefile in automake syntax in the source-base and
     tests-base directories. Default is 'Makefile.am'.'''
-    self.table['makefile'] = string('Makefile.am')
+    self.table['makefile'] = string()
     
     
   # Define podomain methods.
@@ -839,22 +920,22 @@ class GLConfig(object):
   def checkLSymbolic(self):
     '''Check if pygnulib will make symbolic links instead of copying files, only
     for files from the local override directory.'''
-    return(self.table['symbolic'])
+    return(self.table['lsymbolic'])
     
   def enableLSymbolic(self):
     '''Enable creation of symbolic links instead of copying files, only for
     files from the local override directory.'''
-    self.table['symbolic'] = True
+    self.table['lsymbolic'] = True
     
   def disableLSymbolic(self):
     '''Disable creation of symbolic links instead of copying files, only for
     files from the local override directory.'''
-    self.table['symbolic'] = False
+    self.table['lsymbolic'] = False
     
   def resetLSymbolic(self):
     '''Reset creation of symbolic links instead of copying files, only for
     files from the local override directory.'''
-    self.table['symbolic'] = None
+    self.table['lsymbolic'] = None
     
     
   # Define verbosity methods.

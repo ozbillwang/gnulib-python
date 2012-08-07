@@ -227,7 +227,6 @@ class GLImport(object):
             localdir = os.path.relpath(joinpath(self.config['destdir'],
               self.cache['localdir']))
         self.config.setLocalDir(localdir)
-    self.modulesystem = GLModuleSystem(self.config['localdir'])
       
     if self.mode != MODES['import']:
       if self.cache['m4base'] and \
@@ -253,22 +252,12 @@ class GLImport(object):
       # Update configuration dictionary.
       self.config.setDictionary(self.cache)
       self.config.setModules(modules)
-      pprint(self.config.getDictionary())
-      exit()
-    
+    self.modulesystem = GLModuleSystem(self.config)
+    pprint(self.config.getDictionary())
     
   def __repr__(self):
     '''x.__repr__ <==> repr(x)'''
     return('<pygnulib.GLImport>')
-    
-  def compute_guardprefix(self):
-    '''Determine and return include_guard_prefix.'''
-    macro_prefix = self.config.getMacroPrefix()
-    if macro_prefix == 'gl':
-      include_guard_prefix = 'GL'
-    else: # macro_prefix != 'gl'
-      include_guard_prefix = 'GL_%s' % macro_prefix.upper()
-    return(include_guard_prefix)
     
   def rewrite_old_files(self, files):
     '''Replace auxdir, docbase, sourcebase, m4base and testsbase from default
@@ -452,16 +441,17 @@ class GLImport(object):
     lgpl = self.config.getLGPL()
     verbose = self.config.getVerbosity()
     ac_version = self.config.getAutoconfVersion()
-    copyrights = self.checkCopyrights()
+    copyrights = self.config.checkCopyrights()
     modulesystem = self.modulesystem
-    basemodules = [modulesystem.find(module) for module in
-      self.config.getModules()]
-    avoids = [modulesystem.find(avoid) for avoid in self.config.getAvoids()]
+    modules = self.config.getModules()
+    avoids = self.config.getAvoids()
+    basemodules = [modulesystem.find(module) for module in modules]
+    avoids = [modulesystem.find(avoid) for avoid in avoids]
     basemodules = sorted(set(basemodules))
     avoids = sorted(set(avoids))
     
     # Perform transitive closure.
-    table = GLModuleTable(localdir, avoids, testflags, conddeps)
+    table = GLModuleTable(self.config, avoids)
     finalmodules = table.transitive_closure(basemodules)
     
     # Show module list.
@@ -497,16 +487,16 @@ class GLImport(object):
     # Determine whether a $testsbase/libtests.a is needed.
     libtests = False
     for module in tests_modules:
-      files = module.getFiles(self.ac_version)
+      files = module.getFiles()
       for file in files:
         if file.startswith('lib/'):
           libtests = True
           break
     
     # Add dummy package if it is needed.
-    main_modules = table.add_dummy(main_modules, auxdir, ac_version)
+    main_modules = table.add_dummy(main_modules)
     if libtests: # if we need to use libtests.a
-      tests_modules = table.add_dummy(tests_modules, auxdir, ac_version)
+      tests_modules = table.add_dummy(tests_modules)
     
     # Check license incompatibilities.
     listing = list()
@@ -581,10 +571,8 @@ class GLImport(object):
     
     # Determine the final file lists.
     main_filelist, tests_filelist = \
-      table.filelist_separately(main_modules, tests_modules, ac_version)
+      table.filelist_separately(main_modules, tests_modules)
     filelist = sorted(set(main_filelist +tests_filelist))
-    print(len(filelist))
-    exit()
     if not filelist:
       raise(GLError(12, None))
     

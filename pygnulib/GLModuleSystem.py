@@ -8,11 +8,12 @@ import os
 import re
 import sys
 import codecs
+import hashlib
 import subprocess as sp
 from . import constants
 from .GLError import GLError
+from .GLConfig import GLConfig
 from .GLFileSystem import GLFileSystem
-from pprint import pprint
 
 
 #===============================================================================
@@ -55,19 +56,16 @@ class GLModuleSystem(object):
   '''GLModuleSystem is used to operate with module system using dynamic
   searching and patching.'''
   
-  def __init__(self, localdir):
+  def __init__(self, config):
     '''Create new GLModuleSystem instance. The necessary arguments are localdir
     and modcache, which are the same as usual. Some functions use GLFileSystem
     class to look up a file in localdir or gnulib directories, or combine it
     through 'patch' utility.'''
     self.args = dict()
-    if type(localdir) is bytes or type(localdir) is string:
-      if type(localdir) is bytes:
-        localdir = localdir.decode(ENCS['default'])
-      self.localdir = localdir
-    else: # if localdir has not bytes or string type
-      raise(TypeError(
-        'localdir must be a string, not %s' % type(localdir).__name__))
+    if type(config) is not GLConfig:
+      raise(TypeError('config must be a GLConfig, not %s' % \
+        type(config).__name__))
+    self.config = config
     
   def __repr__(self):
     '''x.__repr__ <==> repr(x)'''
@@ -88,9 +86,9 @@ class GLModuleSystem(object):
       'TEMPLATE-EXTENDED', 'TEMPLATE-TESTS']
     if isfile(joinpath(DIRS['modules'], module)) or \
     all([ # Begin all(iterable) function
-      self.localdir,
-      isdir(joinpath(self.localdir, 'modules')),
-      isfile(joinpath(self.localdir, 'modules', module))
+      self.config['localdir'],
+      isdir(joinpath(self.config['localdir'], 'modules')),
+      isfile(joinpath(self.config['localdir'], 'modules', module))
     ]): # Close all(iterable) function
       if module not in badnames:
         result = True
@@ -107,9 +105,9 @@ class GLModuleSystem(object):
       raise(TypeError(
         'module must be a string, not %s' % type(module).__name__))
     if self.exists(module):
-      filesystem = GLFileSystem(self.localdir)
+      filesystem = GLFileSystem(self.config['localdir'])
       path, istemp = filesystem.lookup(joinpath('modules', module))
-      result = GLModule(path, istemp)
+      result = GLModule(self.config, path, istemp)
       return(result)
     else: # if self.exists(module)
       raise(GLError(3, module))
@@ -140,9 +138,9 @@ class GLModuleSystem(object):
       '-e', r'/~$/d',
       '-e', r'/-tests$/d',
     ]
-    localdir = self.localdir
+    localdir = self.config['localdir']
     if localdir and isdir(joinpath(localdir, 'modules')):
-      os.chdir(self.localdir)
+      os.chdir(self.config['localdir'])
       args2.append('-e')
       args2.append(r's,\.diff$,,')
     proc1 = sp.Popen(args1, stdout=sp.PIPE)
@@ -167,22 +165,28 @@ class GLModule(object):
   path. GLModule can get all information about module, get its dependencies,
   files, etc.'''
   
-  def __init__(self, module, patched=False):
-    '''Create new GLModule instance. Arguments are module and patched, where
+  def __init__(self, config, module, patched=False):
+    '''GLModule.__init__(module[, patched]) -> GLModule
+    
+    Create new GLModule instance. Arguments are module and patched, where
     module is a string representing the path to the module and patched is a
     bool indicating that module was created after applying patch.'''
     self.args = dict()
     self.cache = dict()
     self.content = string()
+    if type(config) is not GLConfig:
+      raise(TypeError('config must be a GLConfig, not %s' % \
+        type(config).__name__))
     if type(module) is bytes or type(module) is string:
       if type(module) is bytes:
         module = module.decode(ENCS['default'])
     else: # if module has not bytes or string type
-      raise(TypeError(
-        'module must be a string, not %s' % type(module).__name__))
+      raise(TypeError('module must be a string, not %s' % \
+        type(module).__name__))
     if type(patched) is not bool:
-      raise(TypeError(
-        'patched must be a bool, not %s' % type(module).__name__))
+      raise(TypeError('patched must be a bool, not %s' % \
+        type(module).__name__))
+    self.config = config
     self.module = module
     self.patched = patched
     with codecs.open(module, 'rb', 'UTF-8') as file:
@@ -392,14 +396,15 @@ Include:|Link:|License:|Maintainer:)'
       self.cache['applicability'] = result
     return(self.cache['applicability'])
     
-  def getFiles(self, ac_version):
-    '''GLModule.getFiles(ac_version) -> list
+  def getFiles(self):
+    '''GLModule.getFiles() -> list
     
-    Return list of files.'''
+    Return list of files.
+    GLConfig: ac_version.'''
+    if not self.config.check('ac_version'):
+      raise(ValueError('ac_version inside GLConfig must be set'))
+    ac_version = self.config['ac_version']
     section = 'Files:'
-    if type(ac_version) is not float:
-      raise(TypeError('ac_version must be a float, not %s' % \
-        type(ac_version).__name__))
     if 'files' not in self.cache:
       if section not in self.content:
         result = list()
@@ -419,13 +424,17 @@ Include:|Link:|License:|Maintainer:)'
         [file for file in self.cache['files'] if file != '']
     return(list(self.cache['files']))
     
-  def getDependencies(self, localdir):
-    '''GLModule.getDependencies(localdir) -> list
+  def getDependencies(self):
+    '''GLModule.getDependencies() -> list
     
-    Return list of dependencies.'''
+    Return list of dependencies.
+    GLConfig: localdir.'''
+    if not self.config.check('localdir'):
+      raise(ValueError('localdir inside GLConfig must be set'))
+    localdir = self.config['localdir']
     result = list()
     section = 'Depends-on:'
-    modulesystem = GLModuleSystem(localdir)
+    modulesystem = GLModuleSystem(self.config)
     if 'dependencies' not in self.cache:
       if section not in self.content:
         depmodules = list()
@@ -506,13 +515,14 @@ Include:|Link:|License:|Maintainer:)'
       self.cache['autoconf'] = result
     return(self.cache['autoconf'])
     
-  def getAutomakeSnippet(self, auxdir, ac_version):
-    '''getAutomakeSnippet(auxdir, ac_version) -> string
+  def getAutomakeSnippet(self):
+    '''getAutomakeSnippet() -> string
     
-    Get automake snippet.'''
+    Get automake snippet.
+    GLConfig: auxdir, ac_version.'''
     result = string() # Define stack variable
     result += self.getAutomakeSnippet_Conditional()
-    result += self.getAutomakeSnippet_Unconditional(auxdir, ac_version)
+    result += self.getAutomakeSnippet_Unconditional()
     return(result)
     
   def getAutomakeSnippet_Conditional(self):
@@ -537,14 +547,20 @@ Include:|Link:|License:|Maintainer:)'
       self.cache['makefile-conditional'] = result
     return(self.cache['makefile-conditional'])
     
-  def getAutomakeSnippet_Unconditional(self, auxdir, ac_version):
-    '''getAutomakeSnippet_Unconditional(auxdir, ac_version) -> string
+  def getAutomakeSnippet_Unconditional(self):
+    '''GLModule.getAutomakeSnippet_Unconditional() -> string
     
-    Return unconditional automake snippet.'''
+    Return unconditional automake snippet.
+    GLConfig: auxdir, ac_version.'''
+    for arg in ['auxdir', 'ac_version']:
+      if not self.config.check(arg):
+        raise(ValueError('%s inside GLConfig must be set' % arg))
+    auxdir = self.config['auxdir']
+    ac_version = self.config['ac_version']
     result = string()
     if 'makefile-unconditional' not in self.cache:
       if self.isTests():
-        files = self.getFiles(ac_version)
+        files = self.getFiles()
         extra_files = filter_filelist(constants.NL, files,
           'tests/', '', 'tests/', '').split(constants.NL)
         if extra_files:
@@ -560,7 +576,7 @@ Include:|Link:|License:|Maintainer:)'
           mentioned_files = mentioned_files[-1].split(' ')
           mentioned_files = [f.strip() for f in mentioned_files]
           mentioned_files = [f for f in mentioned_files if f != '']
-        all_files = self.getFiles(ac_version)
+        all_files = self.getFiles()
         lib_files = filter_filelist(constants.NL, all_files,
           'lib/', '', 'lib/', '').split(constants.NL)
         extra_files = [f for f in lib_files if f not in mentioned_files]
@@ -689,6 +705,29 @@ Include:|Link:|License:|Maintainer:)'
       result = result.strip()
       self.cache['maintainer'] = result
     return(self.cache['maintainer'])
+    
+  def getConditionalName(self):
+    '''GLModule.getConditionalName() -> string
+    
+    Return the automake conditional name.
+    GLConfig: macro_prefix.'''
+    if not self.config.check('macro_prefix'):
+      raise(ValueError('macro_prefix inside GLConfig must be set'))
+    macro_prefix = self.config['macro_prefix']
+    nonascii = \
+    [ # Begin to filter non-ascii chars
+      char for char in self.getName() if char not in \
+      'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_'
+    ] # Finish to filter non-ascii chars
+    if nonascii:
+      name = self.getName().encode(ENCS['default'])
+      name = hashlib.md5(name).hexdigest()
+      conditional = '%s_GNULIB_ENABLED_%s' % (macro_prefix, name)
+    else: # if not nonascii
+      result = '%s_GNULIB_ENABLED_%s' (macro_prefix, name)
+    if type(result) is bytes:
+      result = result.decode(ENCS['default'])
+    return(result)
 
 
 #===============================================================================
@@ -697,8 +736,8 @@ Include:|Link:|License:|Maintainer:)'
 class GLModuleTable(object):
   '''GLModuleTable is used to work with the list of the modules.'''
   
-  def __init__(self, localdir, avoids=list(), testflags=list(),conddeps=True):
-    '''GLModuleTable.__init__(*args, **kwargs) -> GLModuleTable
+  def __init__(self, config, avoids=list()):
+    '''GLModuleTable.__init__(config, avoids) -> GLModuleTable
     
     Create new GLModuleTable instance. If modules are specified, then add
     every module from iterable as unconditional module. If avoids is specified,
@@ -712,26 +751,23 @@ class GLModuleTable(object):
     self.dependers = dict() # Dependencies
     self.conditionals = dict() # Conditional modules
     self.unconditionals = dict() # Unconditional modules
-    if type(localdir) is bytes or type(localdir) is string:
-      if type(localdir) is bytes:
-        localdir = localdir.decode(ENCS['default'])
-      self.localdir = localdir
-    else: # if localdir has not bytes or string type
-      raise(TypeError(
-        'localdir must be a string, not %s' % type(module).__name__))
+    self.main_modules = list() # Main modules
+    self.tests_modules = list() # Tests modules
+    if type(config) is not GLConfig:
+      raise(TypeError('config must be a GLConfig, not %s' % \
+        type(config).__name__))
     for avoid in avoids:
       if type(avoid) is not GLModule:
         raise(TypeError('each avoid must be a GLModule instance'))
       self.avoids += [avoids]
-    for testflag in sorted(set(testflags)):
-      if testflag not in TESTS.values():
-        raise(TypeError('unknown testflag %s' % type(testflag).__name__))
-    self.testflags = sorted(set(testflags))
-    if type(conddeps) is not bool and conddeps != None:
-      raise(TypeError(
-        'conddeps must be bool or None, not %s' % type(conddeps).__name__))
-    self.conddeps = conddeps
-    self.modulesystem = GLModuleSystem(localdir)
+    for arg in ['localdir', 'testflags']:
+      if not config.check(arg):
+        raise(ValueError('%s inside GLConfig must be set' % arg))
+    self.config = config
+    self.localdir = self.config['localdir']
+    self.testflags = self.config['testflags']
+    self.conddeps = self.config['conddeps']
+    self.modulesystem = GLModuleSystem(self.config)
     
   def addConditional(self, parent, module, condition):
     '''GLModuleTable.addConditional(module, condition)
@@ -804,7 +840,7 @@ class GLModuleTable(object):
     dependencies which have the status as this flag. If conddeps are enabled,
     then store condition for each dependency if it has a condition. This method
     is used to update final list of modules.
-    Method returns list of modules together '''
+    Method returns list of modules together.'''
     for module in modules:
       if type(module) is not GLModule:
         raise(TypeError('each module must be a GLModule instance'))
@@ -821,12 +857,12 @@ class GLModuleTable(object):
         outmodules += [module]
         if self.conddeps:
           automake_snippet = \
-            module.getAutomakeSnippet_Conditional(self.ac_version)
+            module.getAutomakeSnippet_Conditional()
           pattern = compiler('^if')
           if not pattern.findall(automake_snippet):
             self.addUnconditional(module)
           conditional = self.isConditional(module)
-        dependencies = module.getDependencies(self.localdir)
+        dependencies = module.getDependencies()
         depmodules = [pair[0] for pair in dependencies]
         conditions = [pair[1] for pair in dependencies]
         if TESTS['tests'] in self.testflags:
@@ -927,16 +963,22 @@ class GLModuleTable(object):
     result = tuple([main_modules, tests_modules])
     return(result)
     
-  def add_dummy(self, modules, auxdir, ac_version):
-    '''GLModuleTable.add_dummy(modules, auxdir, ac_version) -> list
+  def add_dummy(self, modules):
+    '''GLModuleTable.add_dummy(modules) -> list
 
     Add dummy package to list of modules if dummy package is needed. If not,
-    return original list of modules.'''
+    return original list of modules.
+    GLConfig: auxdir, ac_version.'''
+    for arg in ['auxdir', 'ac_version']:
+      if not self.config.check(arg):
+        raise(ValueError('%s inside GLConfig must be set' % arg))
+    auxdir = self.config['auxdir']
+    ac_version = self.config['ac_version']
     have_lib_sources = False
     for module in modules:
       if type(module) is not GLModule:
         raise(TypeError('each module must be a GLModule instance'))
-      snippet = module.getAutomakeSnippet(auxdir, ac_version)
+      snippet = module.getAutomakeSnippet()
       snippet = snippet.replace('\\\n', '')
       pattern = compiler('^lib_SOURCES[\t ]*\\+=[\t ]*(.*?)$', re.S | re.M)
       files = pattern.findall(snippet)
@@ -951,31 +993,38 @@ class GLModuleTable(object):
       modules = sorted(set(modules +[dummy]))
     return(list(modules))
     
-  def filelist(self, modules, ac_version):
-    '''GLModuleTable.filelist(modules, ac_version) -> list
+  def filelist(self, modules):
+    '''GLModuleTable.filelist(modules) -> list
 
     Determine the final file list for the given list of modules. The list of
-    modules must already include dependencies.'''
+    modules must already include dependencies.
+    GLConfig: ac_version.'''
+    if not self.config.check('ac_version'):
+      raise(ValueError('ac_version inside GLConfig must be set'))
+    ac_version = self.config['ac_version']
     filelist = list()
     for module in modules:
       if type(module) is not GLModule:
         raise(TypeError('each module must be a GLModule instance'))
-    listings = [module.getFiles(ac_version) for module in modules]
+    listings = [module.getFiles() for module in modules]
     for listing in listings:
       for file in listing:
         if file not in filelist:
           filelist += [file]
     return(filelist)
     
-  def filelist_separately(self, main_modules, tests_modules, ac_version):
+  def filelist_separately(self, main_modules, tests_modules):
     '''GLModuleTable.filelist_separately(**kwargs) -> list
 
     Determine the final file lists. They must be computed separately, because
     files in lib/* go into $sourcebase/ if they are in the main file list but
     into $testsbase/ if they are in the tests-related file list. Furthermore
     lib/dummy.c can be in both.'''
-    main_filelist = self.filelist(main_modules, ac_version)
-    tests_filelist = self.filelist(tests_modules, ac_version)
+    if not self.config.check('ac_version'):
+      raise(ValueError('ac_version inside GLConfig must be set'))
+    ac_version = self.config['ac_version']
+    main_filelist = self.filelist(main_modules)
+    tests_filelist = self.filelist(tests_modules)
     tests_filelist = \
     [ # Begin to sort filelist
       file.replace('lib/', 'tests=lib/', 1) \
@@ -984,4 +1033,34 @@ class GLModuleTable(object):
     ] # Finish to sort filelist
     result = tuple([main_filelist, tests_filelist])
     return(result)
+    
+  def getMainModules(self):
+    '''GLModuleTable.getMainModules() -> list
+    
+    Return list of main modules.'''
+    return(list(self.main_modules))
+    
+  def setMainModules(self, modules):
+    '''GLModuleTable.setMainModules(modules)
+    
+    Specify list of main modules.'''
+    for module in modules:
+      if type(module) is not GLModule:
+        raise(TypeError('each module must be a GLModule instance'))
+    self.main_modules = sorted(set(modules))
+    
+  def getTestsModules(self):
+    '''GLModuleTable.getTestsModules() -> list
+    
+    Return list of tests modules.'''
+    return(list(self.tests_modules))
+    
+  def setTestsModules(self, modules):
+    '''GLModuleTable.setTestsModules(modules)
+    
+    Specify list of tests modules.'''
+    for module in modules:
+      if type(module) is not GLModule:
+        raise(TypeError('each module must be a GLModule instance'))
+    self.tests_modules = sorted(set(modules))
 

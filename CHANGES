@@ -1,3 +1,18 @@
+7 August 2012, Dmitriy Selyutin
+GLConfig was updated and integrated to GLEmiter class. compute_guardprefix
+method was deprecated from GLImport, because now include_guard_prefix is
+available inside GLConfig class as a key. The another way to get it is to use
+GLConfig.getIncludeGuardPrefix method.
+GLModuleTable has received getMainModules, setMainModules, getTestsModules,
+setTestsModules methods, which allow to apply necessary actions everywhere
+where we need to use its other methods (especially when we need to test if
+module A is a conditional module for module B).
+Documentation was seriously improved: it now contains information about
+attributes of GLConfig which need to be set before use methods.
+GLConfig support was integrated almost everywhere it was needed. GLModule,
+GLModuleSystem, GLModuleTable, GLEmiter, GLImport already support GLConfig.
+The support for GLFileSystem and GLFileAssistant is just a question of time.
+
 4 August 2012, Dmitriy Selyutin
 A new class GLConfig was introduced. That allowed to cut code inside GLImport
 class and simplify the calculations of settings. It can be the biggest commit

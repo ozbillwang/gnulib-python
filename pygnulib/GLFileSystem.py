@@ -120,32 +120,12 @@ class GLFileAssistant(object):
   def __init__(self, destdir, localdir, transformers,
     symbolic=False, lsymbolic=False, dryrun=False):
     '''Create GLFileAssistant instance.'''
-    if type(destdir) is bytes or type(destdir) is string:
-      if type(destdir) is bytes:
-        destdir = destdir.decode(ENCS['default'])
-    else: # if destdir has not bytes or string type
-      raise(TypeError(
-        'destdir must be a string, not %s' % (type(destdir).__name__)))
-    if type(localdir) is bytes or type(localdir) is string:
-      if type(localdir) is bytes:
-        localdir = localdir.decode(ENCS['default'])
-    else: # if localdir has not bytes or string type
-      raise(TypeError(
-        'localdir must be a string, not %s' % (type(localdir).__name__)))
-    for transformer in transformers:
-      if type(transformers[transformer]) is not string:
-        raise(TypeError('each transformer must be a string instance'))
-    if type(symbolic) is not bool:
-      raise(TypeError(
-        'symbolic must be a bool, not %s' % type(symbolic).__name__))
-    if type(lsymbolic) is not bool:
-      raise(TypeError(
-        'lsymbolic must be a bool, not %s' % type(lsymbolic).__name__))
+    for arg 
     if type(dryrun) is not bool:
       raise(TypeError(
         'dryrun must be a bool, not %s' % type(dryrun).__name__))
     self.tempdir = tempfile.mkdtemp()
-    self.destdir = destdir
+    self.destdir = data
     self.localdir = localdir
     self.symbolic = symbolic
     self.lsymbolic = lsymbolic
@@ -249,8 +229,8 @@ class GLFileAssistant(object):
     is a temporary one.'''
     original = self.original
     rewritten = self.rewritten
-    symbolic = self.symbolic
-    lsymbolic = self.lsymbolic
+    symbolic = self.config['symbolic']
+    lsymbolic = self.config['lsymbolic']
     if original == None:
       raise(TypeError('original must be set before applying the method'))
     elif rewritten == None:
