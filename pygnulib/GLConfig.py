@@ -7,6 +7,7 @@
 import os
 import re
 import sys
+import copy
 import codecs
 import subprocess as sp
 from . import constants
@@ -59,7 +60,7 @@ class GLConfig(object):
     modules=None, avoids=None, files=None, tests=None, libname=None, lgpl=None,
     makefile=None, libtool=None, conddeps=None, macro_prefix=None,
     podomain=None, witness_c_macro=None, vc_files=None, symbolic=None,
-    lsymbolic=None, modcache=None, ac_version=None, verbose=None):
+    lsymbolic=None, modcache=None, ac_version=None, verbose=None, dryrun=None):
     '''Create new GLConfig instance.'''
     self.table = dict()
     # destdir
@@ -215,12 +216,32 @@ class GLConfig(object):
     self.resetVerbosity()
     if verbose != None:
       self.setVerbosity(verbose)
-    
+    # dryrun
+    self.resetDryRun()
+    if dryrun != None:
+      if type(dryrun) is bool:
+        if not dryrun:
+          self.disableDryRun()
+        else: # if dryrun
+          self.enableDryRun()
+      else: # if type(dryrun) is not bool
+        raise(TypeError('dryrun must be a bool, not %s' % \
+          type(dryrun).__name__))
     
   # Define special methods.
   def __repr__(self):
     '''x.__repr__() <==> repr(x)'''
     return('<pygnulib.GLConfig>')
+    
+  def __setitem__(self, i, y):
+    '''x.__setitem__(i, y) <==> x[i]=y'''
+    if i in self.table:
+      if key == 'destdir':
+        self.setDestDir(key)
+      if key == 'localdir':
+        self.setLocalDir(key)
+    else: # if i not in self.table
+      raise(KeyError('GLConfig does not contain key: %s' % repr(y)))
     
   def __getitem__(self, y):
     '''x.__getitem__(y) <==> x[y]'''
@@ -232,31 +253,43 @@ class GLConfig(object):
     else: # if y not in self.table
       raise(KeyError('GLConfig does not contain key: %s' % repr(y)))
     
-  def getDictionary(self):
+  def dictionary(self):
     '''Return the configuration as a dict object.'''
-    return(dict(self.table))
+    table = copy.deepcopy(self)
+    return(table)
     
-  def setDictionary(self, dictionary):
+  def update(self, dictionary):
     '''Specify the dictionary whose keys will be used to update config.'''
-    if type(dictionary) is not dict and type(dictionary) is not GLConfig:
-      raise(TypeError('dictionary must be a dict or GLConfig, not %s' % \
+    if type(dictionary) is not GLConfig:
+      raise(TypeError('dictionary must be a GLConfig, not %s' % \
         type(dictionary).__name__))
-    if type(dictionary) is GLConfig:
-      dictionary = dict(dictionary.table)
+    dictionary = dict(dictionary.table)
     result = dict()
     for key in dictionary:
       src = self.table[key]
       dest = dictionary[key]
-      if src == dest:
-        result[key] = dictionary[key]
-      else: # src != dest
-        if dest != None:
-          if key in ['modules', 'avoids', 'tests']:
-            dest = sorted(set(src +dest))
+      result[key] = src
+      if src != dest:
+        if self.isdefault(key, src):
           result[key] = dest
-        else: # if dest == None
-          result[key] = src
+        else: # if not self.isdefault(key, src)
+          result[key] == src
+          if not self.isdefault(key, dest):
+            if key in ['modules', 'avoids', 'tests']:
+              dest = sorted(set(src +dest))
+            result[key] = dest
     self.table = dict(result)
+    
+  def update_key(self, dictionary, key):
+    '''Update the given key using value from the given dictionary.'''
+    if key in self.table:
+      if type(dictionary) is not GLConfig:
+        raise(TypeError('dictionary must be a GLConfig, not %s' % \
+          type(dictionary).__name__))
+      dictionary = dict(dictionary.table)
+      self.table[key] = dictionary[key]
+    else: # if key not in self.table
+      raise(KeyError('GLConfig does not contain key: %s' % repr(key)))
     
   def check(self, key):
     '''Return True if the specified key has not default value. If key is not
@@ -265,6 +298,48 @@ class GLConfig(object):
       return(self.table[key] != None)
     else: # if key not in self.table
       raise(KeyError('GLConfig does not contain key: %s' % repr(key)))
+    
+  def default(self, key):
+    '''Return default value for the given key.'''
+    if key in self.table:
+      if key == 'destdir':
+        return(string('.'))
+      elif key == 'localdir':
+        return(constants.DIRS['root'])
+      elif key == 'libname':
+        return(string('libgnu'))
+      elif key == 'macro_prefix':
+        return(string('gl'))
+      elif key == 'include_guard_prefix':
+        return(string('GL'))
+      elif key == 'ac_version':
+        return(2.59)
+      elif key == 'verbosity':
+        return(0)
+      elif key == 'copyrights':
+        return(True)
+      elif key == 'dryrun':
+        return(False)
+      elif key in ['modules', 'avoids', 'tests', 'testflags']:
+        return(list())
+      elif key in ['lgpl', 'conddeps', 'modcache', 'symbolic', 'lsymbolic']:
+        return(False)
+      else: # otherwise
+        return(None)
+    else: # if key not in self.table
+      raise(KeyError('GLConfig does not contain key: %s' % repr(key)))
+    
+  def isdefault(self, key, value):
+    '''Check whether the value for the given key is a default value.'''
+    if key in self.table:
+      default = self.default(key)
+      return(value == default)
+    else: # if key not in self.table
+      raise(KeyError('GLConfig does not contain key: %s' % repr(key)))
+    
+  def keys(self):
+    '''Return list of keys.'''
+    return(list(self.table.keys()))
     
     
   # Define destdir methods.
@@ -312,7 +387,7 @@ class GLConfig(object):
   def resetLocalDir(self):
     '''Reset a local override directory where to look up files before looking
     in gnulib's directory.'''
-    self.table['localdir'] = None
+    self.table['localdir'] = constants.DIRS['root']
     
     
   # Define auxdir methods.
@@ -399,7 +474,7 @@ class GLConfig(object):
     
   def resetPoBase(self):
     '''Reset directory relative to destdir where *.po files are placed.'''
-    self.table['pobase'] = 'po'
+    self.table['pobase'] = None
     
     
   # Define docbase methods.
@@ -760,7 +835,7 @@ class GLConfig(object):
     '''Reset the prefix of the macros 'gl_EARLY' and 'gl_INIT'.
     Default macro_prefix is 'gl'.'''
     self.table['macro_prefix'] = string('gl')
-    include_guard_prefix = 'GL'
+    include_guard_prefix = string('GL')
     if type(include_guard_prefix) is bytes:
       include_guard_prefix = include_guard_prefix.decode(ENCS['default'])
     self.table['include_guard_prefix'] = include_guard_prefix
@@ -787,7 +862,7 @@ class GLConfig(object):
   def resetMakefile(self):
     '''Reset the name of makefile in automake syntax in the source-base and
     tests-base directories. Default is 'Makefile.am'.'''
-    self.table['makefile'] = string()
+    self.table['makefile'] = None
     
     
   # Define podomain methods.
@@ -873,6 +948,7 @@ class GLConfig(object):
     '''Reset module caching optimization.'''
     self.table['modcache'] = False
     
+    
   # Define ac_version methods.
   def getAutoconfVersion(self):
     '''Return preferred autoconf version. Default value is 2.59.'''
@@ -912,7 +988,7 @@ class GLConfig(object):
     
   def resetSymbolic(self):
     '''Reset creation of the symbolic links instead of copying files.'''
-    self.table['symbolic'] = None
+    self.table['symbolic'] = False
     self.table['copyrights'] = True
     
     
@@ -935,7 +1011,7 @@ class GLConfig(object):
   def resetLSymbolic(self):
     '''Reset creation of symbolic links instead of copying files, only for
     files from the local override directory.'''
-    self.table['lsymbolic'] = None
+    self.table['lsymbolic'] = False
     
     
   # Define verbosity methods.
@@ -971,4 +1047,22 @@ class GLConfig(object):
   def resetVerbosity(self):
     '''Reset verbosity level.'''
     self.table['verbosity'] = 0
+    
+    
+  # Define dryrun methods.
+  def checkDryRun(self):
+    '''Check whether dryrun is enabled.'''
+    return(self.table['dryrun'])
+    
+  def enableDryRun(self):
+    '''Enable dryrun mode.'''
+    self.table['dryrun'] = True
+    
+  def disableDryRun(self):
+    '''Disable dryrun mode.'''
+    self.table['dryrun'] = False
+    
+  def resetDryRun(self):
+    '''Reset status of dryrun mode.'''
+    self.table['dryrun'] = False
 

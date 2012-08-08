@@ -83,7 +83,7 @@ class GLImport(object):
         repr(mode)))
     
     # Initialize some values.
-    self.config = config
+    self.config = config.dictionary()
     self.cache = GLConfig()
     
     # Get cached auxdir and libtool from configure.ac/in.
@@ -102,8 +102,6 @@ class GLImport(object):
     guessed_libtool = bool(pattern.findall(data))
     if self.config['auxdir'] == None:
       self.config.setAuxDir(self.cache['auxdir'])
-    else: # if auxdir != None
-      self.config.setAuxDir(auxdir)
     
     # Guess autoconf version.
     pattern = compiler('.*AC_PREREQ\((.*?)\)', re.S | re.M)
@@ -250,10 +248,13 @@ class GLImport(object):
         raise(GLError(10, None))
       
       # Update configuration dictionary.
-      self.config.setDictionary(self.cache)
+      self.config.update(self.cache)
+      for key in config.keys():
+        value = config[key]
+        if not config.isdefault(key, value):
+          self.config.update_key(config, key)
       self.config.setModules(modules)
     self.modulesystem = GLModuleSystem(self.config)
-    pprint(self.config.getDictionary())
     
   def __repr__(self):
     '''x.__repr__ <==> repr(x)'''
@@ -604,10 +605,10 @@ class GLImport(object):
     new_table = list()
     for src in old_files:
       dest = self.rewrite_old_files([src])[-1]
-      old_table += [tuple([src, dest])]
+      old_table += [tuple([dest, src])]
     for src in new_files:
       dest = self.rewrite_new_files([src])[-1]
-      new_table += [tuple([src, dest])]
+      new_table += [tuple([dest, src])]
     old_table = sorted(set(old_table))
     new_table = sorted(set(new_table))
     
@@ -615,8 +616,7 @@ class GLImport(object):
     result = tuple([filelist, old_table, new_table, transformers])
     return(result)
     
-  def execute(self, filelist, old_files, new_files,
-    transformers, dryrun=False):
+  def execute(self, filelist, old_files, new_files, transformers):
     '''Perform operations on the lists of files, which are given in a special
     format except filelist argument. Such lists of files can be created using
     GLImport.prepare() function.'''
@@ -661,28 +661,27 @@ class GLImport(object):
     dirs = sorted(set([joinpath(destdir, d) for d in dirs]))
     for directory in dirs:
       if not isdir(directory):
-        if not dryrun:
+        if not self.config['dryrun']:
             print('Creating directory %s' % directory)
             try: # Try to create directory
               os.makedirs(directory)
             except Exception as error:
               raise(GLError(13, directory))
-        else: # if dryrun
+        else: # if self.config['dryrun']
           print('Create directory %s' % directory)
     
     # Create GLFileAssistant instance to process files.
-    assistant = GLFileAssistant(destdir, localdir, transformers,
-      self.symbolic, self.lsymbolic, dryrun)
+    assistant = GLFileAssistant(self.config, transformers)
     
-    # Files which are in old_files and not in new_files.
+    # Files which are in filetable['old'] and not in filetable['new'].
     # They will be removed and added to filetable['removed'] list.
-    old_files = [pair[1] for pair in filetable['old']]
-    new_files = [pair[1] for pair in filetable['new']]
-    files = [file for file in old_files if file not in new_files]
+    pairs = [f for f in filetable['old'] if f not in filetable['old']]
+    pairs = sorted(set(pairs), key=lambda t: tuple(t[0].lower()))
+    files = sorted(set(pair[0] for pair in pairs), key=string.lower)
     for file in files:
       path = joinpath(destdir, file)
       if isfile(path) or os.path.islink(path):
-        if not dryrun:
+        if not self.config['dryrun']:
           backup = string('%s~' % path)
           print('Removing file %s (backup in )' % (path, backup))
           try: # Try to move file
@@ -691,29 +690,28 @@ class GLImport(object):
             shutil.move(path, '%s~' % path)
           except Exception as error:
             raise(GLError(14, file))
-        else: # if dryrun
+        else: # if self.config['dryrun']
           print('Remove file %s (backup in %s~)' % (path, path))
         filetable['removed'] += [file]
     
-    # Files which are in new_files and not in old_files.
-    # They will be added/updated and added to filetable['removed'] list.
+    # Files which are in filetable['new'] and not in filetable['old'].
+    # They will be added/updated and added to filetable['added'] list.
     already_present = False
-    pairs = [pair for pair in filetable['new'] if pair[1] not in old_files]
-    path = '/home/ghostmansd/Проекты/added_files_py'
-    file = codecs.open(path, 'wb', 'UTF-8')
+    pairs = [f for f in filetable['new'] if f not in filetable['old']]
+    pairs = sorted(set(pairs), key=lambda t: tuple(t[0].lower()))
     for pair in pairs:
-      original = pair[0]
-      rewritten = pair[1]
-      file.write('%s\t%s\n' % (original, rewritten))
+      original = pair[1]
+      rewritten = pair[0]
       assistant.setOriginal(original)
       assistant.setRewritten(rewritten)
       assistant.add_or_update(already_present)
     filetable['added'] += assistant.getFiles()
     
-    # Files which are in new_files and old_files.
-    # They will be added/updated and added to filetable['removed'] list.
+    # Files which are in filetable['new'] and in filetable['old'].
+    # They will be added/updated and added to filetable['added'] list.
     already_present = True
-    pairs = [pair for pair in filetable['new'] if pair[1] in old_files]
+    pairs = [f for f in filetable['new'] if f in filetable['old']]
+    pairs = sorted(set(pairs), key=lambda t: tuple(t[0].lower()))
     for pair in pairs:
       original = pair[0]
       rewritten = pair[1]
@@ -721,9 +719,8 @@ class GLImport(object):
       assistant.setRewritten(rewritten)
       assistant.add_or_update(already_present)
     filetable['added'] += assistant.getFiles()
-    
-    # Create command-line invocation comment.
-    actioncmd = self.actioncmd()
+    filetable['added'] = sorted(set(filetable['added']))
+    exit()
     
     # Determine include_guard_prefix.
     include_guard_prefix = self.include_guard_prefix()
@@ -767,7 +764,7 @@ class GLImport(object):
         os.remove(tmpfile)
       else: # if not filecmp.cmp(joinpath(destdir, dest), tmpfile)
         backup = '%s~' % joinpath(destdir, dest)
-        if not dryrun:
+        if not self.config['dryrun']:
           print('Updating file %s (backup in %s)' % (dest, backup))
           dest = joinpath(destdir, dest)
           backup = joinpath(destdir, backup)
@@ -777,21 +774,21 @@ class GLImport(object):
           if isfile(dest):
             os.remove(dest)
           shutil.move(tmpfile, dest)
-        else: # if dryrun
+        else: # if self.config['dryrun']
           print('Update file %s (backup in %s)' % (dest, backup))
     else: # if not isfile(joinpath(destdir, dest))
-      if not dryrun:
+      if not self.config['dryrun']:
         print('Creating %s' % dest)
         if isfile(joinpath(destdir, dest)):
           os.remove(joinpath(destdir, dest))
         shutil.move(tmpfile, joinpath(destdir, dest))
-      else: # if dryrun
+      else: # if self.config['dryrun']
         print('Create %s' % dest)
         os.remove(tmpfile)
       filetable['added'] += [dest]
     
     # Create po/ directory.
-    filesystem = GLFileSystem(localdir)
+    filesystem = GLFileSystem(self.config)
     if pobase:
       # Create po makefile and auxiliary files.
       for file in ['Makefile.in.in', 'remove-potcdate.sin']:

@@ -15,6 +15,7 @@ from io import BytesIO
 import subprocess as sp
 from . import constants
 from .GLError import GLError
+from .GLConfig import GLConfig
 
 
 #===============================================================================
@@ -58,16 +59,16 @@ class GLFileSystem(object):
   method lookup(file) is used to find file in these directories or combine it
   using Linux 'patch' utility.'''
   
-  def __init__(self, localdir=''):
+  def __init__(self, config):
     '''Create new GLFileSystem instance. The only argument is localdir,
     which can be an empty string too.'''
-    if type(localdir) is bytes or type(localdir) is string:
-      if type(localdir) is bytes:
-        localdir = localdir.decode(ENCS['default'])
-      self.localdir = localdir
-    else: # if localdir has not bytes or string type
-      raise(TypeError(
-        'localdir must be a string, not %s' % type(localdir).__name__))
+    if type(config) is not GLConfig:
+      raise(TypeError('config must be a GLConfig, not %s' % \
+        type(config).__name__))
+    for arg in ['destdir', 'localdir']:
+      if not config.check(arg):
+        raise(ValueError('%s inside GLConfig must be set' % arg))
+    self.config = config
     
   def __repr__(self):
     '''x.__repr__ <==> repr(x)'''
@@ -79,7 +80,8 @@ class GLFileSystem(object):
     Lookup a file in gnulib and localdir directories or combine it using Linux
     'patch' utility. If file was found, method returns string, else it raises
     GLError telling that file was not found. Function also returns flag which
-    indicates whether file is a temporary file.'''
+    indicates whether file is a temporary file.
+    GLConfig: localdir.'''
     if type(name) is bytes or type(name) is string:
       if type(name) is bytes:
         name = name.decode(ENCS['default'])
@@ -88,15 +90,15 @@ class GLFileSystem(object):
         'name must be a string, not %s' % type(module).__name__))
     # If name exists in localdir, then we use it
     path_gnulib = joinpath(DIRS['root'], name)
-    path_local = joinpath(self.localdir, name)
-    path_diff = joinpath(self.localdir, '%s.diff' % name)
+    path_local = joinpath(self.config['localdir'], name)
+    path_diff = joinpath(self.config['localdir'], '%s.diff' % name)
     path_temp = joinpath(tempfile.mkdtemp(), name)
     os.makedirs(os.path.dirname(path_temp))
-    if self.localdir and isfile(path_local):
+    if self.config['localdir'] and isfile(path_local):
       result = (path_local, False)
     else: # if path_local does not exist
       if isfile(path_gnulib):
-        if self.localdir and isfile(path_diff):
+        if self.config['localdir'] and isfile(path_diff):
           shutil.copy(path_gnulib, path_temp)
           command = 'patch -s "%s" < "%s"' % (path_temp, path_diff)
           try: # Try to apply patch
@@ -117,28 +119,27 @@ class GLFileSystem(object):
 class GLFileAssistant(object):
   '''GLFileAssistant is used to help with file processing.'''
   
-  def __init__(self, destdir, localdir, transformers,
-    symbolic=False, lsymbolic=False, dryrun=False):
+  def __init__(self, config, transformers):
     '''Create GLFileAssistant instance.'''
-    for arg 
-    if type(dryrun) is not bool:
-      raise(TypeError(
-        'dryrun must be a bool, not %s' % type(dryrun).__name__))
+    if type(config) is not GLConfig:
+      raise(TypeError('config must be a GLConfig, not %s' % \
+        type(config).__name__))
+    for arg in ['destdir', 'localdir']:
+      if not config.check(arg):
+        raise(ValueError('%s inside GLConfig must be set' % arg))
+    self.config = config
+    self.filesystem = GLFileSystem(self.config)
     self.tempdir = tempfile.mkdtemp()
-    self.destdir = data
-    self.localdir = localdir
-    self.symbolic = symbolic
-    self.lsymbolic = lsymbolic
-    self.dryrun = dryrun
     self.transformers = transformers
-    self.filesystem = GLFileSystem(localdir)
     self.original = None
     self.rewritten = None
     self.added = list()
     self.makefile = list()
     
   def setOriginal(self, original):
-    '''Set the name of the original file which will be used.'''
+    '''GLFileAssistant.setOriginal(original)
+    
+    Set the name of the original file which will be used.'''
     if type(original) is bytes or type(original) is string:
       if type(original) is bytes:
         original = original.decode(ENCS['default'])
@@ -148,7 +149,9 @@ class GLFileAssistant(object):
     self.original = original
     
   def setRewritten(self, rewritten):
-    '''Set the name of the rewritten file which will be used.'''
+    '''GLFileAssistant.setRewritten(rewritten)
+    
+    Set the name of the rewritten file which will be used.'''
     if type(rewritten) is bytes or type(rewritten) is string:
       if type(rewritten) is bytes:
         rewritten = rewritten.decode(ENCS['default'])
@@ -158,12 +161,16 @@ class GLFileAssistant(object):
     self.rewritten = rewritten
     
   def addFile(self, file):
-    '''Add file to the list of added files.'''
+    '''GLFileAssistant.addFile(file)
+    
+    Add file to the list of added files.'''
     if file not in self.added:
       self.added += [file]
     
   def removeFile(self, file):
-    '''Remove file from the list of added files.'''
+    '''GLFileAssistant.removeFile(file)
+    
+    Remove file from the list of added files.'''
     if file in self.added:
       self.added.pop(file)
     
@@ -172,21 +179,23 @@ class GLFileAssistant(object):
     return(list(self.added))
     
   def tmpfilename(self, path):
-    '''Determine the name of a temporary file (file is relative to destdir).'''
+    '''GLFileAssistant.tmpfilename() -> string
+    
+    Return the name of a temporary file (file is relative to destdir).'''
     if type(path) is bytes or type(path) is string:
       if type(path) is bytes:
         path = path.decode(ENCS['default'])
     else: # if path has not bytes or string type
       raise(TypeError(
         'path must be a string, not %s' % (type(path).__name__)))
-    if not self.dryrun:
+    if not self.config['dryrun']:
       # Put the new contents of $file in a file in the same directory (needed
       # to guarantee that an 'mv' to "$destdir/$file" works).
-      result = joinpath(self.destdir, '%s.tmp' % path)
+      result = joinpath(self.config['destdir'], '%s.tmp' % path)
       dirname = os.path.dirname(result)
-      if not isdir(dirname):
+      if dirname and not isdir(dirname):
         os.makedirs(dirname)
-    else: # if dryrun
+    else: # if self.config['dryrun']
       # Put the new contents of $file in a file in a temporary directory
       # (because the directory of "$file" might not exist).
       result = joinpath(self.tempdir, '%s.tmp' % os.path.basename(path))
@@ -197,21 +206,27 @@ class GLFileAssistant(object):
       result = bytes.decode(ENCS['default'])
     return(result)
     
-  def add(self, lookedup, tmpflag):
-    '''This method copies a file from gnulib into the destination directory.
+  def add(self, lookedup, tmpflag, tmpfile):
+    '''GLFileAssistant.add(lookedup, tmpflag, tmpfile)
+    
+    This method copies a file from gnulib into the destination directory.
     The destination is known to exist. If tmpflag is True, then lookedup file
     is a temporary one.'''
     original = self.original
     rewritten = self.rewritten
-    symbolic = self.symbolic
-    lsymbolic = self.lsymbolic
+    for arg in ['symbolic', 'lsymbolic']:
+      if not self.config.check(arg):
+        raise(ValueError('%s inside GLConfig must be set' % arg))
+    destdir = self.config['destdir']
+    symbolic = self.config['symbolic']
+    lsymbolic = self.config['lsymbolic']
     if original == None:
       raise(TypeError('original must be set before applying the method'))
     elif rewritten == None:
       raise(TypeError('rewritten must be set before applying the method'))
-    if not self.dryrun:
+    if not self.config['dryrun']:
       print('Copying file %s' % rewritten)
-      loriginal = joinpath(self.localdir, original)
+      loriginal = joinpath(self.config['localdir'], original)
       if (symbolic or (lsymbolic and lookedup == loriginal)) \
       and not tmpflag and filecmp.cmp(lookedup, tmpfile):
         constants.link_if_changed(lookedup, joinpath(destdir, rewritten))
@@ -220,15 +235,21 @@ class GLFileAssistant(object):
           shutil.move(tmpfile, joinpath(destdir, rewritten))
         except Exception as error:
           raise(GLError(17, original))
-    else: # if self.dryrun
+    else: # if self.config['dryrun']
       print('Copy file %s' % rewritten)
     
   def update(self, lookedup, tmpflag, tmpfile, already_present):
-    '''This method copies a file from gnulib into the destination directory.
+    '''GLFileAssistant.update(lookedup, tmpflag, tmpfile, already_present)
+    
+    This method copies a file from gnulib into the destination directory.
     The destination is known to exist. If tmpflag is True, then lookedup file
     is a temporary one.'''
     original = self.original
     rewritten = self.rewritten
+    for arg in ['symbolic', 'lsymbolic']:
+      if not self.config.check(arg):
+        raise(ValueError('%s inside GLConfig must be set' % arg))
+    self.config['destdir']
     symbolic = self.config['symbolic']
     lsymbolic = self.config['lsymbolic']
     if original == None:
@@ -244,9 +265,9 @@ class GLFileAssistant(object):
     if type(already_present) is not bool:
       raise(TypeError('already_present must be a bool, not %s' % \
           type(already_present).__name__))
-    if not filecmp.cmp(joinpath(self.destdir, rewritten), tmpfile):
+    if not filecmp.cmp(joinpath(self.config['destdir'], rewritten), tmpfile):
       backup = string('%s~' % rewritten)
-      if not self.dryrun:
+      if not self.config['dryrun']:
         if already_present:
           print('Updating file %s (backup in %s)' % (rewritten, backup))
         else: # if not already_present
@@ -258,7 +279,7 @@ class GLFileAssistant(object):
           shutil.move(rewritten, '%s~' % rewritten)
         except Exception as error:
           raise(GLError(17, original))
-        loriginal = joinpath(self.localdir, original)
+        loriginal = joinpath(self.config['localdir'], original)
         if (symbolic or (lsymbolic and lookedup == loriginal)) \
         and not tmpflag and filecmp.cmp(lookedup, tmpfile):
           constants.link_if_changed(lookedup, joinpath(destdir, rewritten))
@@ -269,14 +290,16 @@ class GLFileAssistant(object):
             shutil.move(tmpfile, joinpath(destdir, rewritten))
           except Exception as error:
             raise(GLError(17, original))
-      else: # if self.dryrun
+      else: # if self.config['dryrun']
         if already_present:
           print('Update file %s (backup in %s)' % (rewritten, backup))
         else: # if not already_present
           print('Replace file %s (backup in %s)' % (rewritten, backup))
     
   def add_or_update(self, already_present):
-    '''This method handles a file that ought to be present afterwards.'''
+    '''GLFileAssistant.add_or_update(already_present)
+    
+    This method handles a file that ought to be present afterwards.'''
     original = self.original
     rewritten = self.rewritten
     if original == None:
@@ -319,17 +342,19 @@ class GLFileAssistant(object):
         raise(GLError(16, lookedup))
       with codecs.open(tmpfile, 'wb', 'UTF-8') as file:
         file.write(data)
-    path = joinpath(self.destdir, rewritten)
+    path = joinpath(self.config['destdir'], rewritten)
     if isfile(path):
-      self.update(self, lookedup, tmpflag, tmpfile, already_present)
+      self.update(lookedup, tmpflag, tmpfile, already_present)
+      os.remove(tmpfile)
     else: # if not isfile(path)
-      self.add(lookedup, tmpflag)
+      self.add(lookedup, tmpflag, tmpfile)
       self.addFile(rewritten)
-    os.remove(tmpfile)
     
   def makefileEditor(self, dir, var, val):
-    '''makefileEditor method remembers that ${dir}Makefile.am needs to be
-    edited to that ${var} mentions ${val}.'''
+    '''GLFileAssistant.makefileEditor(dir, var, val)
+    
+    This method is used to remember that ${dir}Makefile.am needs to be edited
+    to that ${var} mentions ${val}.'''
     if type(dir) is bytes or type(dir) is string:
       if type(dir) is bytes:
         dir = dir.decode(ENCS['default'])
@@ -352,50 +377,31 @@ class GLFileAssistant(object):
     self.makefile += [dictionary]
     
   def makefileTable(self):
-    '''makefileTable method return list of Makefile.am mappings.'''
+    '''GLFileAssistant.makefileTable() -> list()
+    
+    Return list of Makefile.am mappings.'''
     return(list(self.makefile))
     
   def makefileParentDir(self, m4base, sourcebase, testsbase, testflags,
     makefile):
-    '''makefileParentDir adds a special row to Makefile.am table with the first
-    parent directory which contains or will contain Makefile.am file.'''
-    if type(m4base) is bytes or type(m4base) is string:
-      if type(m4base) is bytes:
-        m4base = m4base.decode(ENCS['default'])
-    else: # if m4base has not bytes or string type
-      raise(TypeError(
-        'm4base must be a string, not %s' % (type(m4base).__name__)))
-    if type(sourcebase) is bytes or type(sourcebase) is string:
-      if type(sourcebase) is bytes:
-        sourcebase = sourcebase.decode(ENCS['default'])
-    else: # if sourcebase has not bytes or string type
-      raise(TypeError(
-        'sourcebase must be a string, not %s' % (type(sourcebase).__name__)))
-    if type(testsbase) is bytes or type(testsbase) is string:
-      if type(testsbase) is bytes:
-        testsbase = testsbase.decode(ENCS['default'])
-    else: # if testsbase has not bytes or string type
-      raise(TypeError(
-        'testsbase must be a string, not %s' % (type(testsbase).__name__)))
-    if type(makefile) is bytes or type(makefile) is string:
-      if type(makefile) is bytes:
-        makefile = makefile.decode(ENCS['default'])
-    else: # if makefile has not bytes or string type
-      raise(TypeError(
-        'makefile must be a string, not %s' % (type(makefile).__name__)))
-    if type(testflags) is not list:
-      raise(TypeError(
-        'testflags must be a list, not %s' % (type(testflags).__name__)))
-    mfd = string('Makefile.am')
-    mfx = makefile
-    m4base = os.path.normpath(m4base)
-    sourcebase = os.path.normpath(sourcebase)
-    testsbase = os.path.normpath(testsbase)
-    inctests = TESTS['tests'] in testflags
+    '''GLFileAssistant.makefileParentDir()
+    
+    Add a special row to Makefile.am table with the first parent directory
+    which contains or will contain Makefile.am file.
+    GLConfig: sourcebase, m4base, testsbase, testflags, makefile.'''
+    for arg in ['sourcebase', 'm4base', 'testsbase', 'testflags', 'makefile']:
+      if not self.config.check(arg):
+        raise(ValueError('%s inside GLConfig must be set' % arg))
+    m4base = self.config['makefile']
+    sourcebase = self.config['sourcebase']
+    testsbase = self.config['testsbase']
+    inctests = TESTS['tests'] in self.config['testflags']
     dir1 = string('%s%s' % (m4base, os.path.sep))
+    mfd = string('Makefile.am')
+    mfx = self.config['makefile']
     dir2 = string()
     while dir1 and \
-    (joinpath(self.destdir, dir1, mfd) or \
+    (joinpath(self.config['destdir'], dir1, mfd) or \
     joinpath(dir1, mfd) == joinpath(sourcebase, mfx) or \
     (inctests and joinpath(dir1, mfd) == joinpath(testsbase, mfx))):
       dir2 = os.path.basename(dir2)

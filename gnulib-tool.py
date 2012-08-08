@@ -66,15 +66,15 @@ def main():
   
   # Define default arguments
   mode = 1
-  m4base = None
   destdir = '.'
   localdir = None
   modcache = None
   verbose = None
-  auxdir = None
+  auxdir = 'AUX'
   modules = list(['string'])
   avoids = list()
-  sourcebase = None
+  sourcebase = 'LIB'
+  m4base = None
   pobase = None
   docbase = None
   testsbase = None
@@ -125,6 +125,7 @@ def main():
       vc_files=vc_files,
       modcache=modcache,
       verbose=verbose,
+      dryrun=dryrun,
     )
   
   else: # if mode != MODE['--import']
@@ -162,6 +163,7 @@ def main():
           vc_files=vc_files,
           modcache=modcache,
           verbose=verbose,
+          dryrun=dryrun,
         )
     else: # if not m4base
       m4dirs = list()
@@ -232,6 +234,7 @@ def main():
           vc_files=vc_files,
           modcache=modcache,
           verbose=verbose,
+          dryrun=dryrun,
         )
       elif len(m4dirs) == 1:
         m4base = m4dirs[-1]
@@ -259,6 +262,7 @@ def main():
           vc_files=vc_files,
           modcache=modcache,
           verbose=verbose,
+          dryrun=dryrun,
         )
       else: # if len(m4dirs) > 1
         for m4base in m4dirs:
@@ -286,13 +290,14 @@ def main():
             vc_files=vc_files,
             modcache=modcache,
             verbose=verbose,
+            dryrun=dryrun,
           )
   
   # Execute operations depending on type of action
   if mode in range(0, 4):
     importer = classes.GLImport(config, mode)
     files, old_files, new_files, transformers = importer.prepare()
-    importer.execute(files, old_files, new_files, transformers, dryrun)
+    importer.execute(files, old_files, new_files, transformers)
 
 if __name__ == '__main__':
   try: # Try to execute
@@ -355,5 +360,6 @@ if __name__ == '__main__':
         message += 'failed'
       message += '\n%s: *** Exit.\n' % constants.APP['name']
       sys.stderr.write(message)
+      raise(classes.GLError(error.errno, error.errinfo))
       sys.exit(1)
 

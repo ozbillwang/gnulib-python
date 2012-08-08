@@ -1,5 +1,13 @@
+8 August 2012, Dmitriy Selyutin
+GLConfig was integrated everywhere. Documentation strings of other classes now
+also contain information about GLConfig keys which are needed to use method.
+A lot of fixes inside all modules, especially critical error with update method
+inside GLConfig class: it overwrote keys which didn't have None value, even if
+initial value was default for such key. I had to add some methods like default,
+isdefault, keys and update_key.
+
 7 August 2012, Dmitriy Selyutin
-GLConfig was updated and integrated to GLEmiter class. compute_guardprefix
+GLConfig was updated and integrated into GLEmiter class. compute_guardprefix
 method was deprecated from GLImport, because now include_guard_prefix is
 available inside GLConfig class as a key. The another way to get it is to use
 GLConfig.getIncludeGuardPrefix method.

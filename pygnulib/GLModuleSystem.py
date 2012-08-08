@@ -57,10 +57,11 @@ class GLModuleSystem(object):
   searching and patching.'''
   
   def __init__(self, config):
-    '''Create new GLModuleSystem instance. The necessary arguments are localdir
-    and modcache, which are the same as usual. Some functions use GLFileSystem
-    class to look up a file in localdir or gnulib directories, or combine it
-    through 'patch' utility.'''
+    '''GLModuleSystem.__init__(config) -> GLModuleSystem
+    
+    Create new GLModuleSystem instance. Some functions use GLFileSystem class
+    to look up a file in localdir or gnulib directories, or combine it through
+    'patch' utility.'''
     self.args = dict()
     if type(config) is not GLConfig:
       raise(TypeError('config must be a GLConfig, not %s' % \
@@ -74,7 +75,8 @@ class GLModuleSystem(object):
   def exists(self, module):
     '''GLModuleSystem.exists(module) -> bool
     
-    Check whether the given module exists.'''
+    Check whether the given module exists.
+    GLConfig: localdir.'''
     if type(module) is bytes or string:
       if type(module) is bytes:
         module = module.decode(ENCS['default'])
@@ -105,7 +107,7 @@ class GLModuleSystem(object):
       raise(TypeError(
         'module must be a string, not %s' % type(module).__name__))
     if self.exists(module):
-      filesystem = GLFileSystem(self.config['localdir'])
+      filesystem = GLFileSystem(self.config)
       path, istemp = filesystem.lookup(joinpath('modules', module))
       result = GLModule(self.config, path, istemp)
       return(result)
@@ -166,7 +168,7 @@ class GLModule(object):
   files, etc.'''
   
   def __init__(self, config, module, patched=False):
-    '''GLModule.__init__(module[, patched]) -> GLModule
+    '''GLModule.__init__(config, module[, patched]) -> GLModule
     
     Create new GLModule instance. Arguments are module and patched, where
     module is a string representing the path to the module and patched is a
@@ -764,8 +766,6 @@ class GLModuleTable(object):
       if not config.check(arg):
         raise(ValueError('%s inside GLConfig must be set' % arg))
     self.config = config
-    self.localdir = self.config['localdir']
-    self.testflags = self.config['testflags']
     self.conddeps = self.config['conddeps']
     self.modulesystem = GLModuleSystem(self.config)
     
@@ -839,8 +839,8 @@ class GLModuleTable(object):
     which contain in avoids list. If any testflag is enabled, then do not add
     dependencies which have the status as this flag. If conddeps are enabled,
     then store condition for each dependency if it has a condition. This method
-    is used to update final list of modules.
-    Method returns list of modules together.'''
+    is used to update final list of modules. Method returns list of modules.
+    GLConfig: testflags.'''
     for module in modules:
       if type(module) is not GLModule:
         raise(TypeError('each module must be a GLModule instance'))
@@ -865,7 +865,7 @@ class GLModuleTable(object):
         dependencies = module.getDependencies()
         depmodules = [pair[0] for pair in dependencies]
         conditions = [pair[1] for pair in dependencies]
-        if TESTS['tests'] in self.testflags:
+        if TESTS['tests'] in self.config['testflags']:
           testsname = module.getTestsName()
           if self.modulesystem.exists(testsname):
             testsmodule = self.modulesystem.find(testsname)
@@ -876,28 +876,28 @@ class GLModuleTable(object):
           status = depmodule.getStatus()
           for word in status:
             if word == 'obsolete':
-              if TESTS['obsolete'] in self.testflags or \
-              TESTS['all-test'] in self.testflags:
+              if TESTS['obsolete'] in self.config['testflags'] or \
+              TESTS['all-test'] in self.config['testflags']:
                 includes += [False]
             elif word == 'c++-test':
-              if TESTS['c++-test'] in self.testflags or \
-              TESTS['all-test'] in self.testflags:
+              if TESTS['c++-test'] in self.config['testflags'] or \
+              TESTS['all-test'] in self.config['testflags']:
                 includes += [False]
             elif word == 'longrunning-test':
-              if TESTS['longrunning-test'] in self.testflags or \
-              TESTS['all-test'] in self.testflags:
+              if TESTS['longrunning-test'] in self.config['testflags'] or \
+              TESTS['all-test'] in self.config['testflags']:
                 includes += [False]
             elif word == 'privileged-test':
-              if TESTS['privileged-test'] in self.testflags or \
-              TESTS['all-test'] in self.testflags:
+              if TESTS['privileged-test'] in self.config['testflags'] or \
+              TESTS['all-test'] in self.config['testflags']:
                 includes += [False]
             elif word == 'all-test':
-              if TESTS['all-test'] in self.testflags or \
-              TESTS['all-test'] in self.testflags:
+              if TESTS['all-test'] in self.config['testflags'] or \
+              TESTS['all-test'] in self.config['testflags']:
                 includes += [False]
             else: # if any other word
               if word.endswith('-tests'):
-                if TESTS['all-test'] in self.testflags:
+                if TESTS['all-test'] in self.config['testflags']:
                   includes += [False]
             include = any(includes)
           if include and depmodule not in self.avoids:
@@ -940,12 +940,13 @@ class GLModuleTable(object):
     represents modules specified by user and finalmodules represents modules
     list after previous transitive_closure.
     Method returns tuple which contains two lists: the list of main modules and
-    the list of tests-related modules. Both lists contain dependencies.'''
+    the list of tests-related modules. Both lists contain dependencies.
+    GLConfig: testflags.'''
     inctests = False
     main_modules = list()
     tests_modules = list()
-    if TESTS['tests'] in self.testflags:
-      self.testflags.pop(TESTS['tests'])
+    if TESTS['tests'] in self.config['testflags']:
+      self.config['testflags'].pop(TESTS['tests'])
       inctests = True
     for module in basemodules:
       if type(module) is not GLModule:
@@ -959,7 +960,8 @@ class GLModuleTable(object):
       [m for m in main_modules if m.getApplicability() != 'main']
     tests_modules = sorted(set(tests_modules))
     if inctests:
-      self.testflags = sorted(set(self.testflags +[TESTS['tests']]))
+      testflags = sorted(set(self.config['testflags'] +[TESTS['tests']]))
+      self.config.setTestFlags(testflags)
     result = tuple([main_modules, tests_modules])
     return(result)
     
