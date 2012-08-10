@@ -18,7 +18,7 @@ configure.ac:
 gl_PREREQ_READ_FILE
 
 Makefile.am:
-lib_SOURCES += read-file.c   data.h
+lib_SOURCES += read-file.c
 
 Include:
 "read-file.h"

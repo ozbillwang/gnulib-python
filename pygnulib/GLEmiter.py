@@ -9,9 +9,6 @@ import re
 import sys
 import codecs
 import shutil
-import filecmp
-import tempfile
-from io import BytesIO
 import subprocess as sp
 from . import constants
 from .GLInfo import GLInfo
@@ -59,7 +56,9 @@ class GLEmiter(object):
   '''This class is used to emit the contents of necessary files.'''
   
   def __init__(self, config):
-    '''Create GLEmiter instance.'''
+    '''GLEmiter.__init__(config) -> GLEmiter
+    
+    Create GLEmiter instance.'''
     self.info = GLInfo()
     if type(config) is not GLConfig:
       raise(TypeError('config must have GLConfig type, not %s' % \
@@ -67,7 +66,9 @@ class GLEmiter(object):
     self.config = config
     
   def copyright_notice(self):
-    '''Emit a header for a generated file.'''
+    '''GLEmiter.copyright_notice() -> string
+    
+    Emit a header for a generated file.'''
     emit = string()
     emit += "# %s" % self.info.copyright()
     emit += """
@@ -336,31 +337,13 @@ AC_DEFUN([%V1%_LIBSOURCES], [
          actioncmd, for_test) -> string
     
     Emits the contents of library makefile.
-    GLConfig: localdir, modcache, libname, pobase, auxdir, makefile, libtool,
+    GLConfig: localdir, libname, pobase, auxdir, makefile, libtool,
     macro_prefix, podomain, conddeps, witness_c_macro.'''
     emit = string()
-    if not self.config.check('localdir'):
-      raise(ValueError('localdir inside GLConfig must be set'))
-    if not self.config.check('modcache'):
-      raise(ValueError('modcache inside GLConfig must be set'))
-    if not self.config.check('libname'):
-      raise(ValueError('libname inside GLConfig must be set'))
-    if not self.config.check('pobase'):
-      raise(ValueError('pobase inside GLConfig must be set'))
-    if not self.config.check('auxdir'):
-      raise(ValueError('auxdir inside GLConfig must be set'))
-    if not self.config.check('makefile'):
-      raise(ValueError('makefile inside GLConfig must be set'))
-    if not self.config.check('libtool'):
-      raise(ValueError('libtool inside GLConfig must be set'))
-    if not self.config.check('macro_prefix'):
-      raise(ValueError('macro_prefix inside GLConfig must be set'))
-    if not self.config.check('podomain'):
-      raise(ValueError('podomain inside GLConfig must be set'))
-    if not self.config.check('conddeps'):
-      raise(ValueError('conddeps inside GLConfig must be set'))
-    if not self.config.check('witness_c_macro'):
-      raise(ValueError('witness_c_macro inside GLConfig must be set'))
+    for arg in ['localdir', 'libname', 'pobase', 'auxdir', 'makefile',
+    'libtool', 'macro_prefix', 'podomain', 'conddeps', 'witness_c_macro']:
+      if not self.config.check(arg):
+        raise(TypeError('%s inside GLConfig must be set' % arg))
     localdir = self.config['localdir']
     modcache = self.config['modcache']
     libname = self.config['libname']

@@ -11,9 +11,7 @@ import locale
 import codecs
 import shutil
 import filecmp
-import tempfile
 import subprocess as sp
-from pprint import pprint
 from . import constants
 from .GLError import GLError
 from .GLConfig import GLConfig
@@ -22,6 +20,8 @@ from .GLModuleSystem import GLModuleTable
 from .GLModuleSystem import GLModuleSystem
 from .GLFileSystem import GLFileSystem
 from .GLFileSystem import GLFileAssistant
+from .GLEmiter import GLEmiter
+from pprint import pprint
 
 
 #===============================================================================
@@ -254,7 +254,9 @@ class GLImport(object):
         if not config.isdefault(key, value):
           self.config.update_key(config, key)
       self.config.setModules(modules)
-    self.modulesystem = GLModuleSystem(self.config)
+    self.filesystem = GLFileSystem(self.config)
+    self.modulesystem = GLModuleSystem(self.config, self.filesystem)
+    self.emiter = GLEmiter(self.config)
     
   def __repr__(self):
     '''x.__repr__ <==> repr(x)'''
@@ -276,6 +278,7 @@ class GLImport(object):
       if type(file) is not string:
         raise(TypeError('each file must be a string instance'))
     files = sorted(set(files))
+    files = ['%s%s' % (file, os.path.sep) for file in files]
     auxdir = self.cache['auxdir']
     docbase = self.cache['docbase']
     sourcebase = self.cache['sourcebase']
@@ -284,21 +287,22 @@ class GLImport(object):
     result = list()
     for file in files:
       if file.startswith('build-aux/'):
-        result += [constants.substart('build-aux/', '%s/' % auxdir, file)]
+        path = constants.substart('build-aux/', '%s/' % auxdir, file)
       elif file.startswith('doc/'):
-        result += [constants.substart('doc/', '%s/' % docbase, file)]
+        path = constants.substart('doc/', '%s/' % docbase, file)
       elif file.startswith('lib/'):
-        result += [constants.substart('lib/', '%s/' % sourcebase, file)]
+        path = constants.substart('lib/', '%s/' % sourcebase, file)
       elif file.startswith('m4/'):
-        result += [constants.substart('m4/', '%s/' % m4base, file)]
-      elif file.startswith('tests=lib/'):
-        result += [constants.substart('tests=lib/', '%s/' % testsbase, file)]
+        path = constants.substart('m4/', '%s/' % m4base, file)
       elif file.startswith('tests/'):
-        result += [constants.substart('tests/', '%s/' % testsbase, file)]
+        path = constants.substart('tests/', '%s/' % testsbase, file)
+      elif file.startswith('tests=lib/'):
+        path = constants.substart('tests=lib/', '%s/' % testsbase, file)
       elif file.startswith('top/'):
-        result += [constants.substart('top/', '', file)]
+        path = constants.substart('top/', '', file)
       else: # file is not a special file
-        result += [file]
+        path = file
+      result += [os.path.normpath(path)]
     result = sorted(set(result))
     return(list(result))
     
@@ -326,21 +330,22 @@ class GLImport(object):
     result = list()
     for file in files:
       if file.startswith('build-aux/'):
-        result += [constants.substart('build-aux/', '%s/' % auxdir, file)]
+        path = constants.substart('build-aux/', '%s/' % auxdir, file)
       elif file.startswith('doc/'):
-        result += [constants.substart('doc/', '%s/' % docbase, file)]
+        path = constants.substart('doc/', '%s/' % docbase, file)
       elif file.startswith('lib/'):
-        result += [constants.substart('lib/', '%s/' % sourcebase, file)]
+        path = constants.substart('lib/', '%s/' % sourcebase, file)
       elif file.startswith('m4/'):
-        result += [constants.substart('m4/', '%s/' % m4base, file)]
-      elif file.startswith('tests=lib/'):
-        result += [constants.substart('tests=lib/', '%s/' % testsbase, file)]
+        path = constants.substart('m4/', '%s/' % m4base, file)
       elif file.startswith('tests/'):
-        result += [constants.substart('tests/', '%s/' % testsbase, file)]
+        path = constants.substart('tests/', '%s/' % testsbase, file)
+      elif file.startswith('tests=lib/'):
+        path = constants.substart('tests=lib/', '%s/' % testsbase, file)
       elif file.startswith('top/'):
-        result += [constants.substart('top/', '', file)]
+        path = constants.substart('top/', '', file)
       else: # file is not a special file
-        result += [file]
+        path = file
+      result += [os.path.normpath(path)]
     result = sorted(set(result))
     return(list(result))
     
@@ -452,7 +457,7 @@ class GLImport(object):
     avoids = sorted(set(avoids))
     
     # Perform transitive closure.
-    table = GLModuleTable(self.config, avoids)
+    table = GLModuleTable(self.config, self.filesystem, avoids)
     finalmodules = table.transitive_closure(basemodules)
     
     # Show module list.
@@ -573,7 +578,7 @@ class GLImport(object):
     # Determine the final file lists.
     main_filelist, tests_filelist = \
       table.filelist_separately(main_modules, tests_modules)
-    filelist = sorted(set(main_filelist +tests_filelist))
+    filelist = sorted(set(main_filelist +tests_filelist), key=string.lower)
     if not filelist:
       raise(GLError(12, None))
     
@@ -645,8 +650,10 @@ class GLImport(object):
     # Store all files to files table.
     filetable = dict()
     filetable['all'] = sorted(set(filelist))
-    filetable['old'] = sorted(set(old_files))
-    filetable['new'] = sorted(set(new_files))
+    filetable['old'] = \
+      sorted(set(old_files), key=lambda t: tuple(t[0].lower()))
+    filetable['new'] = \
+      sorted(set(new_files), key=lambda t: tuple(t[0].lower()))
     filetable['added'] = list()
     filetable['removed'] = list()
     
@@ -657,7 +664,7 @@ class GLImport(object):
     if [file for file in filetable['all'] if file.startswith('doc/')]:
       dirs += [docbase]
     dirs += [sourcebase, m4base, auxdir]
-    dirs += [os.path.dirname(pair[1]) for pair in filetable['new']]
+    dirs += [os.path.dirname(pair[0]) for pair in filetable['new']]
     dirs = sorted(set([joinpath(destdir, d) for d in dirs]))
     for directory in dirs:
       if not isdir(directory):
@@ -671,13 +678,13 @@ class GLImport(object):
           print('Create directory %s' % directory)
     
     # Create GLFileAssistant instance to process files.
-    assistant = GLFileAssistant(self.config, transformers)
+    assistant = GLFileAssistant(self.config, self.filesystem, transformers)
     
     # Files which are in filetable['old'] and not in filetable['new'].
     # They will be removed and added to filetable['removed'] list.
     pairs = [f for f in filetable['old'] if f not in filetable['old']]
     pairs = sorted(set(pairs), key=lambda t: tuple(t[0].lower()))
-    files = sorted(set(pair[0] for pair in pairs), key=string.lower)
+    files = sorted(set(pair[0] for pair in pairs))
     for file in files:
       path = joinpath(destdir, file)
       if isfile(path) or os.path.islink(path):
@@ -698,32 +705,32 @@ class GLImport(object):
     # They will be added/updated and added to filetable['added'] list.
     already_present = False
     pairs = [f for f in filetable['new'] if f not in filetable['old']]
-    pairs = sorted(set(pairs), key=lambda t: tuple(t[0].lower()))
+    pairs = sorted(set(pairs))
     for pair in pairs:
       original = pair[1]
       rewritten = pair[0]
       assistant.setOriginal(original)
       assistant.setRewritten(rewritten)
       assistant.add_or_update(already_present)
-    filetable['added'] += assistant.getFiles()
     
     # Files which are in filetable['new'] and in filetable['old'].
     # They will be added/updated and added to filetable['added'] list.
     already_present = True
     pairs = [f for f in filetable['new'] if f in filetable['old']]
-    pairs = sorted(set(pairs), key=lambda t: tuple(t[0].lower()))
+    pairs = sorted(set(pairs))
     for pair in pairs:
-      original = pair[0]
-      rewritten = pair[1]
+      original = pair[1]
+      rewritten = pair[0]
       assistant.setOriginal(original)
       assistant.setRewritten(rewritten)
       assistant.add_or_update(already_present)
+    
+    # Add files which were added to the list of filetable['added'].
     filetable['added'] += assistant.getFiles()
     filetable['added'] = sorted(set(filetable['added']))
-    exit()
     
     # Determine include_guard_prefix.
-    include_guard_prefix = self.include_guard_prefix()
+    include_guard_prefix = self.config['include_guard_prefix']
     
     # Determine makefile name.
     if not makefile:
@@ -751,9 +758,8 @@ class GLImport(object):
         testsbase_dir = os.path.dirname(testsbase)
         testsbase_base = os.path.basename(testsbase)
         assistant.makefileEditor(testsbase_dir, 'SUBDIRS', testsbase_base)
-    assistant.makefileEditor('', 'ACLOCAL_AMFLAGS', '-I ${m4base}')
-    assistant.makefileParentDir(m4base, sourcebase, testsbase, testflags,
-      makefile_am)
+    assistant.makefileEditor('', 'ACLOCAL_AMFLAGS', '-I %s' % m4base)
+    assistant.makefileParentDir(makefile_am)
     
     # Create library makefile.
     path = joinpath(sourcebase, makefile_am)
@@ -784,8 +790,11 @@ class GLImport(object):
         shutil.move(tmpfile, joinpath(destdir, dest))
       else: # if self.config['dryrun']
         print('Create %s' % dest)
-        os.remove(tmpfile)
+    if isfile(tmpfile):
+      os.remove(tmpfile)
       filetable['added'] += [dest]
+    
+    exit()
     
     # Create po/ directory.
     filesystem = GLFileSystem(self.config)
@@ -796,36 +805,126 @@ class GLImport(object):
         path = joinpath('build-aux', 'po', file)
         lookedup, flag = filesystem.lookup(path)
         shutil.move(lookedup, tmpfile)
-        dest = joinpath(pobase, file)
-        backup = '%s~' % joinpath(pobase, file)
+        src = joinpath(pobase, file)
+        dest = '%s~' % src
+        srcpath = joinpath(destdir, src)
+        destpath = joinpath(destdir, dest)
         if isfile(joinpath(destdir, dest)):
-          if filecmp.cmp(joinpath(destdir, pobase, file), tmpfile):
+          if filecmp.cmp(destpath, tmpfile):
             os.remove(tmpfile)
-          else: # if filecmp.cmp(joinpath(destdir, pobase, file), tmpfile
-            if not dryrun:
-              print('Updating %s (backup in %s)' % (dest, backup))
-              dest = joinpath(destdir, dest)
-              backup = joinpath(destdir, backup)
-              if isfile(backup):
-                os.remove(backup)
-              shutil.move(dest, backup)
-              if isfile(dest):
-                os.remove(dest)
-              shutil.move(src, dest)
-            else: # if dryrun
-              print('Update %s (backup in %s)' % (dest, backup))
+          else: # if filecmp.cmp(srcpath, tmpfile)
+            if not self.config['dryrun']:
+              print('Updating %s (backup in %s)' % (src, dest))
+              if isfile(destpath):
+                os.remove(destpath)
+              shutil.move(srcpath, destpath)
+              shutil.move(tmpfile, srcpath)
+            else: # if self.config['dryrun']
+              print('Update %s (backup in %s)' % (src, dest))
               os.remove(tmpfile)
-        else: # if not isfile(joinpath(destdir, dest))
-          if not dryrun:
-            print('Creating %s' % dest)
-            if isfile(joinpath(destdir, dest)):
-              os.remove(joinpath(destdir, dest))
-            shutil.move(tmpfile, joinpath(destdir, dest))
-          else:
-            print('Creating %s' % dest)
-            os.remove(tmpfile)
-          filetable['added'] += [dest]
+        else: # if not isfile(srcpath)
+          if not self.config['dryrun']:
+            print('Creating %s' % src)
+            shutil.move(tmpfile, srcpath)
+          else: # if self.config['dryrun']
+            print('Creating %s' % src)
+          filetable['added'] += [src]
+        if isfile(tmpfile):
+          os.remove(tmpfile)
       
       # Create po makefile parameterization, part 1.
       tmpfile = assistant.tmpfilename(joinpath(pobase, 'Makevars'))
+      with codecs.open(tmpfile, 'wb', 'UTF-8') as file:
+        file.write(self.emiter.po_Makevars())
+      src = joinpath(pobase, 'Makevars')
+      dest = '%s~' % src
+      srcpath = joinpath(destdir, src)
+      destpath = joinpath(destdir, dest)
+      if isfile(srcpath):
+        if filecmp.cmp(srcpath, tmpfile):
+          os.remove(tmpfile)
+        else: # if not filecmp.cmp(srcpath, tmpfile)
+          if not self.config['dryrun']:
+            print('Updating %s (backup in %s)' % (src, dest))
+            if isfile(destpath):
+              os.remove(destpath)
+            shutil.move(srcpath, destpath)
+            shutil.move(tmpfile, srcpath)
+          else: # if self.config['dryrun']
+            print('Update %s (backup in %s)' % (src, dest))
+            os.remove(tmpfile)
+      else: # if not isfile(srcpath)
+        if not self.config['dryrun']:
+          print('Creating %s' % src)
+          if isfile(srcpath):
+            os.remove(srcpath)
+          shutil.move(tmpfile, srcpath)
+        else: # if self.config['dryrun']
+          print('Create %s' % src)
+          os.remove(tmpfile)
+        filetable['added'] += [src]
+      
+      # Create po makefile parameterization, part 2.
+      tmpfile = assistant.tmpfilename(joinpath(pobase, 'POTFILES.in'))
+      with codecs.open(tmpfile, 'wb', 'UTF-8') as file:
+        file.write(self.emiter.po_POTFILES_in(filetable['all']))
+      src = joinpath(pobase, 'POTFILES.in')
+      dest = '%s~' % src
+      srcpath = joinpath(destdir, src)
+      destpath = joinpath(destdir, dest)
+      if isfile(srcpath):
+        if self.config['dryrun']:
+          if filecmp.cmp(srcpath, tmpfile):
+            os.remove(tmpfile)
+          else: # if not filecmp.cmp(srcpath, tmpfile)
+            if not self.config['dryrun']:
+              print('Updating %s (backup in %s)' % (src, dest))
+              if isfile(destpath):
+                os.remove(destpath)
+              shutil.move(srcpath, destpath)
+              shutil.move(tmpfile, srcpath)
+            else: # if self.config['dryrun']
+              print('Update %s (backup in %s)' % (src, dest))
+              os.remove(tmpfile)
+      else: # if not isfile(srcpath)
+        if not self.config['dryrun']:
+          print('Creating %s' % src)
+          if isfile(srcpath):
+            os.remove(srcpath)
+          shutil.move(tmpfile, srcpath)
+        else: # if self.config['dryrun']
+          print('Create %s' % src)
+          os.remove(tmpfile)
+        filetable['added'] += [src]
+      
+      # Fetch PO files.
+      TP_URL = 'http://translationproject.org/latest/'
+      TP_RSYNC_URI = 'translationproject.org::tp/latest/'
+      if not self.config['dryrun']:
+        print('Fetching gnulib PO files from %s' % TP_URL)
+        os.chdir(joinpath(destdir, pobase))
+        cmd = 'if type rsync 2>/dev/null | grep / > /dev/null; '
+        cmd += 'then echo 1; else echo 0; fi'
+        result = sp.check_output(cmd, shell=True)
+        result = bool(int(result))
+        if result: # use rsync
+          args = ['rsync', '-Lrtz', '%sgulib/' % TP_RSYNC_URI, '.']
+        else: # use wget
+          args = ['wget', '--quiet', '-r', '-l1', '-nd', '-np', 'A.po',
+            '%sgnulib' % TP_URL]
+        sp.call(args, shell=True)
+      else: # if self.config['dryrun']
+        print('Fetch gnulib PO files from %s' % TP_URL)
+      
+      # Create po/LINGUAS.
+      if not self.config['dryrun']:
+        tmpfile = assistant.tmpfilename(joinpath(pobase, 'LINGUAS'))
+        data = string('# Set of available languages.\n')
+        files = [constants.subend('.po', '', file) \
+          for file in os.listdir(joinpath(destdir, pobase))]
+        files = [file.decode(ENCS['system']) if type(file) is bytes else file \
+          for file in files]
+        data += '\n'.join(files)
+        with codecs.open(tmpfile, 'wb', 'UTF-8') as file:
+          file.write(data)
 

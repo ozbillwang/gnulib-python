@@ -11,7 +11,6 @@ import codecs
 import shutil
 import filecmp
 import tempfile
-from io import BytesIO
 import subprocess as sp
 from . import constants
 from .GLError import GLError
@@ -69,6 +68,9 @@ class GLFileSystem(object):
       if not config.check(arg):
         raise(ValueError('%s inside GLConfig must be set' % arg))
     self.config = config
+    self.tempdir = tempfile.mkdtemp()
+    if type(self.tempdir) is bytes:
+      self.tempdir = self.tempdir.decode(ENCS['system'])
     
   def __repr__(self):
     '''x.__repr__ <==> repr(x)'''
@@ -92,8 +94,13 @@ class GLFileSystem(object):
     path_gnulib = joinpath(DIRS['root'], name)
     path_local = joinpath(self.config['localdir'], name)
     path_diff = joinpath(self.config['localdir'], '%s.diff' % name)
-    path_temp = joinpath(tempfile.mkdtemp(), name)
-    os.makedirs(os.path.dirname(path_temp))
+    path_temp = joinpath(self.tempdir, name)
+    try: # Try to create directories
+      os.makedirs(os.path.dirname(path_temp))
+    except OSError as error:
+      pass # Skip errors if directory exists
+    if isfile(path_temp):
+      os.remove(path_temp)
     if self.config['localdir'] and isfile(path_local):
       result = (path_local, False)
     else: # if path_local does not exist
@@ -119,17 +126,19 @@ class GLFileSystem(object):
 class GLFileAssistant(object):
   '''GLFileAssistant is used to help with file processing.'''
   
-  def __init__(self, config, transformers):
+  def __init__(self, config, filesystem, transformers):
     '''Create GLFileAssistant instance.'''
     if type(config) is not GLConfig:
       raise(TypeError('config must be a GLConfig, not %s' % \
+        type(config).__name__))
+    if type(filesystem) is not GLFileSystem:
+      raise(TypeError('filesystem must be a GLFileSystem, not %s' % \
         type(config).__name__))
     for arg in ['destdir', 'localdir']:
       if not config.check(arg):
         raise(ValueError('%s inside GLConfig must be set' % arg))
     self.config = config
-    self.filesystem = GLFileSystem(self.config)
-    self.tempdir = tempfile.mkdtemp()
+    self.filesystem = filesystem
     self.transformers = transformers
     self.original = None
     self.rewritten = None
@@ -198,7 +207,8 @@ class GLFileAssistant(object):
     else: # if self.config['dryrun']
       # Put the new contents of $file in a file in a temporary directory
       # (because the directory of "$file" might not exist).
-      result = joinpath(self.tempdir, '%s.tmp' % os.path.basename(path))
+      tempdir = self.filesystem.tempdir
+      result = joinpath(tempdir, '%s.tmp' % os.path.basename(path))
       dirname = os.path.dirname(result)
       if not isdir(dirname):
         os.makedirs(dirname)
@@ -382,14 +392,13 @@ class GLFileAssistant(object):
     Return list of Makefile.am mappings.'''
     return(list(self.makefile))
     
-  def makefileParentDir(self, m4base, sourcebase, testsbase, testflags,
-    makefile):
+  def makefileParentDir(self, makefile_am):
     '''GLFileAssistant.makefileParentDir()
     
     Add a special row to Makefile.am table with the first parent directory
     which contains or will contain Makefile.am file.
     GLConfig: sourcebase, m4base, testsbase, testflags, makefile.'''
-    for arg in ['sourcebase', 'm4base', 'testsbase', 'testflags', 'makefile']:
+    for arg in ['sourcebase', 'm4base', 'testsbase', 'testflags']:
       if not self.config.check(arg):
         raise(ValueError('%s inside GLConfig must be set' % arg))
     m4base = self.config['makefile']

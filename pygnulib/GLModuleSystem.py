@@ -56,7 +56,7 @@ class GLModuleSystem(object):
   '''GLModuleSystem is used to operate with module system using dynamic
   searching and patching.'''
   
-  def __init__(self, config):
+  def __init__(self, config, filesystem):
     '''GLModuleSystem.__init__(config) -> GLModuleSystem
     
     Create new GLModuleSystem instance. Some functions use GLFileSystem class
@@ -66,7 +66,11 @@ class GLModuleSystem(object):
     if type(config) is not GLConfig:
       raise(TypeError('config must be a GLConfig, not %s' % \
         type(config).__name__))
+    if type(filesystem) is not GLFileSystem:
+      raise(TypeError('filesystem must be a GLFileSystem, not %s' % \
+        type(config).__name__))
     self.config = config
+    self.filesystem = filesystem
     
   def __repr__(self):
     '''x.__repr__ <==> repr(x)'''
@@ -107,12 +111,15 @@ class GLModuleSystem(object):
       raise(TypeError(
         'module must be a string, not %s' % type(module).__name__))
     if self.exists(module):
-      filesystem = GLFileSystem(self.config)
-      path, istemp = filesystem.lookup(joinpath('modules', module))
-      result = GLModule(self.config, path, istemp)
+      path, istemp = self.filesystem.lookup(joinpath('modules', module))
+      result = GLModule(self.config, self.filesystem, path, istemp)
       return(result)
-    else: # if self.exists(module)
-      raise(GLError(3, module))
+    else: # if not self.exists(module)
+      if self.config['errors']:
+        raise(GLError(3, module))
+      else: # if not self.config['errors']
+        sys.stderr.write('gnulib-tool: warning: ')
+        sys.stderr.write('file %s does not exist\n' % str(self))
     
   def list(self):
     '''GLModuleSystem.list() -> list
@@ -167,7 +174,7 @@ class GLModule(object):
   path. GLModule can get all information about module, get its dependencies,
   files, etc.'''
   
-  def __init__(self, config, module, patched=False):
+  def __init__(self, config, filesystem, module, patched=False):
     '''GLModule.__init__(config, module[, patched]) -> GLModule
     
     Create new GLModule instance. Arguments are module and patched, where
@@ -179,6 +186,9 @@ class GLModule(object):
     if type(config) is not GLConfig:
       raise(TypeError('config must be a GLConfig, not %s' % \
         type(config).__name__))
+    if type(filesystem) is not GLFileSystem:
+      raise(TypeError('filesystem must be a GLFileSystem, not %s' % \
+        type(config).__name__))
     if type(module) is bytes or type(module) is string:
       if type(module) is bytes:
         module = module.decode(ENCS['default'])
@@ -188,9 +198,11 @@ class GLModule(object):
     if type(patched) is not bool:
       raise(TypeError('patched must be a bool, not %s' % \
         type(module).__name__))
-    self.config = config
     self.module = module
     self.patched = patched
+    self.config = config
+    self.filesystem = filesystem
+    self.modulesystem = GLModuleSystem(self.config, self.filesystem)
     with codecs.open(module, 'rb', 'UTF-8') as file:
       self.content = file.read()
     self.regex ='(?:Description:|Comment:|Status:|Notice:|Applicability:|\
@@ -436,7 +448,6 @@ Include:|Link:|License:|Maintainer:)'
     localdir = self.config['localdir']
     result = list()
     section = 'Depends-on:'
-    modulesystem = GLModuleSystem(self.config)
     if 'dependencies' not in self.cache:
       if section not in self.content:
         depmodules = list()
@@ -452,7 +463,7 @@ Include:|Link:|License:|Maintainer:)'
       depmodules = [dep for dep in depmodules if not dep.startswith('#')]
       if self.isTests():
         nontests = self.getName()[:self.getName().find('-tests')]
-        if modulesystem.exists(nontests):
+        if self.modulesystem.exists(nontests):
           depmodules += [nontests]
       duplicated = list()
       for depmodule in depmodules:
@@ -466,7 +477,7 @@ Include:|Link:|License:|Maintainer:)'
         else: # if '[' not in depmodule
           depmodule = depmodule.strip()
           condition = None
-        depmodule = modulesystem.find(depmodule)
+        depmodule = self.modulesystem.find(depmodule)
         result.append(tuple([depmodule, condition]))
       self.cache['dependencies'] = sorted(result)
       self.cache['dependencies'] = \
@@ -660,8 +671,11 @@ Include:|Link:|License:|Maintainer:)'
     license = self.getLicense_Raw()
     if not self.isTests():
       if not license:
-        sys.stderr.write('gnulib-tool: warning: ')
-        sys.stderr.write('module %s lacks a license\n' % str(self))
+        if self.config['errors']:
+          raise(GLError(18, string(self)))
+        else: # if not self.config['errors']
+          sys.stderr.write('gnulib-tool: warning: ')
+          sys.stderr.write('module %s lacks a license\n' % str(self))
     if not license:
       license = 'GPL'
     return(license)
@@ -738,7 +752,7 @@ Include:|Link:|License:|Maintainer:)'
 class GLModuleTable(object):
   '''GLModuleTable is used to work with the list of the modules.'''
   
-  def __init__(self, config, avoids=list()):
+  def __init__(self, config, filesystem, avoids=list()):
     '''GLModuleTable.__init__(config, avoids) -> GLModuleTable
     
     Create new GLModuleTable instance. If modules are specified, then add
@@ -758,6 +772,9 @@ class GLModuleTable(object):
     if type(config) is not GLConfig:
       raise(TypeError('config must be a GLConfig, not %s' % \
         type(config).__name__))
+    if type(filesystem) is not GLFileSystem:
+      raise(TypeError('filesystem must be a GLFileSystem, not %s' % \
+        type(config).__name__))
     for avoid in avoids:
       if type(avoid) is not GLModule:
         raise(TypeError('each avoid must be a GLModule instance'))
@@ -767,7 +784,7 @@ class GLModuleTable(object):
         raise(ValueError('%s inside GLConfig must be set' % arg))
     self.config = config
     self.conddeps = self.config['conddeps']
-    self.modulesystem = GLModuleSystem(self.config)
+    self.modulesystem = GLModuleSystem(self.config, filesystem)
     
   def addConditional(self, parent, module, condition):
     '''GLModuleTable.addConditional(module, condition)

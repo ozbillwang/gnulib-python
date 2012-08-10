@@ -1,3 +1,14 @@
+10 August 2012, Dmitriy Selyutin
+GLConfig has gotten new set of methods to enable/disable raising of GLError in
+non-critical situations. It is already implemented into GLModuleSystem and
+GLModule classes. Disabled errors mean that GLError won't be raised.
+Very ugly bug in GLFileSystem was removed: after execution of pygnulib on m4
+package user could find that his /tmp directory contains much more files and
+directories than it needed. Now it is fixed.
+GLFileAssistant, GLModule, GLModuleSystem and GLModuleTable have received
+filesystem variable too. It allows to save all files inside one temporary
+directory, user just need to transmit filesystem from one class to another.
+
 8 August 2012, Dmitriy Selyutin
 GLConfig was integrated everywhere. Documentation strings of other classes now
 also contain information about GLConfig keys which are needed to use method.

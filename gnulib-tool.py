@@ -70,10 +70,10 @@ def main():
   localdir = None
   modcache = None
   verbose = None
-  auxdir = 'AUX'
+  auxdir = None
   modules = list(['string'])
   avoids = list()
-  sourcebase = 'LIB'
+  sourcebase = None
   m4base = None
   pobase = None
   docbase = None
@@ -89,6 +89,7 @@ def main():
   witness_c_macro = None
   vc_files = None
   dryrun = True
+  errors = True
   
   if mode == MODES['import']:
     if not sourcebase:
@@ -126,6 +127,7 @@ def main():
       modcache=modcache,
       verbose=verbose,
       dryrun=dryrun,
+      errors=errors,
     )
   
   else: # if mode != MODE['--import']
@@ -164,6 +166,7 @@ def main():
           modcache=modcache,
           verbose=verbose,
           dryrun=dryrun,
+          errors=errors,
         )
     else: # if not m4base
       m4dirs = list()
@@ -235,6 +238,7 @@ def main():
           modcache=modcache,
           verbose=verbose,
           dryrun=dryrun,
+          errors=errors,
         )
       elif len(m4dirs) == 1:
         m4base = m4dirs[-1]
@@ -263,6 +267,7 @@ def main():
           modcache=modcache,
           verbose=verbose,
           dryrun=dryrun,
+          errors=errors,
         )
       else: # if len(m4dirs) > 1
         for m4base in m4dirs:
@@ -291,6 +296,7 @@ def main():
             modcache=modcache,
             verbose=verbose,
             dryrun=dryrun,
+            errors=errors,
           )
   
   # Execute operations depending on type of action

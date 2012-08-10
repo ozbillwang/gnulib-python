@@ -9,8 +9,6 @@ import re
 import sys
 import locale
 import codecs
-import tempfile
-import subprocess as sp
 from . import constants
 
 
@@ -72,6 +70,7 @@ class GLError(Exception):
      15: cannot create the given file: <file>
      16: cannot transform the given file: <file>
      17: cannot update the given file: <file>
+     18: module lacks a license: <module>
     errinfo: additional information;
     style: 0 or 1, wheter old-style'''
     self.errno = errno; self.errinfo = errinfo
@@ -103,6 +102,7 @@ class GLError(Exception):
       "cannot create the given file: %s" % repr(errinfo),
       "cannot transform the given file: %s" % repr(errinfo),
       "cannot update/replace the given file: %s" % repr(errinfo),
+      "module lacks a license: %s" % repr(errinfo),
     ] # Complete list of errors
     if not PYTHON3:
       self.message = (b'[Errno %d] %s' % \

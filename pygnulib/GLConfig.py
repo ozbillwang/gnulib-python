@@ -60,7 +60,8 @@ class GLConfig(object):
     modules=None, avoids=None, files=None, tests=None, libname=None, lgpl=None,
     makefile=None, libtool=None, conddeps=None, macro_prefix=None,
     podomain=None, witness_c_macro=None, vc_files=None, symbolic=None,
-    lsymbolic=None, modcache=None, ac_version=None, verbose=None, dryrun=None):
+    lsymbolic=None, modcache=None, ac_version=None, verbose=None, dryrun=None,
+    errors=None):
     '''Create new GLConfig instance.'''
     self.table = dict()
     # destdir
@@ -227,6 +228,17 @@ class GLConfig(object):
       else: # if type(dryrun) is not bool
         raise(TypeError('dryrun must be a bool, not %s' % \
           type(dryrun).__name__))
+    # errors
+    self.resetErrors()
+    if errors != None:
+      if type(errors) is bool:
+        if not errors:
+          self.disableDryRun()
+        else: # if errors
+          self.enableDryRun()
+      else: # if type(errors) is not bool
+        raise(TypeError('errors must be a bool, not %s' % \
+          type(errors).__name__))
     
   # Define special methods.
   def __repr__(self):
@@ -1065,4 +1077,22 @@ class GLConfig(object):
   def resetDryRun(self):
     '''Reset status of dryrun mode.'''
     self.table['dryrun'] = False
+    
+    
+  # Define errors methods.
+  def checkErrors(self):
+    '''Check if GLError will be raised in non-critical situations.'''
+    return(self.table['errors'])
+  
+  def enableErrors(self):
+    '''Raise GLError in non-critical situations.'''
+    self.table['errors'] = True
+    
+  def disableErrors(self):
+    '''Do not raise GLError in non-critical situations.'''
+    self.table['errors'] = False
+    
+  def resetErrors(self):
+    '''Reset status of raising GLError in non-critical situations.'''
+    self.table['errors'] = False
 
