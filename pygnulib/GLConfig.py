@@ -245,16 +245,6 @@ class GLConfig(object):
     '''x.__repr__() <==> repr(x)'''
     return('<pygnulib.GLConfig>')
     
-  def __setitem__(self, i, y):
-    '''x.__setitem__(i, y) <==> x[i]=y'''
-    if i in self.table:
-      if key == 'destdir':
-        self.setDestDir(key)
-      if key == 'localdir':
-        self.setLocalDir(key)
-    else: # if i not in self.table
-      raise(KeyError('GLConfig does not contain key: %s' % repr(y)))
-    
   def __getitem__(self, y):
     '''x.__getitem__(y) <==> x[y]'''
     if y in self.table:
@@ -264,6 +254,9 @@ class GLConfig(object):
       return(self.table[y])
     else: # if y not in self.table
       raise(KeyError('GLConfig does not contain key: %s' % repr(y)))
+    
+  def pydict(self):
+    return(self.table)
     
   def dictionary(self):
     '''Return the configuration as a dict object.'''
@@ -316,8 +309,6 @@ class GLConfig(object):
     if key in self.table:
       if key == 'destdir':
         return(string('.'))
-      elif key == 'localdir':
-        return(constants.DIRS['root'])
       elif key == 'libname':
         return(string('libgnu'))
       elif key == 'macro_prefix':
@@ -326,6 +317,8 @@ class GLConfig(object):
         return(string('GL'))
       elif key == 'ac_version':
         return(2.59)
+      elif key == 'libtool':
+        return(False)
       elif key == 'verbosity':
         return(0)
       elif key == 'copyrights':
@@ -336,8 +329,10 @@ class GLConfig(object):
         return(list())
       elif key in ['lgpl', 'conddeps', 'modcache', 'symbolic', 'lsymbolic']:
         return(False)
-      else: # otherwise
+      if key == 'vc_files':
         return(None)
+      else: # otherwise
+        return(string())
     else: # if key not in self.table
       raise(KeyError('GLConfig does not contain key: %s' % repr(key)))
     
@@ -399,7 +394,7 @@ class GLConfig(object):
   def resetLocalDir(self):
     '''Reset a local override directory where to look up files before looking
     in gnulib's directory.'''
-    self.table['localdir'] = constants.DIRS['root']
+    self.table['localdir'] = string()
     
     
   # Define auxdir methods.
@@ -423,7 +418,7 @@ class GLConfig(object):
   def resetAuxDir(self):
     '''Reset directory relative to --dir where auxiliary build tools are
     placed. Default comes from configure.ac or configure.in.'''
-    self.table['auxdir'] = None
+    self.table['auxdir'] = string()
     
     
   # Define sourcebase methods.
@@ -444,7 +439,7 @@ class GLConfig(object):
     
   def resetSourceBase(self):
     '''Return directory relative to destdir where source code is placed.'''
-    self.table['sourcebase'] = None
+    self.table['sourcebase'] = string()
     
     
   # Define m4base methods.
@@ -465,7 +460,7 @@ class GLConfig(object):
     
   def resetM4Base(self):
     '''Reset directory relative to destdir where *.m4 macros are placed.'''
-    self.table['m4base'] = None
+    self.table['m4base'] = string()
     
     
   # Define pobase methods.
@@ -486,7 +481,7 @@ class GLConfig(object):
     
   def resetPoBase(self):
     '''Reset directory relative to destdir where *.po files are placed.'''
-    self.table['pobase'] = None
+    self.table['pobase'] = string()
     
     
   # Define docbase methods.
@@ -510,7 +505,7 @@ class GLConfig(object):
   def resetDocBase(self):
     '''Reset directory relative to destdir where doc files are placed.
     Default value for this variable is 'doc').'''
-    self.table['docbase'] = None
+    self.table['docbase'] = string()
     
     
   # Define testsbase methods.
@@ -534,7 +529,7 @@ class GLConfig(object):
   def resetTestsBase(self):
     '''Reset directory relative to destdir where unit tests are placed.
     Default value for this variable is 'tests').'''
-    self.table['testsbase'] = None
+    self.table['testsbase'] = string()
     
     
   # Define modules methods.
@@ -773,7 +768,7 @@ class GLConfig(object):
     
   def resetLibtool(self):
     '''Reset libtool rules.'''
-    self.table['libtool'] = None
+    self.table['libtool'] = False
     
     
   # Define conddeps methods.
@@ -874,7 +869,7 @@ class GLConfig(object):
   def resetMakefile(self):
     '''Reset the name of makefile in automake syntax in the source-base and
     tests-base directories. Default is 'Makefile.am'.'''
-    self.table['makefile'] = None
+    self.table['makefile'] = string()
     
     
   # Define podomain methods.
@@ -898,7 +893,7 @@ class GLConfig(object):
   def resetPoDomain(self):
     '''Reset the prefix of the i18n domain. Usually use the package name.
     A suffix '-gnulib' is appended.'''
-    self.table['podomain'] = None
+    self.table['podomain'] = string()
     
     
   # Define witness_c_macro methods.
@@ -922,7 +917,7 @@ class GLConfig(object):
   def resetWitnessCMacro(self):
     '''Return the C macro that is defined when the sources in this directory
     are compiled or used.'''
-    self.table['witness_c_macro'] = None
+    self.table['witness_c_macro'] = string()
     
     
   # Define vc_files methods.

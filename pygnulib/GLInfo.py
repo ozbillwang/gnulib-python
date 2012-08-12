@@ -56,7 +56,8 @@ class GLInfo(object):
   
   def __repr__(self):
     '''x.__repr__ <==> repr(x)'''
-    return('<pygnulib.GLInfo>')
+    result = '<pygnulib.GLInfo %s>' % hex(id(self))
+    return(result)
   
   def package(self):
     '''Return formatted string which contains name of the package.'''

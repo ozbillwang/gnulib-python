@@ -20,6 +20,7 @@ from .GLModuleSystem import GLModuleTable
 from .GLModuleSystem import GLModuleSystem
 from .GLFileSystem import GLFileSystem
 from .GLFileSystem import GLFileAssistant
+from .GLMakefileTable import GLMakefileTable
 from .GLEmiter import GLEmiter
 from pprint import pprint
 
@@ -208,7 +209,7 @@ class GLImport(object):
         regex = 'AC_DEFUN\\(\\[%s_FILE_LIST\\], \\[(.*?)\\]\\)' % \
           self.cache['macro_prefix']
         pattern = compiler(regex, re.S | re.M)
-        self.cache['files'] = pattern.findall(data)[-1].strip().split()
+        self.cache.setFiles(pattern.findall(data)[-1].strip().split())
     
     # The self.config['localdir'] defaults to the cached one. Recall that the 
     # cached one is relative to $destdir, whereas the one we use is relative
@@ -254,13 +255,18 @@ class GLImport(object):
         if not config.isdefault(key, value):
           self.config.update_key(config, key)
       self.config.setModules(modules)
+    
+    # Define GLImport attributes.
+    self.emiter = GLEmiter(self.config)
     self.filesystem = GLFileSystem(self.config)
     self.modulesystem = GLModuleSystem(self.config, self.filesystem)
-    self.emiter = GLEmiter(self.config)
+    self.moduletable = GLModuleTable(self.config, self.filesystem, list())
+    self.makefiletable = GLMakefileTable(self.config)
     
   def __repr__(self):
     '''x.__repr__ <==> repr(x)'''
-    return('<pygnulib.GLImport>')
+    result = '<pygnulib.GLImport %s>' % hex(id(self))
+    return(result)
     
   def rewrite_old_files(self, files):
     '''Replace auxdir, docbase, sourcebase, m4base and testsbase from default
@@ -377,7 +383,7 @@ class GLImport(object):
     actioncmd = 'gnulib-tool --import'
     actioncmd += ' --dir=%s' % destdir
     if localdir:
-      actioncmd += ' --localdir=%s' % localdir
+      actioncmd += ' --local-dir=%s' % localdir
     actioncmd += ' --lib=%s' % libname
     actioncmd += ' --source-base=%s' % sourcebase
     actioncmd += ' --m4-base=%s' % m4base
@@ -434,31 +440,35 @@ class GLImport(object):
     '''Make all preparations before the execution of the code. Returns tuple,
     which consists of two tables. The first table represents old files and the
     second represents new files.'''
-    localdir = self.config.getLocalDir()
-    destdir = self.config.getDestDir()
-    auxdir = self.config.getAuxDir()
-    sourcebase = self.config.getSourceBase()
-    m4base = self.config.getM4Base()
-    docbase = self.config.getDocBase()
-    pobase = self.config.getPoBase()
-    testsbase = self.config.getTestsBase()
-    testflags = self.config.getTestFlags()
-    conddeps = self.config.checkCondDeps()
-    lgpl = self.config.getLGPL()
-    verbose = self.config.getVerbosity()
-    ac_version = self.config.getAutoconfVersion()
-    copyrights = self.config.checkCopyrights()
-    modulesystem = self.modulesystem
-    modules = self.config.getModules()
-    avoids = self.config.getAvoids()
-    basemodules = [modulesystem.find(module) for module in modules]
-    avoids = [modulesystem.find(avoid) for avoid in avoids]
-    basemodules = sorted(set(basemodules))
-    avoids = sorted(set(avoids))
+    destdir = self.config['destdir']
+    localdir = self.config['localdir']
+    auxdir = self.config['auxdir']
+    modules = list(self.config['modules'])
+    avoids = list(self.config['avoids'])
+    testflags = list(self.config['testflags'])
+    sourcebase = self.config['sourcebase']
+    m4base = self.config['m4base']
+    pobase = self.config['pobase']
+    docbase = self.config['docbase']
+    testsbase = self.config['testsbase']
+    lgpl = self.config['lgpl']
+    copyrights = self.config['copyrights']
+    libname = self.config['libname']
+    makefile = self.config['makefile']
+    conddeps = self.config['conddeps']
+    libtool = self.config['libtool']
+    macro_prefix = self.config['macro_prefix']
+    podomain = self.config['podomain']
+    witness_c_macro = self.config['witness_c_macro']
+    vc_files = self.config['vc_files']
+    ac_version = self.config['ac_version']
+    verbose = self.config['verbosity']
+    base_modules = sorted(set([self.modulesystem.find(m) for m in modules]))
+    avoids = sorted(set([self.modulesystem.find(a) for a in avoids]))
     
     # Perform transitive closure.
-    table = GLModuleTable(self.config, self.filesystem, avoids)
-    finalmodules = table.transitive_closure(basemodules)
+    self.moduletable.setAvoids(avoids)
+    final_modules = self.moduletable.transitive_closure(base_modules)
     
     # Show module list.
     if verbose >= 0:
@@ -471,15 +481,22 @@ class GLImport(object):
         bold_on = '' # Uncomment these lines to let diff work
         bold_off = '' # Uncomment these lines to let diff work
       print('Module list with included dependencies (indented):')
-      for module in finalmodules:
+      for module in final_modules:
         if str(module) in self.config.getModules():
           print('  %s%s%s' % (bold_on, module, bold_off))
         else: # if str(module) not in self.config.getModules()
           print('    %s' % module)
     
     # Separate modules into main_modules and tests_modules.
-    modules = table.transitive_closure_separately(basemodules, finalmodules)
+    modules = self.moduletable.transitive_closure_separately(
+      base_modules, final_modules)
     main_modules, tests_modules = modules
+    
+    # Transmit base_modules, final_modules, main_modules and tests_modules.
+    self.moduletable.setBaseModules(base_modules)
+    self.moduletable.setFinalModules(final_modules)
+    self.moduletable.setMainModules(main_modules)
+    self.moduletable.setTestsModules(tests_modules)
     
     # Print main_modules and tests_modules.
     if verbose >= 1:
@@ -500,9 +517,9 @@ class GLImport(object):
           break
     
     # Add dummy package if it is needed.
-    main_modules = table.add_dummy(main_modules)
+    main_modules = self.moduletable.add_dummy(main_modules)
     if libtests: # if we need to use libtests.a
-      tests_modules = table.add_dummy(tests_modules)
+      tests_modules = self.moduletable.add_dummy(tests_modules)
     
     # Check license incompatibilities.
     listing = list()
@@ -577,7 +594,7 @@ class GLImport(object):
     
     # Determine the final file lists.
     main_filelist, tests_filelist = \
-      table.filelist_separately(main_modules, tests_modules)
+      self.moduletable.filelist_separately(main_modules, tests_modules)
     filelist = sorted(set(main_filelist +tests_filelist), key=string.lower)
     if not filelist:
       raise(GLError(12, None))
@@ -625,29 +642,32 @@ class GLImport(object):
     '''Perform operations on the lists of files, which are given in a special
     format except filelist argument. Such lists of files can be created using
     GLImport.prepare() function.'''
-    modules = self.config.getModules()
-    avoids = self.config.getAvoids()
-    destdir = self.config.getDestDir()
-    localdir = self.config.getLocalDir()
-    auxdir = self.config.getAuxDir()
-    sourcebase = self.config.getSourceBase()
-    m4base = self.config.getM4Base()
-    docbase = self.config.getDocBase()
-    pobase = self.config.getPoBase()
-    testsbase = self.config.getTestsBase()
-    testflags = self.config.getTestFlags()
-    conddeps = self.config.checkCondDeps()
-    libname = self.config.getLibName()
-    lgpl = self.config.getLGPL()
-    makefile = self.config.getMakefile()
-    libtool = self.config.checkLibtool()
-    macro_prefix = self.config.getMacroPrefix()
-    witness_c_macro = self.config.getWitnessCMacro()
-    podomain = self.config.getPoDomain()
-    vc_files = self.config.checkVCFiles()
-    verbose = self.config.getVerbosity()
+    destdir = self.config['destdir']
+    localdir = self.config['localdir']
+    auxdir = self.config['auxdir']
+    modules = list(self.config['modules'])
+    avoids = list(self.config['avoids'])
+    testflags = list(self.config['testflags'])
+    sourcebase = self.config['sourcebase']
+    m4base = self.config['m4base']
+    pobase = self.config['pobase']
+    docbase = self.config['docbase']
+    testsbase = self.config['testsbase']
+    lgpl = self.config['lgpl']
+    copyrights = self.config['copyrights']
+    libname = self.config['libname']
+    makefile = self.config['makefile']
+    conddeps = self.config['conddeps']
+    libtool = self.config['libtool']
+    macro_prefix = self.config['macro_prefix']
+    podomain = self.config['podomain']
+    witness_c_macro = self.config['witness_c_macro']
+    vc_files = self.config['vc_files']
+    ac_version = self.config['ac_version']
+    verbose = self.config['verbosity']
+    actioncmd = self.actioncmd()
     
-    # Store all files to files table.
+    # Store all files to files self.moduletable.
     filetable = dict()
     filetable['all'] = sorted(set(filelist))
     filetable['old'] = \
@@ -678,7 +698,8 @@ class GLImport(object):
           print('Create directory %s' % directory)
     
     # Create GLFileAssistant instance to process files.
-    assistant = GLFileAssistant(self.config, self.filesystem, transformers)
+    self.assistant = GLFileAssistant(self.config,
+      self.filesystem, transformers)
     
     # Files which are in filetable['old'] and not in filetable['new'].
     # They will be removed and added to filetable['removed'] list.
@@ -709,9 +730,9 @@ class GLImport(object):
     for pair in pairs:
       original = pair[1]
       rewritten = pair[0]
-      assistant.setOriginal(original)
-      assistant.setRewritten(rewritten)
-      assistant.add_or_update(already_present)
+      self.assistant.setOriginal(original)
+      self.assistant.setRewritten(rewritten)
+      self.assistant.add_or_update(already_present)
     
     # Files which are in filetable['new'] and in filetable['old'].
     # They will be added/updated and added to filetable['added'] list.
@@ -721,12 +742,12 @@ class GLImport(object):
     for pair in pairs:
       original = pair[1]
       rewritten = pair[0]
-      assistant.setOriginal(original)
-      assistant.setRewritten(rewritten)
-      assistant.add_or_update(already_present)
+      self.assistant.setOriginal(original)
+      self.assistant.setRewritten(rewritten)
+      self.assistant.add_or_update(already_present)
     
     # Add files which were added to the list of filetable['added'].
-    filetable['added'] += assistant.getFiles()
+    filetable['added'] += self.assistant.getFiles()
     filetable['added'] = sorted(set(filetable['added']))
     
     # Determine include_guard_prefix.
@@ -748,51 +769,37 @@ class GLImport(object):
     if makefile_am == 'Makefile.am':
       sourcebase_dir = os.path.dirname(sourcebase)
       sourcebase_base = os.path.basename(sourcebase)
-      assistant.makefileEditor(sourcebase_dir, 'SUBDIRS', sourcebase_base)
+      self.makefiletable.editor(sourcebase_dir, 'SUBDIRS', sourcebase_base)
     if pobase:
       pobase_dir = os.path.dirname(pobase)
       pobase_base = os.path.basename(pobase)
-      assistant.makefileEditor(pobase_dir, 'SUBDIRS', pobase_base)
+      self.makefiletable.editor(pobase_dir, 'SUBDIRS', pobase_base)
     if self.config.checkTestFlag(TESTS['tests']):
       if makefile_am == 'Makefile.am':
         testsbase_dir = os.path.dirname(testsbase)
         testsbase_base = os.path.basename(testsbase)
-        assistant.makefileEditor(testsbase_dir, 'SUBDIRS', testsbase_base)
-    assistant.makefileEditor('', 'ACLOCAL_AMFLAGS', '-I %s' % m4base)
-    assistant.makefileParentDir(makefile_am)
+        self.makefiletable.editor(testsbase_dir, 'SUBDIRS', testsbase_base)
+    self.makefiletable.editor('', 'ACLOCAL_AMFLAGS', '-I %s' % m4base)
+    self.makefiletable.parent()
     
     # Create library makefile.
-    path = joinpath(sourcebase, makefile_am)
-    tmpfile = assistant.tmpfilename(path)
-    dest = joinpath(sourcebase, makefile_am)
-    if isfile(joinpath(destdir, dest)):
-      if filecmp.cmp(joinpath(destdir, dest), tmpfile):
-        os.remove(tmpfile)
-      else: # if not filecmp.cmp(joinpath(destdir, dest), tmpfile)
-        backup = '%s~' % joinpath(destdir, dest)
+    basename = joinpath(sourcebase, makefile_am)
+    tmpfile = self.assistant.tmpfilename(basename)
+    self.emiter.lib_Makefile_am(basename, self.moduletable, self.makefiletable,
+      actioncmd, for_test)
+    exit()
+    filename, backup, flag = self.assistant.super_update(basename, tmpfile)
+    if flag == 1:
         if not self.config['dryrun']:
-          print('Updating file %s (backup in %s)' % (dest, backup))
-          dest = joinpath(destdir, dest)
-          backup = joinpath(destdir, backup)
-          if isfile(backup):
-            os.remove(backup)
-          shutil.move(dest, backup)
-          if isfile(dest):
-            os.remove(dest)
-          shutil.move(tmpfile, dest)
+          print('Updating %s (backup in %s)' % (filename, backup))
         else: # if self.config['dryrun']
-          print('Update file %s (backup in %s)' % (dest, backup))
-    else: # if not isfile(joinpath(destdir, dest))
+          print('Update %s (backup in %s)' % (filename, backup))
+    elif flag == 2:
       if not self.config['dryrun']:
-        print('Creating %s' % dest)
-        if isfile(joinpath(destdir, dest)):
-          os.remove(joinpath(destdir, dest))
-        shutil.move(tmpfile, joinpath(destdir, dest))
-      else: # if self.config['dryrun']
-        print('Create %s' % dest)
-    if isfile(tmpfile):
-      os.remove(tmpfile)
-      filetable['added'] += [dest]
+        print('Creating %s' % filename)
+      else: # if self.config['dryrun']:
+        print('Create %s' % filename)
+    filetable['added'] += [filename]
     
     exit()
     
@@ -801,101 +808,59 @@ class GLImport(object):
     if pobase:
       # Create po makefile and auxiliary files.
       for file in ['Makefile.in.in', 'remove-potcdate.sin']:
-        tmpfile = assistant.tmpfilename(joinpath(pobase, file))
+        tmpfile = self.assistant.tmpfilename(joinpath(pobase, file))
         path = joinpath('build-aux', 'po', file)
         lookedup, flag = filesystem.lookup(path)
         shutil.move(lookedup, tmpfile)
-        src = joinpath(pobase, file)
-        dest = '%s~' % src
-        srcpath = joinpath(destdir, src)
-        destpath = joinpath(destdir, dest)
-        if isfile(joinpath(destdir, dest)):
-          if filecmp.cmp(destpath, tmpfile):
-            os.remove(tmpfile)
-          else: # if filecmp.cmp(srcpath, tmpfile)
-            if not self.config['dryrun']:
-              print('Updating %s (backup in %s)' % (src, dest))
-              if isfile(destpath):
-                os.remove(destpath)
-              shutil.move(srcpath, destpath)
-              shutil.move(tmpfile, srcpath)
-            else: # if self.config['dryrun']
-              print('Update %s (backup in %s)' % (src, dest))
-              os.remove(tmpfile)
-        else: # if not isfile(srcpath)
+        basename = joinpath(pobase, file)
+        filename, backup, flag = self.assistant.super_update(basename, tmpfile)
+        if flag == 1:
           if not self.config['dryrun']:
-            print('Creating %s' % src)
-            shutil.move(tmpfile, srcpath)
+            print('Updating %s (backup in %s)' % (filename, backup))
           else: # if self.config['dryrun']
-            print('Creating %s' % src)
-          filetable['added'] += [src]
-        if isfile(tmpfile):
-          os.remove(tmpfile)
+            print('Update %s (backup in %s)' % (filename, backup))
+        elif flag == 2:
+          if not self.config['dryrun']:
+            print('Creating %s' % filename)
+          else: # if self.config['dryrun']:
+            print('Create %s' % filename)
+          filetable['added'] += [filename]
       
       # Create po makefile parameterization, part 1.
-      tmpfile = assistant.tmpfilename(joinpath(pobase, 'Makevars'))
+      tmpfile = self.assistant.tmpfilename(joinpath(pobase, 'Makevars'))
       with codecs.open(tmpfile, 'wb', 'UTF-8') as file:
         file.write(self.emiter.po_Makevars())
-      src = joinpath(pobase, 'Makevars')
-      dest = '%s~' % src
-      srcpath = joinpath(destdir, src)
-      destpath = joinpath(destdir, dest)
-      if isfile(srcpath):
-        if filecmp.cmp(srcpath, tmpfile):
-          os.remove(tmpfile)
-        else: # if not filecmp.cmp(srcpath, tmpfile)
-          if not self.config['dryrun']:
-            print('Updating %s (backup in %s)' % (src, dest))
-            if isfile(destpath):
-              os.remove(destpath)
-            shutil.move(srcpath, destpath)
-            shutil.move(tmpfile, srcpath)
-          else: # if self.config['dryrun']
-            print('Update %s (backup in %s)' % (src, dest))
-            os.remove(tmpfile)
-      else: # if not isfile(srcpath)
+      basename = joinpath(pobase, 'Makevars')
+      filename, backup, flag = self.assistant.super_update(basename, tmpfile)
+      if flag == 1:
         if not self.config['dryrun']:
-          print('Creating %s' % src)
-          if isfile(srcpath):
-            os.remove(srcpath)
-          shutil.move(tmpfile, srcpath)
+          print('Updating %s (backup in %s)' % (filename, backup))
         else: # if self.config['dryrun']
-          print('Create %s' % src)
-          os.remove(tmpfile)
-        filetable['added'] += [src]
+          print('Update %s (backup in %s)' % (filename, backup))
+      elif flag == 2:
+        if not self.config['dryrun']:
+          print('Creating %s' % filename)
+        else: # if self.config['dryrun']:
+          print('Create %s' % filename)
+        filetable['added'] += [filename]
       
       # Create po makefile parameterization, part 2.
-      tmpfile = assistant.tmpfilename(joinpath(pobase, 'POTFILES.in'))
+      tmpfile = self.assistant.tmpfilename(joinpath(pobase, 'POTFILES.in'))
       with codecs.open(tmpfile, 'wb', 'UTF-8') as file:
         file.write(self.emiter.po_POTFILES_in(filetable['all']))
-      src = joinpath(pobase, 'POTFILES.in')
-      dest = '%s~' % src
-      srcpath = joinpath(destdir, src)
-      destpath = joinpath(destdir, dest)
-      if isfile(srcpath):
-        if self.config['dryrun']:
-          if filecmp.cmp(srcpath, tmpfile):
-            os.remove(tmpfile)
-          else: # if not filecmp.cmp(srcpath, tmpfile)
-            if not self.config['dryrun']:
-              print('Updating %s (backup in %s)' % (src, dest))
-              if isfile(destpath):
-                os.remove(destpath)
-              shutil.move(srcpath, destpath)
-              shutil.move(tmpfile, srcpath)
-            else: # if self.config['dryrun']
-              print('Update %s (backup in %s)' % (src, dest))
-              os.remove(tmpfile)
-      else: # if not isfile(srcpath)
+      basename = joinpath(pobase, 'POTFILES.in')
+      filename, backup, flag = self.assistant.super_update(basename, tmpfile)
+      if flag == 1:
         if not self.config['dryrun']:
-          print('Creating %s' % src)
-          if isfile(srcpath):
-            os.remove(srcpath)
-          shutil.move(tmpfile, srcpath)
+          print('Updating %s (backup in %s)' % (filename, backup))
         else: # if self.config['dryrun']
-          print('Create %s' % src)
-          os.remove(tmpfile)
-        filetable['added'] += [src]
+          print('Update %s (backup in %s)' % (filename, backup))
+      elif flag == 2:
+        if not self.config['dryrun']:
+          print('Creating %s' % filename)
+        else: # if self.config['dryrun']:
+          print('Create %s' % filename)
+        filetable['added'] += [filename]
       
       # Fetch PO files.
       TP_URL = 'http://translationproject.org/latest/'
@@ -918,13 +883,53 @@ class GLImport(object):
       
       # Create po/LINGUAS.
       if not self.config['dryrun']:
-        tmpfile = assistant.tmpfilename(joinpath(pobase, 'LINGUAS'))
+        tmpfile = self.assistant.tmpfilename(joinpath(pobase, 'LINGUAS'))
         data = string('# Set of available languages.\n')
         files = [constants.subend('.po', '', file) \
           for file in os.listdir(joinpath(destdir, pobase))]
-        files = [file.decode(ENCS['system']) if type(file) is bytes else file \
-          for file in files]
+        files = [file.decode(ENCS['default']) if type(file) is bytes \
+          else file for file in files]
         data += '\n'.join(files)
         with codecs.open(tmpfile, 'wb', 'UTF-8') as file:
           file.write(data)
+        basename = joinpath(pobase, 'LINGUAS')
+        filename, backup, flag = self.assistant.super_update(basename, tmpfile)
+        if flag == 1:
+          print('Updating %s (backup in %s)' % (filename, backup))
+        elif flag == 2:
+          print('Creating %s' % filename)
+          filetable['added'] += [filename]
+      else: # if not self.config['dryrun']
+        basename = joinpath(pobase, 'LINGUAS')
+        backupname = '%s~' % basename
+        if isfile(destdir, basename):
+          print('Update %s (backup in %s)' % (basename, backupname))
+        else: # if not isfile(destdir, basename)
+          print('Create %s' % basename)
+      
+      # Create m4/gnulib-cache.m4.
+      tmpfile = self.assistant.tmpfilename(m4base, 'gnulib-cache.m4')
+      contents = self.emiter.gnulib_cache(actioncmd)
+      with codecs.open(tmpfile, 'wb', 'UTF-8') as file:
+        file.write(contents)
+      basename = joinpath(m4base, 'gnulib-cache.m4')
+      filename, backup, flag = self.assistant.super_update(basename, tmpfile)
+      if flag == 1:
+        if not self.config['dryrun']:
+          print('Updating %s (backup in %s)' % (filename, backup))
+        else: # if self.config['dryrun']
+          print('Update %s (backup in %s)' % (filename, backup))
+          if False:
+            contents += '\n# gnulib-cache.m4 ends here'
+            contents = constants.nlconvert(contents)
+            print(contents)
+      elif flag == 2:
+        if not self.config['dryrun']:
+          print('Creating %s' % filename)
+        else: # if self.config['dryrun']:
+          print('Create %s' % filename)
+          print(contents)
+      
+      # Create m4/gnulib-comp.m4.
+      
 

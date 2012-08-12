@@ -10,6 +10,7 @@ from __future__ import unicode_literals
 import re
 import os
 import sys
+import platform
 
 
 #===============================================================================
@@ -116,13 +117,20 @@ MODES['verbose-max'] = 2
 # Set TESTS dictionary
 TESTS = \
 {
-  'tests':            0,
-  'obsolete':         1,
-  'c++-test':         2,
-  'longrunning-test': 3,
-  'privileged-test':  4,
-  'unportable-test':  5,
-  'all-test':         6,
+  'tests':             0,
+  'obsolete':          1,
+  'c++-test':          2,
+  'cxx-test':          2,
+  'c++-tests':         2,
+  'cxx-tests':         2,
+  'longrunning-test':  3,
+  'longrunning-tests': 3,
+  'privileged-test':   4,
+  'privileged-tests':  4,
+  'unportable-test':   5,
+  'unportable-tests':  5,
+  'all-test':          6,
+  'all-tests':         6,
 }
 
 # Define AUTOCONF minimum version
@@ -353,6 +361,19 @@ def subend(orig, repl, data):
   if data.endswith(orig):
     result = repl +data[:len(repl)]
   return(result)
+
+def nlconvert(text):
+  '''Convert line-endings to specific for this platform.'''
+  system = platform.system().lower()
+  text = text.replace('\r\n', '\n')
+  if system == 'windows':
+    text = text.replace('\n', '\r\n')
+  return(text)
+
+def nlremove(text):
+  '''Remove empty lines from the source text.'''
+  text = nlconvert(text)
+  lines = text.split()
 
 __all__ += ['APP', 'DIRS', 'FILES', 'MODES', 'UTILS']
 

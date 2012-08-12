@@ -1,3 +1,23 @@
+13 August 2012, Dmitriy Selyutin
+GLConfig.check method was deprecated, since we do not have any attribute which
+can be set to None. It was deprecated as absolutely useless.
+GLModuleTable can now store base_modules, final_modules, main_modules,
+tests_modules as well as avoids. You can now use this object as a dictionary.
+All classes have received a better __repr__ method, which shows a unique id of
+class to help user differ them (of course users may use chain of id() function
+and print() function, but it is more traditional to use __repr__).
+All functionality of GLFileAssistant, which is about Makefile.am, was separated
+to new class GLMakefileTable.
+A lot of small fixes inside other classes.
+
+12 August 2012, Dmitriy Selyutin
+GLFileAssistant has gotten a new method superUpdate, since we have a lot of
+options where we update or create the file. With GLConfig such things are
+really easy things, because we don't need to emit all variables every time.
+The work with gnulib-cache.m4 is finished. It can be used, except small bug in
+old gnulib-tool (see bug-gnulib@gnu.org).
+Some small fixes inside almost all classes.
+
 10 August 2012, Dmitriy Selyutin
 GLConfig has gotten new set of methods to enable/disable raising of GLError in
 non-critical situations. It is already implemented into GLModuleSystem and

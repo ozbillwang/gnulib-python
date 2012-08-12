@@ -74,7 +74,8 @@ class GLModuleSystem(object):
     
   def __repr__(self):
     '''x.__repr__ <==> repr(x)'''
-    return('<pygnulib.GLModuleSystem>')
+    result = '<pygnulib.GLModuleSystem %s>' % hex(id(self))
+    return(result)
     
   def exists(self, module):
     '''GLModuleSystem.exists(module) -> bool
@@ -271,7 +272,9 @@ Include:|Link:|License:|Maintainer:)'
     
   def __repr__(self):
     '''x.__repr__ <==> repr(x)'''
-    return('<pygnulib.GLModule %s>' % repr(self.getName()))
+    result = '<pygnulib.GLModule %s %s>' % \
+      (repr(self.getName()), hex(id(self)))
+    return(result)
     
   def getName(self):
     '''GLModule.getName() -> string
@@ -415,8 +418,6 @@ Include:|Link:|License:|Maintainer:)'
     
     Return list of files.
     GLConfig: ac_version.'''
-    if not self.config.check('ac_version'):
-      raise(ValueError('ac_version inside GLConfig must be set'))
     ac_version = self.config['ac_version']
     section = 'Files:'
     if 'files' not in self.cache:
@@ -443,8 +444,6 @@ Include:|Link:|License:|Maintainer:)'
     
     Return list of dependencies.
     GLConfig: localdir.'''
-    if not self.config.check('localdir'):
-      raise(ValueError('localdir inside GLConfig must be set'))
     localdir = self.config['localdir']
     result = list()
     section = 'Depends-on:'
@@ -555,8 +554,9 @@ Include:|Link:|License:|Maintainer:)'
             result = string()
           else: # if result != list()
             result = result[-1]
-      result = result.strip()
-      result += constants.NL *2
+      if not result.startswith('\n') and not result.startswith('\r\n'):
+        result = '\n%s' % result
+      result = constants.nlconvert(result)
       self.cache['makefile-conditional'] = result
     return(self.cache['makefile-conditional'])
     
@@ -565,9 +565,6 @@ Include:|Link:|License:|Maintainer:)'
     
     Return unconditional automake snippet.
     GLConfig: auxdir, ac_version.'''
-    for arg in ['auxdir', 'ac_version']:
-      if not self.config.check(arg):
-        raise(ValueError('%s inside GLConfig must be set' % arg))
     auxdir = self.config['auxdir']
     ac_version = self.config['ac_version']
     result = string()
@@ -576,6 +573,7 @@ Include:|Link:|License:|Maintainer:)'
         files = self.getFiles()
         extra_files = filter_filelist(constants.NL, files,
           'tests/', '', 'tests/', '').split(constants.NL)
+        extra_files = sorted(set(extra_files))
         if extra_files:
           result += string('EXTRA_DIST += %s' % ' '.join(extra_files))
           result += constants.NL *2
@@ -589,23 +587,27 @@ Include:|Link:|License:|Maintainer:)'
           mentioned_files = mentioned_files[-1].split(' ')
           mentioned_files = [f.strip() for f in mentioned_files]
           mentioned_files = [f for f in mentioned_files if f != '']
+          mentioned_files = sorted(set(mentioned_files))
         all_files = self.getFiles()
         lib_files = filter_filelist(constants.NL, all_files,
           'lib/', '', 'lib/', '').split(constants.NL)
         extra_files = [f for f in lib_files if f not in mentioned_files]
-        if extra_files != ['']:
-          result += string('EXTRA_DIST += %s' % ''.join(extra_files))
+        extra_files = sorted(set(extra_files))
+        if extra_files != [''] and extra_files:
+          result += string('EXTRA_DIST += %s' % ' '.join(extra_files))
           result += constants.NL *2
         # Synthesize also an EXTRA_lib_SOURCES augmentation
         if str(self) != 'relocatable-prog-wrapper' and str(self) != 'pt_chown':
           extra_files = filter_filelist(constants.NL, extra_files,
             '', '.c', '', '').split(constants.NL)
+          extra_files = sorted(set(extra_files))
           if extra_files != ['']:
-            result += string('EXTRA_lib_SOURCES += %s' % ''.join(extra_files))
+            result += string('EXTRA_lib_SOURCES += %s' % ' '.join(extra_files))
             result += constants.NL *2
         # Synthesize an EXTRA_DIST augmentation also for the files in build-aux
         buildaux_files = filter_filelist(constants.NL, all_files,
           'build-aux/', '', 'build-aux/', '').split(constants.NL)
+        buildaux_files = sorted(set(buildaux_files))
         if buildaux_files != ['']:
           buildaux_files = ''.join(buildaux_files)
           buildaux_files = joinpath('$(top_srcdir)', auxdir, buildaux_files)
@@ -614,11 +616,13 @@ Include:|Link:|License:|Maintainer:)'
         # Synthesize an EXTRA_DIST augmentation also for the files from top/.
         top_files = filter_filelist(constants.NL, all_files,
           'top/', '', 'top/', '').split(constants.NL)
+        top_files = sorted(set(top_files))
         if top_files != ['']:
           top_files = ''.join(top_files)
           top_files = joinpath('$(top_srcdir)', top_files)
           result += string('EXTRA_DIST += %s' % top_files)
           result += constants.NL *2
+      result = constants.nlconvert(result)
       self.cache['makefile-unconditional'] = result
     return(self.cache['makefile-unconditional'])
     
@@ -727,8 +731,6 @@ Include:|Link:|License:|Maintainer:)'
     
     Return the automake conditional name.
     GLConfig: macro_prefix.'''
-    if not self.config.check('macro_prefix'):
-      raise(ValueError('macro_prefix inside GLConfig must be set'))
     macro_prefix = self.config['macro_prefix']
     nonascii = \
     [ # Begin to filter non-ascii chars
@@ -767,8 +769,10 @@ class GLModuleTable(object):
     self.dependers = dict() # Dependencies
     self.conditionals = dict() # Conditional modules
     self.unconditionals = dict() # Unconditional modules
+    self.base_modules = list() # Base modules
     self.main_modules = list() # Main modules
     self.tests_modules = list() # Tests modules
+    self.final_modules = list() # Final modules
     if type(config) is not GLConfig:
       raise(TypeError('config must be a GLConfig, not %s' % \
         type(config).__name__))
@@ -779,12 +783,30 @@ class GLModuleTable(object):
       if type(avoid) is not GLModule:
         raise(TypeError('each avoid must be a GLModule instance'))
       self.avoids += [avoids]
-    for arg in ['localdir', 'testflags']:
-      if not config.check(arg):
-        raise(ValueError('%s inside GLConfig must be set' % arg))
     self.config = config
     self.conddeps = self.config['conddeps']
     self.modulesystem = GLModuleSystem(self.config, filesystem)
+    
+  def __repr__(self):
+    '''x.__repr__() <==> repr(x)'''
+    result = '<pygnulib.GLModuleTable %s>' % hex(id(self))
+    return(result)
+    
+  def __getitem__(self, y):
+    '''x.__getitem__(y) <==> x[y]'''
+    if y in ['base', 'final', 'main', 'tests', 'avoids']:
+      if y == 'base':
+        return(self.getBaseModules())
+      elif y == 'final':
+        return(self.getFinalModules())
+      elif y == 'main':
+        return(self.getMainModules())
+      elif y == 'tests':
+        return(self.getTestsModules())
+      else: # if y == 'avoids'
+        return(self.getAvoids())
+    else: # if y is not in list
+      raise(KeyError('GLModuleTable does not contain key: %s' % repr(y)))
     
   def addConditional(self, parent, module, condition):
     '''GLModuleTable.addConditional(module, condition)
@@ -988,9 +1010,6 @@ class GLModuleTable(object):
     Add dummy package to list of modules if dummy package is needed. If not,
     return original list of modules.
     GLConfig: auxdir, ac_version.'''
-    for arg in ['auxdir', 'ac_version']:
-      if not self.config.check(arg):
-        raise(ValueError('%s inside GLConfig must be set' % arg))
     auxdir = self.config['auxdir']
     ac_version = self.config['ac_version']
     have_lib_sources = False
@@ -1018,8 +1037,6 @@ class GLModuleTable(object):
     Determine the final file list for the given list of modules. The list of
     modules must already include dependencies.
     GLConfig: ac_version.'''
-    if not self.config.check('ac_version'):
-      raise(ValueError('ac_version inside GLConfig must be set'))
     ac_version = self.config['ac_version']
     filelist = list()
     for module in modules:
@@ -1039,8 +1056,6 @@ class GLModuleTable(object):
     files in lib/* go into $sourcebase/ if they are in the main file list but
     into $testsbase/ if they are in the tests-related file list. Furthermore
     lib/dummy.c can be in both.'''
-    if not self.config.check('ac_version'):
-      raise(ValueError('ac_version inside GLConfig must be set'))
     ac_version = self.config['ac_version']
     main_filelist = self.filelist(main_modules)
     tests_filelist = self.filelist(tests_modules)
@@ -1052,6 +1067,51 @@ class GLModuleTable(object):
     ] # Finish to sort filelist
     result = tuple([main_filelist, tests_filelist])
     return(result)
+    
+  def getAvoids(self):
+    '''GLModuleTable.getAvoids() -> list
+    
+    Return list of avoids.'''
+    return(list(self.avoids))
+    
+  def setAvoids(self, modules):
+    '''GLModuleTable.setAvoids(modules)
+    
+    Specify list of avoids.'''
+    for module in modules:
+      if type(module) is not GLModule:
+        raise(TypeError('each module must be a GLModule instance'))
+    self.avoids = sorted(set(modules))
+    
+  def getBaseModules(self):
+    '''GLModuleTable.getBaseModules() -> list
+    
+    Return list of base modules.'''
+    return(list(self.base_modules))
+    
+  def setBaseModules(self, modules):
+    '''GLModuleTable.setBaseModules(modules)
+    
+    Specify list of base modules.'''
+    for module in modules:
+      if type(module) is not GLModule:
+        raise(TypeError('each module must be a GLModule instance'))
+    self.base_modules = sorted(set(modules))
+    
+  def getFinalModules(self):
+    '''GLModuleTable.getFinalModules() -> list
+    
+    Return list of final modules.'''
+    return(list(self.final_modules))
+    
+  def setFinalModules(self, modules):
+    '''GLModuleTable.setFinalModules(modules)
+    
+    Specify list of final modules.'''
+    for module in modules:
+      if type(module) is not GLModule:
+        raise(TypeError('each module must be a GLModule instance'))
+    self.final_modules = sorted(set(modules))
     
   def getMainModules(self):
     '''GLModuleTable.getMainModules() -> list
