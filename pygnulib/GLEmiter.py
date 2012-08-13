@@ -16,6 +16,7 @@ from .GLError import GLError
 from .GLConfig import GLConfig
 from .GLModuleSystem import GLModuleTable
 from .GLMakefileTable import GLMakefileTable
+from pprint import pprint
 
 
 #===============================================================================
@@ -431,7 +432,7 @@ AC_DEFUN([%V1%_LIBSOURCES], [
          actioncmd, for_test) -> string
     
     Emits the contents of library makefile.
-    GLConfig: localdir, libname, pobase, auxdir, makefile, libtool,
+    GLConfig: localdir, sourcebase, libname, pobase, auxdir, makefile, libtool,
     macro_prefix, podomain, conddeps, witness_c_macro.'''
     if type(destfile) is bytes or type(destfile) is string:
       if type(destfile) is bytes:
@@ -456,6 +457,7 @@ AC_DEFUN([%V1%_LIBSOURCES], [
         type(for_test).__name__))
     emit = string()
     localdir = self.config['localdir']
+    sourcebase = self.config['sourcebase']
     modcache = self.config['modcache']
     libname = self.config['libname']
     pobase = self.config['pobase']
@@ -611,8 +613,25 @@ AC_DEFUN([%V1%_LIBSOURCES], [
         emit += 'AM_CPPFLAGS +=%s\n' % cppflags
     emit += '\n'
     
-    # TODO: MAKE THIS HORRIBLE CHECK
-    # grep "^[a-zA-Z0-9_]*_${perhapsLT}LIBRARIES...
+    # One of the snippets or the user's Makefile.am already specifies an
+    # installation location for the library. Don't confuse automake by saying
+    # it should not be installed.
+    # First test if allsnippets already specify an installation location.
+    insnippets = False
+    inmakefile = False
+    regex = '^[a-zA-Z0-9_]*_%sLIBRARIES *\\+{0,1}= *%s.%s' % \
+      (perhapsLT, libname, libext)
+    pattern = compiler(regex, re.S | re.M)
+    insnippets = bool(pattern.findall(allsnippets))
+    # Then test if $sourcebase/Makefile.am (if it exists) specifies it.
+    path = joinpath(sourcebase, 'Makefile.am')
+    if makefile and isfile(path):
+      with codecs.open(path, 'rb', 'UTF-8') as file:
+        data = file.read()
+      inmakefile = bool(pattern.findall(data))
+    if not any([insnippets, inmakefile]):
+      # By default, the generated library should not be installed.
+      emit += 'noinst_%sLIBRARIES += %s.%s\n' % (perhapsLT, libname, libext)
     
     emit += '\n'
     emit += '%s_%s_SOURCES =\n' % (libname, libext)
@@ -620,7 +639,7 @@ AC_DEFUN([%V1%_LIBSOURCES], [
     # automake during its analysis looks for $(LIBOBJS), not for @LIBOBJS@.
     emit += '%s_%s_LIBADD = $(%s_%sLIBOBJS)\n' % \
       (libname, libext, macro_prefix, perhapsLT)
-    emit += '%s_%s_DEPENDENCIES = $(%s_%sLIBOBJS)' % \
+    emit += '%s_%s_DEPENDENCIES = $(%s_%sLIBOBJS)\n' % \
       (libname, libext, macro_prefix, perhapsLT)
     emit += 'EXTRA_%s_%s_SOURCES =\n' % (libname, libext)
     if libtool:
@@ -628,13 +647,33 @@ AC_DEFUN([%V1%_LIBSOURCES], [
       emit += '%s_%s_LDFLAGS += -no-undefined\n' % (libname, libext)
       # Synthesize an ${libname}_${libext}_LDFLAGS augmentation by combining
       # the link dependencies of all modules.
+      listing = list()
       links = [m.getLink() for m in moduletable['main'] if not m.isTests()]
-      
-      for module in moduletable['main']:
-        if not module.isTests():
-          
+      for link in links:
+        link = constants.nlremove(link)
+        position = link.find(' when linking with libtool')
+        if position != -1:
+          link = link[:position]
+        listing += [link]
+      listing = sorted(set([link for link in listing if link != '']))
+      for link in listing:
+        emit += '%s_%s_LDFLAGS += %s\n' % (libname, libext, link)
+    emit += '\n'
+    if pobase:
+      emit += 'AM_CPPFLAGS += -DDEFAULT_TEXT_DOMAIN="%s-gnulib"\n' % podomain
+      emit += '\n'
+    allsnippets = allsnippets.replace('$(top_srcdir)/build-aux/',
+      '$(top_srcdir)/%s/' % auxdir)
+    emit += allsnippets
+    emit += '\n'
+    emit += 'mostlyclean-local: mostlyclean-generic\n'
+    emit += '\t@for dir in \'\' $(MOSTLYCLEANDIRS); do \\\n'
+    emit += '\t  if test -n "$$dir" && test -d $$dir; then \\\n'
+    emit += '\t    echo "rmdir $$dir"; rmdir $$dir; \\\n'
+    emit += '\t  fi; \\\n'
+    emit += '\tdone; \\\n'
+    emit += '\t:\n'
+    emit = constants.nlconvert(emit)
     if type(emit) is bytes:
       emit = emit.decode(ENCS['default'])
-    path = '/home/ghostmansd/makefile.py.am'
-    with codecs.open(path, 'wb', 'UTF-8') as file:
-      file.write(emit)
+    

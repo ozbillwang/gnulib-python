@@ -1,4 +1,13 @@
 13 August 2012, Dmitriy Selyutin
+GLEmiter.lib_Makefile_am is finished and works except horrible regex where we
+decide if we shall emit 'noinst_${perhapsLT}LIBRARIES += $libname.$libext'.
+NOTE: See CHANGES to find lost commit at 12 August.
+
+13 August 2012, Dmitriy Selyutin
+NOTE: This is very strange, there must be two commits, for 13 and 12 August
+respectively. May be the reason is that I use one laptop for work and the
+other to push changes. It seems one of commits is missed, however, you can see
+changes from CHANGES file.
 GLConfig.check method was deprecated, since we do not have any attribute which
 can be set to None. It was deprecated as absolutely useless.
 GLModuleTable can now store base_modules, final_modules, main_modules,

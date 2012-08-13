@@ -785,9 +785,10 @@ class GLImport(object):
     # Create library makefile.
     basename = joinpath(sourcebase, makefile_am)
     tmpfile = self.assistant.tmpfilename(basename)
-    self.emiter.lib_Makefile_am(basename, self.moduletable, self.makefiletable,
-      actioncmd, for_test)
-    exit()
+    emit = self.emiter.lib_Makefile_am(basename, self.moduletable,
+      self.makefiletable, actioncmd, for_test)
+    with codecs.open(tmpfile, 'wb', 'UTF-8') as file:
+      file.write(emit)
     filename, backup, flag = self.assistant.super_update(basename, tmpfile)
     if flag == 1:
         if not self.config['dryrun']:
@@ -800,8 +801,6 @@ class GLImport(object):
       else: # if self.config['dryrun']:
         print('Create %s' % filename)
     filetable['added'] += [filename]
-    
-    exit()
     
     # Create po/ directory.
     filesystem = GLFileSystem(self.config)
@@ -828,8 +827,9 @@ class GLImport(object):
       
       # Create po makefile parameterization, part 1.
       tmpfile = self.assistant.tmpfilename(joinpath(pobase, 'Makevars'))
+      emit = self.emiter.po_Makevars()
       with codecs.open(tmpfile, 'wb', 'UTF-8') as file:
-        file.write(self.emiter.po_Makevars())
+        file.write(emit)
       basename = joinpath(pobase, 'Makevars')
       filename, backup, flag = self.assistant.super_update(basename, tmpfile)
       if flag == 1:
@@ -907,29 +907,29 @@ class GLImport(object):
         else: # if not isfile(destdir, basename)
           print('Create %s' % basename)
       
-      # Create m4/gnulib-cache.m4.
-      tmpfile = self.assistant.tmpfilename(m4base, 'gnulib-cache.m4')
-      contents = self.emiter.gnulib_cache(actioncmd)
-      with codecs.open(tmpfile, 'wb', 'UTF-8') as file:
-        file.write(contents)
-      basename = joinpath(m4base, 'gnulib-cache.m4')
-      filename, backup, flag = self.assistant.super_update(basename, tmpfile)
-      if flag == 1:
-        if not self.config['dryrun']:
-          print('Updating %s (backup in %s)' % (filename, backup))
-        else: # if self.config['dryrun']
-          print('Update %s (backup in %s)' % (filename, backup))
-          if False:
-            contents += '\n# gnulib-cache.m4 ends here'
-            contents = constants.nlconvert(contents)
-            print(contents)
-      elif flag == 2:
-        if not self.config['dryrun']:
-          print('Creating %s' % filename)
-        else: # if self.config['dryrun']:
-          print('Create %s' % filename)
+    # Create m4/gnulib-cache.m4.
+    tmpfile = self.assistant.tmpfilename(m4base, 'gnulib-cache.m4')
+    contents = self.emiter.gnulib_cache(actioncmd)
+    with codecs.open(tmpfile, 'wb', 'UTF-8') as file:
+      file.write(contents)
+    basename = joinpath(m4base, 'gnulib-cache.m4')
+    filename, backup, flag = self.assistant.super_update(basename, tmpfile)
+    if flag == 1:
+      if not self.config['dryrun']:
+        print('Updating %s (backup in %s)' % (filename, backup))
+      else: # if self.config['dryrun']
+        print('Update %s (backup in %s)' % (filename, backup))
+        if False:
+          contents += '\n# gnulib-cache.m4 ends here'
+          contents = constants.nlconvert(contents)
           print(contents)
+    elif flag == 2:
+      if not self.config['dryrun']:
+        print('Creating %s' % filename)
+      else: # if self.config['dryrun']:
+        print('Create %s' % filename)
+        print(contents)
       
-      # Create m4/gnulib-comp.m4.
-      
+    # Create m4/gnulib-comp.m4.
+    
 

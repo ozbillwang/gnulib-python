@@ -373,7 +373,11 @@ def nlconvert(text):
 def nlremove(text):
   '''Remove empty lines from the source text.'''
   text = nlconvert(text)
-  lines = text.split()
+  text = text.replace('\r\n', '\n')
+  lines = [line for line in text.split('\n') if line != '']
+  text = '\n'.join(lines)
+  text = nlconvert(text)
+  return(text)
 
 __all__ += ['APP', 'DIRS', 'FILES', 'MODES', 'UTILS']
 
