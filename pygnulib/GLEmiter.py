@@ -14,8 +14,10 @@ from . import constants
 from .GLInfo import GLInfo
 from .GLError import GLError
 from .GLConfig import GLConfig
+from .GLModuleSystem import GLModule
 from .GLModuleSystem import GLModuleTable
 from .GLMakefileTable import GLMakefileTable
+from .GLFileSystem import GLFileAssistant
 from pprint import pprint
 
 
@@ -63,7 +65,7 @@ class GLEmiter(object):
     Create GLEmiter instance.'''
     self.info = GLInfo()
     if type(config) is not GLConfig:
-      raise(TypeError('config must have GLConfig type, not %s' % \
+      raise(TypeError('config must be a GLConfig, not %s' % \
         type(config).__name__))
     self.config = config
     
@@ -103,107 +105,255 @@ class GLEmiter(object):
       emit = emit.decode(ENCS['default'])
     return(constants.nlconvert(emit))
     
-  def gnulib_cache(self, moduletable, actioncmd):
-    '''GLEmiter.gnulib_cache(actioncmd) -> string
+  def autoconfSnippet(self, module, fileassistant, toplevel,
+    disable_libtool, disable_gettext, replace_auxdir, indentation):
+    '''GLEmiter.autoconfSnippet(module, toplevel,
+      disable_libtool, disable_gettext, replace_auxdir,
+      indentation) -> string
     
-    Emit the contents of generated $m4base/gnulib-cache.m4 file.
-    GLConfig: destdir, localdir, tests, sourcebase, m4base, pobase, docbase,
-    testsbase, conddeps, libtool, macro_prefix, podomain, vc_files.'''
-    if type(moduletable) is not GLModuleTable:
-      raise(TypeError('moduletable must have GLModuleTable type, not %s' % \
-        type(moduletable).__name__))
-    if type(actioncmd) is bytes or type(actioncmd) is string:
-      if type(actioncmd) is bytes:
-        actioncmd = actioncmd.decode(ENCS['default'])
-    else: # if actioncmd has not bytes or string type
-      raise(TypeError('actioncmd must have string type, not %s' % \
-        type(actioncmd).__name__))
+    Emit the autoconf snippet of a module.
+    GLConfig: include_guard_prefix.
+    
+    module is a GLModule instance, which is processed.
+    fileassistant is a GLFileAssistant instance, which is used to get temporary
+      directories and sed transformer.
+    toplevel is a bool variable, False means a subordinate use of pygnulib.
+    disable_libtool is a bool variable; it tells whether to disable libtool
+      handling even if it has been specified through the GLConfig class.
+    disable_gettext is a bool variable; it tells whether to disable
+      AM_GNU_GETTEXT invocations.
+    replace_auxdir is a bool variable; it tells whether to replace
+      'build-aux' directory in AC_CONFIG_FILES.
+    indentation is a string which contain spaces to prepend on each line.'''
     emit = string()
-    destdir = self.config['destdir']
-    localdir = self.config['localdir']
-    testflags = list(self.config['testflags'])
-    sourcebase = self.config['sourcebase']
-    m4base = self.config['m4base']
-    pobase = self.config['pobase']
-    docbase = self.config['docbase']
-    testsbase = self.config['testsbase']
-    lgpl = self.config['lgpl']
-    libname = self.config['libname']
-    makefile = self.config['makefile']
-    conddeps = self.config['conddeps']
+    if type(module) is not GLModule:
+      raise(TypeError('module must be a GLModule, not %s' % \
+        type(module).__name__))
+    if type(fileassistant) is not GLFileAssistant:
+      raise(TypeError('fileassistant must be a GLFileAssistant, not %s' % \
+        type(fileassistant).__name__))
+    if type(toplevel) is not bool:
+      raise(TypeError('toplevel must be a bool, not %s' % \
+        type(toplevel).__name__))
+    if type(disable_libtool) is not bool:
+      raise(TypeError('disable_libtool must be a bool, not %s' % \
+        type(disable_libtool).__name__))
+    if type(disable_gettext) is not bool:
+      raise(TypeError('disable_gettext must be a bool, not %s' % \
+        type(disable_gettext).__name__))
+    if type(indentation) is bytes or type(indentation) is string:
+      if type(indentation) is bytes:
+        indentation = indentation.decode(ENCS['default'])
+    else: # if indentation has not bytes or string type
+      raise(TypeError('indentation must be a string, not %s' % \
+        type(indentation).__name__))
+    if not indentation.isspace():
+      raise(ValueError('indentation must contain only whitespaces'))
+    auxdir = self.config['auxdir']
     libtool = self.config['libtool']
-    macro_prefix = self.config['macro_prefix']
-    podomain = self.config['podomain']
-    witness_c_macro = self.config['witness_c_macro']
-    vc_files = self.config['vc_files']
-    emit += self.copyright_notice()
-    emit += '''#
-# This file represents the specification of how gnulib-tool is used.
-# It acts as a cache: It is written and read by gnulib-tool.
-# In projects that use version control, this file is meant to be put under
-# version control, like the configure.ac and various Makefile.am files.
-
-
-# Specification in the form of a command-line invocation:
-#   %s
-
-# Specification in the form of a few \
-gnulib-tool.m4 macro invocations:\n''' % actioncmd
-    if not localdir or localdir.startswith('/'):
-      relative_localdir = localdir
-    else: # if localdir or not localdir.startswith('/')
-      relative_localdir = constants.relativize(destdir, localdir)
-    emit += 'gl_LOCAL_DIR([%s])\n' % relative_localdir
-    emit += 'gl_MODULES([\n'
-    emit += '  %s\n' % '\n  '.join(modules)
-    emit += '])\n'
-    if self.config.checkTestFlag(TESTS['obsolete']):
-      emit += 'gl_WITH_OBSOLETE\n'
-    if self.config.checkTestFlag(TESTS['cxx-tests']):
-      emit += 'gl_WITH_CXX_TESTS\n'
-    if self.config.checkTestFlag(TESTS['privileged-tests']):
-      emit += 'gl_WITH_PRIVILEGED_TESTS\n'
-    if self.config.checkTestFlag(TESTS['unportable-tests']):
-      emit += 'gl_WITH_UNPORTABLE_TESTS\n'
-    if self.config.checkTestFlag(TESTS['all-tests']):
-      emit += 'gl_WITH_ALL_TESTS\n'
-    emit += 'gl_AVOID([%s])\n' % ' '.join(avoids)
-    emit += 'gl_SOURCE_BASE([%s])\n' % sourcebase
-    emit += 'gl_M4_BASE([%s])\n' % m4base
-    emit += 'gl_PO_BASE([%s])\n' % pobase
-    emit += 'gl_DOC_BASE([%s])\n' % docbase
-    emit += 'gl_TESTS_BASE([%s])\n' % testsbase
-    if self.config.checkTestFlag(TESTS['tests']):
-      emit += 'gl_WITH_TESTS\n'
-    emit += 'gl_LIB([%s])\n' % libname
-    if lgpl != False:
-      if lgpl == True:
-        emit += 'gl_LGPL\n'
-      else: # if lgpl != True
-        emit += 'gl_LGPL([%d])\n' % lgpl
-    emit += 'gl_MAKEFILE_NAME([%s])\n' % makefile
-    if conddeps:
-      emit += 'gl_CONDITIONAL_DEPENDENCIES\n'
-    if libtool:
-      emit += 'gl_LIBTOOL\n'
-    emit += 'gl_MACRO_PREFIX([%s])\n' % macro_prefix
-    emit += 'gl_PO_DOMAIN([%s])\n' % podomain
-    emit += 'gl_WITNESS_C_DOMAIN([%s])\n' % witness_c_macro
-    if vc_files:
-      emit += 'gl_VC_FILES([%s])\n' % vc_files
+    include_guard_prefix = self.config['include_guard_prefix']
+    if str(module) in ['gnumakefile', 'maintainer-makefile']:
+      # These modules are meant to be used only in the top-level directory.
+      flag = toplevel
+    else: # if not str(module) in ['gnumakefile', 'maintainer-makefile']
+      flag = True
+    if flag:
+      snippet = module.getAutoconfSnippet()
+      snippet = snippet.replace('${gl_include_guard_prefix}',
+        include_guard_prefix)
+      lines = [line for line in snippet.split('\n') if line.strip()]
+      snippet = '%s\n' % '\n'.join(lines).strip()
+      transformer = fileassistant.transformers.get('aux', '')
+      pattern = compiler('(^.*?$)', re.S | re.M)
+      snippet = pattern.sub('%s\\1' % indentation, snippet)
+      if transformer:
+        args = ['sed', '-e', transformer]
+        path = fileassistant.tmpfilename('snippet')
+        with codecs.open(path, 'wb', 'UTF-8') as file:
+          file.write(snippet)
+        stdin = codecs.open(path, 'rb', 'UTF-8')
+        snippet = sp.check_output(args, stdin=stdin, shell=False)
+        snippet = snippet.decode(ENCS['shell'])
+        os.remove(path)
+      if disable_libtool:
+        snippet = snippet.replace('$gl_cond_libtool', 'false')
+        snippet = snippet.replace('gl_libdeps', 'gltests_libdeps')
+        snippet = snippet.replace('gl_ltlibdeps', 'gltests_ltlibdeps')
+      if disable_gettext:
+        snippet = snippet.replace('AM_GNU_GETTEXT([external])', 'dnl you must \
+add AM_GNU_GETTEXT([external]) or similar to configure.ac.')
+      emit += snippet
+      if str(module) == 'alloca' and libtool and not disable_libtool:
+        emit += 'changequote(,)dnl\n'
+        emit += "LTALLOCA=`echo \"$ALLOCA\" | sed -e 's/\\.[^.]* /.lo \
+/g;s/\\.[^.]*$/.lo/'`\n"
+        emit += 'changequote([, ])dnl\n'
+        emit += 'AC_SUBST([LTALLOCA])'
+    if replace_auxdir:
+      regex = 'AC_CONFIG_FILES\\(\\[(.*?)\\:build-aux/(.*?)\\]\\)'
+      repl = 'AC_CONFIG_FILES([\\1:%s/\\2])' % auxdir
+      pattern = compiler(regex, re.S | re.M)
+      emit = pattern.sub(repl, emit)
+    lines = [line for line in emit.split('\n') if line.strip()]
+    emit = '%s\n' % '\n'.join(lines)
+    emit = constants.nlconvert(emit)
     if type(emit) is bytes:
       emit = emit.decode(ENCS['default'])
-    return(constants.nlconvert(emit))
+    return(emit)
     
-  def gnulib_comp(self, moduletable):
-    '''GLEmiter.gnulib_comp() -> string
+  def autoconfSnippets(self, modules, moduletable, fileassistant,
+    verifier, toplevel, disable_libtool, disable_gettext, replace_auxdir):
+    '''GLEmiter.autoconfSnippets(modules, fileassistant,
+      verifier, toplevel, disable_libtool, disable_gettext,
+      replace_auxdir) -> string
     
-    Emit the contents of generated $m4base/gnulib-comp.m4 file.
-    GLConfig: destdir, localdir, tests, sourcebase, m4base, pobase, docbase,
-    testsbase, conddeps, libtool, macro_prefix, podomain, vc_files.'''
+    Collect and emit the autoconf snippets of a set of modules.
+    GLConfig: conddeps.
+    
+    basemodules argument represents list of modules; every module in this list
+      must be a GLModule instance; this list of modules is used to sort all
+      modules after they were processed.
+    modules argument represents list of modules; every module in this list must
+      be a GLModule instance.
+    moduletable is a GLModuleTable instance, which contains necessary
+      information about dependencies of the modules.
+    fileassistant is a GLFileAssistant instance, which is used to get temporary
+      directories and sed transformers.
+    verifier is an integer, which can be 0, 1 or 2.
+      if verifier == 0, then process every module;
+      if verifier == 1, then process only non-tests modules;
+      if verifier == 2, then process only tests modules.
+    toplevel is a bool variable, False means a subordinate use of pygnulib.
+    disable_libtool is a bool variable; it tells whether to disable libtool
+      handling even if it has been specified through the GLConfig class.
+    disable_gettext is a bool variable; it tells whether to disable
+      AM_GNU_GETTEXT invocations.
+    replace_auxdir is a bool variable; it tells whether to replace
+      'build-aux' directory in AC_CONFIG_FILES.'''
+    emit = string()
+    for module in modules:
+      if type(module) is not GLModule:
+        raise(TypeError('each module must be a GLModule instance'))
     if type(moduletable) is not GLModuleTable:
-      raise(TypeError('moduletable must have GLModuleTable type, not %s' % \
+      raise(TypeError('moduletable must be a GLFileAssistant, not %s' % \
         type(moduletable).__name__))
+    if type(fileassistant) is not GLFileAssistant:
+      raise(TypeError('fileassistant must be a GLFileAssistant, not %s' % \
+        type(fileassistant).__name__))
+    if type(verifier) is not int:
+      raise(TypeError('verifier must be an int, not %s' % \
+        type(verifier).__name__))
+    if not (0 <= verifier <= 2):
+      raise(ValueError('verifier must be 0, 1 or 2, not %d' % verifier))
+    if type(toplevel) is not bool:
+      raise(TypeError('toplevel must be a bool, not %s' % \
+        type(toplevel).__name__))
+    if type(disable_libtool) is not bool:
+      raise(TypeError('disable_libtool must be a bool, not %s' % \
+        type(disable_libtool).__name__))
+    if type(disable_gettext) is not bool:
+      raise(TypeError('disable_gettext must be a bool, not %s' % \
+        type(disable_gettext).__name__))
+    if type(replace_auxdir) is not bool:
+      raise(TypeError('replace_auxdir must be a bool, not %s' % \
+        type(replace_auxdir).__name__))
+    auxdir = self.config['auxdir']
+    conddeps = self.config['conddeps']
+    macro_prefix = self.config['macro_prefix']
+    if not conddeps:
+      # Ignore the conditions, and enable all modules unconditionally.
+      for module in modules:
+        if verifier == 0:
+          solution = True
+        elif verifier == 1:
+          solution = module.isNonTests()
+        elif verifier == 2:
+          solution = module.isTests()
+        if solution:
+          emit += self.autoconfSnippet(module, fileassistant, toplevel,
+            disable_libtool, disable_gettext, replace_auxdir, '  ')
+    else: # if conddeps
+      # Emit the autoconf code for the unconditional modules.
+      for module in modules:
+        if verifier == 0:
+          solution = True
+        elif verifier == 1:
+          solution = module.isNonTests()
+        elif verifier == 2:
+          solution = module.isTests()
+        if solution:
+          if not moduletable.isConditional(module):
+            emit += self.autoconfSnippet(module, fileassistant, toplevel,
+              disable_libtool, disable_gettext, replace_auxdir, '  ')
+      # Initialize the shell variables indicating that the modules are enabled.
+      for module in modules:
+        if verifier == 0:
+          solution = True
+        elif verifier == 1:
+          solution = module.isNonTests()
+        elif verifier == 2:
+          solution = module.isTests()
+        if solution:
+          if moduletable.isConditional(module):
+            shellvar = module.getShellVar()
+            emit += '  %s=false\n' % module.getShellVar()
+      # Emit the autoconf code for the conditional modules, each in a separate
+      # function. This makes it possible to support cycles among conditional
+      # modules.
+      for module in modules:
+        if verifier == 0:
+          solution = True
+        elif verifier == 1:
+          solution = module.isNonTests()
+        elif verifier == 2:
+          solution = module.isTests()
+        if solution:
+          if moduletable.isConditional(module):
+            shellfunc = module.getShellFunc()
+            shellvar = module.getShellVar()
+            emit += '  %s ()\n' % shellfunc
+            emit += '  {\n'
+            emit += '    if ! $%s; then\n' % shellvar
+            emit += self.autoconfSnippet(module, fileassistant, toplevel,
+              disable_libtool, disable_gettext, replace_auxdir, '      ')
+            emit += '      %s=true\n' % shellvar
+            dependencies = module.getDependencies()
+            depmodules = [pair[0] for pair in dependencies]
+            # Intersect dependencies with the modules list.
+            depmodules = [dep for dep in depmodules if dep in modules]
+            for depmodule in depmodules:
+              if moduletable.isConditional(depmodule):
+                shellfunc = depmodule.getShellFunc()
+                condition = moduletable.getCondition(module, depmodule)
+                if condition != None:
+                  emit += '  if %s; then\n' % condition
+                  emit += '    %s\n' % shellfunc
+                  emit += '  fi\n'
+                else: # if condition == None
+                  emit += '  %s\n' % shellfunc
+              else: # if not moduletable.isConditional(depmodule)
+                # The autoconf code for $dep has already been emitted above and
+                # therefore is already executed when this code is run.
+                pass
+      # Define the Automake conditionals.
+      emit += '  m4_pattern_allow([^%s_GNULIB_ENABLED_])\n' % macro_prefix
+      for module in modules:
+        if verifier == 0:
+          solution = True
+        elif verifier == 1:
+          solution = module.isNonTests()
+        elif verifier == 2:
+          solution = module.isTests()
+        if solution:
+          condname = module.getConditionalName()
+          shellvar = module.getShellVar()
+          emit += '  AM_CONDITIONAL([%s], [$%s])\n' % (condname, shellvar)
+    lines = [line for line in emit.split('\n') if line.strip()]
+    emit = '%s\n' % '\n'.join(lines)
+    emit = constants.nlconvert(emit)
+    if type(emit) is bytes:
+      emit = emit.decode(ENCS['default'])
+    return(emit)
     
   def po_Makevars(self):
     '''GLEmiter.po_Makevars() -> string
@@ -293,13 +443,17 @@ USE_MSGCTXT = no\n"""
       emit = emit.decode(ENCS['default'])
     return(constants.nlconvert(emit))
     
-  def initmacro_start(self):
-    '''GLEmiter.initmacro_done() -> string
+  def initmacro_start(self, macro_prefix_arg):
+    '''GLEmiter.initmacro_start(macro_prefix_arg) -> string
     
-    Emit the first few statements of the gl_INIT macro.
-    GLConfig: macro_prefix.'''
+    Emit the first few statements of the gl_INIT macro.'''
     emit = string()
-    macro_prefix = self.config['macro_prefix']
+    if type(macro_prefix_arg) is bytes or type(macro_prefix_arg) is string:
+      if type(macro_prefix_arg) is bytes:
+        macro_prefix_arg = macro_prefix_arg.decode(ENCS['default'])
+    else: # if macro_prefix_arg has not bytes or string type
+      raise(TypeError('macro_prefix_arg must be a string, not %s' % \
+        type(macro_prefix_arg).__name__))
     # Overriding AC_LIBOBJ and AC_REPLACE_FUNCS has the effect of storing
     # platform-dependent object files in ${macro_prefix_arg}_LIBOBJS instead
     # of LIBOBJS. The purpose is to allow several gnulib instantiations under
@@ -330,18 +484,22 @@ USE_MSGCTXT = no\n"""
     emit += "  m4_pushdef([%V1%_LIBSOURCES_LIST], [])\n"
     emit += "  m4_pushdef([%V1%_LIBSOURCES_DIR], [])\n"
     emit += "  gl_COMMON\n"
-    emit = emit.replace('%V1%', macro_prefix)
+    emit = emit.replace('%V1%', macro_prefix_arg)
     if type(emit) is bytes:
       emit = emit.decode(ENCS['default'])
     return(constants.nlconvert(emit))
     
-  def initmacro_end(self):
-    '''GLEmiter.initmacro_done() -> string
+  def initmacro_end(self, macro_prefix_arg):
+    '''GLEmiter.initmacro_end(macro_prefix_arg) -> string
     
-    Emit the last few statements of the gl_INIT macro.
-    GLConfig: macro_prefix.'''
+    Emit the last few statements of the gl_INIT macro.'''
     emit = string()
-    macro_prefix = self.config['macro_prefix']
+    if type(macro_prefix_arg) is bytes or type(macro_prefix_arg) is string:
+      if type(macro_prefix_arg) is bytes:
+        macro_prefix_arg = macro_prefix_arg.decode(ENCS['default'])
+    else: # if macro_prefix_arg has not bytes or string type
+      raise(TypeError('macro_prefix_arg must be a string, not %s' % \
+        type(macro_prefix_arg).__name__))
     # Check the presence of files that are mentioned as AC_LIBSOURCES
     # arguments. The check is performed only when autoconf is run from the
     # directory where the configure.ac resides; if it is run from a different
@@ -379,19 +537,29 @@ found])])
     AC_SUBST([%V1%_LIBOBJS], [$%V1%_libobjs])
     AC_SUBST([%V1%_LTLIBOBJS], [$%V1%_ltlibobjs])
   ])\n"""
-    emit = emit.replace('%V1%', macro_prefix)
+    emit = emit.replace('%V1%', macro_prefix_arg)
     if type(emit) is bytes:
       emit = emit.decode(ENCS['default'])
     return(constants.nlconvert(emit))
     
-  def initmacro_done(self):
-    '''GLEmiter.initmacro_done() -> string
+  def initmacro_done(self, macro_prefix_arg, sourcebase_arg):
+    '''GLEmiter.initmacro_done(macro_prefix_arg, sourcebase_arg) -> string
     
     Emit a few statements after the gl_INIT macro.
-    GLConfig: sourcebase, macro_prefix.'''
+    GLConfig: sourcebase.'''
     emit = string()
-    sourcebase = self.config['sourcebase']
-    macro_prefix = self.config['macro_prefix']
+    if type(macro_prefix_arg) is bytes or type(macro_prefix_arg) is string:
+      if type(macro_prefix_arg) is bytes:
+        macro_prefix_arg = macro_prefix_arg.decode(ENCS['default'])
+    else: # if macro_prefix_arg has not bytes or string type
+      raise(TypeError('macro_prefix_arg must be a string, not %s' % \
+        type(macro_prefix_arg).__name__))
+    if type(sourcebase_arg) is bytes or type(sourcebase_arg) is string:
+      if type(sourcebase_arg) is bytes:
+        sourcebase_arg = sourcebase_arg.decode(ENCS['default'])
+    else: # if sourcebase_arg has not bytes or string type
+      raise(TypeError('sourcebase_arg must be a string, not %s' % \
+        type(sourcebase_arg).__name__))
     emit += """\
 
 # Like AC_LIBOBJ, except that the module name goes
@@ -420,18 +588,19 @@ AC_DEFUN([%V1%_LIBSOURCES], [
     ])
   ])
 ])\n"""
-    emit = emit.replace('%V1%', macro_prefix)
-    emit = emit.replace('%V2%', sourcebase)
+    emit = emit.replace('%V1%', macro_prefix_arg)
+    emit = emit.replace('%V2%', sourcebase_arg)
     if type(emit) is bytes:
       emit = emit.decode(ENCS['default'])
     return(constants.nlconvert(emit))
     
-  def lib_Makefile_am(self, destfile,
+  def lib_Makefile_am(self, destfile, modules,
     moduletable, makefiletable, actioncmd, for_test):
-    '''GLEmiter.lib_Makefile_am(destfile, moduletable, makefiletable,
-         actioncmd, for_test) -> string
+    '''GLEmiter.lib_Makefile_am(destfile, modules, moduletable, makefiletable,
+         actioncmd, for_test) -> tuple of string and bool
     
-    Emits the contents of library makefile.
+    Emits the contents of library Makefile. Returns contents and bool detecting
+    if library Makefile uses subdirs.
     GLConfig: localdir, sourcebase, libname, pobase, auxdir, makefile, libtool,
     macro_prefix, podomain, conddeps, witness_c_macro.'''
     if type(destfile) is bytes or type(destfile) is string:
@@ -440,6 +609,9 @@ AC_DEFUN([%V1%_LIBSOURCES], [
     else: # if destfile has not bytes or string type
       raise(TypeError('destfile must be a string, not %s' % \
         type(destfile).__name__))
+    for module in modules:
+      if type(module) is not GLModule:
+        raise(TypeError('each module must be a GLModule instance'))
     if type(moduletable) is not GLModuleTable:
       raise(TypeError('moduletable must be a GLModuleTable, not %s' % \
         type(moduletable).__name__))
@@ -504,52 +676,53 @@ AC_DEFUN([%V1%_LIBSOURCES], [
     
     # Modify allsnippets variable.
     allsnippets = string()
-    for module in moduletable['main']:
-      # Get conditional snippet, edit it and save to amsnippet1.
-      amsnippet1 = module.getAutomakeSnippet_Conditional()
-      amsnippet1 = amsnippet1.replace('lib_LIBRARIES', 'lib%_LIBRARIES')
-      amsnippet1 = amsnippet1.replace('lib_LTLIBRARIES', 'lib%_LTLIBRARIES')
-      if repl_LD_flags:
-        pattern = compiler('lib_LDFLAGS[\t ]*\\+=(.*?)$', re.S | re.M)
-        amsnippet1 = pattern.sub('', amsnippet1)
-      pattern = compiler('lib_([A-Z][A-Z](?:.*?))', re.S | re.M)
-      amsnippet1 = pattern.sub('%s_%s_\\1' % (libname, libext), amsnippet1)
-      amsnippet1 = amsnippet1.replace('lib%_LIBRARIES', 'lib_LIBRARIES')
-      amsnippet1 = amsnippet1.replace('lib%_LTLIBRARIES', 'lib_LTLIBRARIES')
-      amsnippet1 = amsnippet1.replace('${gl_include_guard_prefix}',
-        include_guard_prefix)
-      if str(module) == 'alloca':
-        amsnippet1 += '%s_%s_LIBADD += @%sALLOCA@\n' % \
-          (libname, libext, perhapsLT)
-        amsnippet1 += '%s_%s_DEPENDENCIES += @%sALLOCA@\n' % \
-          (libname, libext, perhapsLT)
-      
-      # Get unconditional snippet, edit it and save to amsnippet1.
-      amsnippet2 = module.getAutomakeSnippet_Unconditional()
-      pattern = compiler('lib_([A-Z][A-Z](?:.*?))', re.S | re.M)
-      amsnippet2 = pattern.sub('%s_%s_\\1' % (libname, libext), amsnippet2)
-      if type(amsnippet1) is bytes:
-        amsnippet1 = amsnippet1.decode(ENCS['default'])
-      if type(amsnippet2) is bytes:
-        amsnippet2 = amsnippet1.decode(ENCS['default'])
-      if not (amsnippet1 +amsnippet2).isspace():
-        allsnippets += '## begin gnulib module %s\n' % str(module)
-        if conddeps:
-          if moduletable.isConditional(module):
-            name = module.getConditionalName()
-            allsnippets += 'if %s\n' % name
-        allsnippets += amsnippet1
-        if conddeps:
-          allsnippets += 'endif\n'
-        allsnippets += amsnippet2
-        allsnippets += '## end   gnulib module %s\n\n' % str(module)
+    for module in modules:
+      if not module.isTests():
+        # Get conditional snippet, edit it and save to amsnippet1.
+        amsnippet1 = module.getAutomakeSnippet_Conditional()
+        amsnippet1 = amsnippet1.replace('lib_LIBRARIES', 'lib%_LIBRARIES')
+        amsnippet1 = amsnippet1.replace('lib_LTLIBRARIES', 'lib%_LTLIBRARIES')
+        if repl_LD_flags:
+          pattern = compiler('lib_LDFLAGS[\t ]*\\+=(.*?)$', re.S | re.M)
+          amsnippet1 = pattern.sub('', amsnippet1)
+        pattern = compiler('lib_([A-Z][A-Z](?:.*?))', re.S | re.M)
+        amsnippet1 = pattern.sub('%s_%s_\\1' % (libname, libext), amsnippet1)
+        amsnippet1 = amsnippet1.replace('lib%_LIBRARIES', 'lib_LIBRARIES')
+        amsnippet1 = amsnippet1.replace('lib%_LTLIBRARIES', 'lib_LTLIBRARIES')
+        amsnippet1 = amsnippet1.replace('${gl_include_guard_prefix}',
+          include_guard_prefix)
+        if str(module) == 'alloca':
+          amsnippet1 += '%s_%s_LIBADD += @%sALLOCA@\n' % \
+            (libname, libext, perhapsLT)
+          amsnippet1 += '%s_%s_DEPENDENCIES += @%sALLOCA@\n' % \
+            (libname, libext, perhapsLT)
         
-        # Test whether there are some source files in subdirectories.
-        for file in module.getFiles():
-          if file.startswith('lib/') and file.endswith('.c') and \
-          file.count('/') > 1:
-            uses_subdirs = True
-            break
+        # Get unconditional snippet, edit it and save to amsnippet1.
+        amsnippet2 = module.getAutomakeSnippet_Unconditional()
+        pattern = compiler('lib_([A-Z][A-Z](?:.*?))', re.S | re.M)
+        amsnippet2 = pattern.sub('%s_%s_\\1' % (libname, libext), amsnippet2)
+        if type(amsnippet1) is bytes:
+          amsnippet1 = amsnippet1.decode(ENCS['default'])
+        if type(amsnippet2) is bytes:
+          amsnippet2 = amsnippet1.decode(ENCS['default'])
+        if not (amsnippet1 +amsnippet2).isspace():
+          allsnippets += '## begin gnulib module %s\n' % str(module)
+          if conddeps:
+            if moduletable.isConditional(module):
+              name = module.getConditionalName()
+              allsnippets += 'if %s\n' % name
+          allsnippets += amsnippet1
+          if conddeps:
+            allsnippets += 'endif\n'
+          allsnippets += amsnippet2
+          allsnippets += '## end   gnulib module %s\n\n' % str(module)
+          
+          # Test whether there are some source files in subdirectories.
+          for file in module.getFiles():
+            if file.startswith('lib/') and file.endswith('.c') and \
+            file.count('/') > 1:
+              uses_subdirs = True
+              break
     if not makefile:
       subdir_options = string()
       # If there are source files in subdirectories, prevent collision of the
@@ -648,7 +821,7 @@ AC_DEFUN([%V1%_LIBSOURCES], [
       # Synthesize an ${libname}_${libext}_LDFLAGS augmentation by combining
       # the link dependencies of all modules.
       listing = list()
-      links = [m.getLink() for m in moduletable['main'] if not m.isTests()]
+      links = [module.getLink() for module in modules if not module.isTests()]
       for link in links:
         link = constants.nlremove(link)
         position = link.find(' when linking with libtool')
@@ -676,4 +849,5 @@ AC_DEFUN([%V1%_LIBSOURCES], [
     emit = constants.nlconvert(emit)
     if type(emit) is bytes:
       emit = emit.decode(ENCS['default'])
-    
+    return(emit)
+

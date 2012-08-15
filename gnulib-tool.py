@@ -61,23 +61,20 @@ relpath = os.path.relpath
 # Define main part
 #===============================================================================
 def main():
-  # Define default error handling
-  #errmode = 1 # pygnulib-style errors
-  
   # Define default arguments
   mode = 1
   destdir = '.'
   localdir = None
   modcache = None
   verbose = None
-  auxdir = None
+  auxdir = 'AUX'
   modules = list(['string'])
   avoids = list()
-  sourcebase = None
+  sourcebase = 'LIB'
   m4base = None
   pobase = None
   docbase = None
-  testsbase = None
+  testsbase = 'TESTS'
   tests = None
   libname = None
   lgpl = None
@@ -88,7 +85,7 @@ def main():
   podomain = None
   witness_c_macro = None
   vc_files = None
-  dryrun = True
+  dryrun = None
   errors = True
   
   if mode == MODES['import']:
@@ -127,7 +124,6 @@ def main():
       modcache=modcache,
       verbose=verbose,
       dryrun=dryrun,
-      errors=errors,
     )
   
   else: # if mode != MODE['--import']
@@ -302,8 +298,8 @@ def main():
   # Execute operations depending on type of action
   if mode in range(0, 4):
     importer = classes.GLImport(config, mode)
-    files, old_files, new_files, transformers = importer.prepare()
-    importer.execute(files, old_files, new_files, transformers)
+    filetable, transformers = importer.prepare()
+    importer.execute(filetable, transformers)
 
 if __name__ == '__main__':
   try: # Try to execute
@@ -342,8 +338,8 @@ if __name__ == '__main__':
       elif errno == 9:
         message += 'missing --lib option'
       elif errno == 10:
-        message += 'gnulib-tool: option --conditional-dependencies is not '
-        message += 'supported with --with-tests'
+        message = 'gnulib-tool: option --conditional-dependencies is not '
+        message += 'supported with --with-tests\n'
       elif errno == 11:
         incompatibilities = string()
         message += 'incompatible license on modules:%s' % constants.NL
@@ -364,8 +360,9 @@ if __name__ == '__main__':
         message += 'refusing to do nothing'
       elif errno in [13, 14, 15, 16, 17]:
         message += 'failed'
-      message += '\n%s: *** Exit.\n' % constants.APP['name']
+      if errno != 10:
+        message += '\n%s: *** Exit.\n' % constants.APP['name']
       sys.stderr.write(message)
-      raise(classes.GLError(error.errno, error.errinfo))
+      #raise(classes.GLError(error.errno, error.errinfo))
       sys.exit(1)
 

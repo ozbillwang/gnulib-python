@@ -304,6 +304,73 @@ Include:|Link:|License:|Maintainer:)'
       result += '-tests'
     return(result)
     
+  def getShellFunc(self):
+    '''GLModule.getShellFunc() -> string
+    
+    Computes the shell function name that will contain the m4 macros for the
+    module.'''
+    isalnum = True
+    macro_prefix = self.config['macro_prefix']
+    for char in str(module):
+      if char not in constants.ALPHANUMERIC:
+        isalnum = False
+        break
+    if isalnum:
+      module = str(self)
+    else: # if not isalnum
+      module = '%s\n' % str(self)
+      if type(module) is string:
+        module = module.encode(ENCS['default'])
+      module = hashlib.md5(module).hexdigest()
+    result = 'func_%s_gnulib_m4code_%s' % (macro_prefix, module)
+    if type(result) is bytes:
+      result = result.decode(ENCS['default'])
+    return(result)
+    
+  def getShellVar(self):
+    '''GLModule.getShellVar() -> string
+    
+    Compute the shell variable name the will be set to true once the m4 macros
+    for the module have been executed.'''
+    isalnum = True
+    macro_prefix = self.config['macro_prefix']
+    for char in str(module):
+      if char not in constants.ALPHANUMERIC:
+        isalnum = False
+        break
+    if isalnum:
+      module = str(self)
+    else: # if not isalnum
+      module = '%s\n' % str(self)
+      if type(module) is string:
+        module = module.encode(ENCS['default'])
+      module = hashlib.md5(module).hexdigest()
+    result = '%s_gnulib_enabled_%s' % (macro_prefix, module)
+    if type(result) is bytes:
+      result = result.decode(ENCS['default'])
+    return(result)
+    
+  def getConditionalName(self):
+    '''GLModule.getConditionalName() -> string
+    
+    Return the automake conditional name.
+    GLConfig: macro_prefix.'''
+    macro_prefix = self.config['macro_prefix']
+    nonascii = \
+    [ # Begin to filter non-ascii chars
+      char for char in self.getName() if char not in \
+      'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_'
+    ] # Finish to filter non-ascii chars
+    if nonascii:
+      name = self.getName().encode(ENCS['default'])
+      name = hashlib.md5(name).hexdigest()
+      conditional = '%s_GNULIB_ENABLED_%s' % (macro_prefix, name)
+    else: # if not nonascii
+      result = '%s_GNULIB_ENABLED_%s' (macro_prefix, name)
+    if type(result) is bytes:
+      result = result.decode(ENCS['default'])
+    return(result)
+    
   def getDescription(self):
     '''GLModule.getDescription() -> string
     
@@ -502,6 +569,7 @@ Include:|Link:|License:|Maintainer:)'
             result = result[-1]
       result = result.strip()
       result += constants.NL *2
+      result = constants.nlconvert(result)
       self.cache['autoconf-early'] = result
     return(self.cache['autoconf-early'])
     
@@ -644,6 +712,8 @@ Include:|Link:|License:|Maintainer:)'
           else: # if result != list()
             result = result[-1]
       result = result.strip()
+      pattern = compiler('^(["<].*?[>"])', re.S | re.M)
+      result = pattern.sub('#include \\1', result)
       self.cache['include'] = result
     return(self.cache['include'])
     
@@ -725,27 +795,6 @@ Include:|Link:|License:|Maintainer:)'
       result = result.strip()
       self.cache['maintainer'] = result
     return(self.cache['maintainer'])
-    
-  def getConditionalName(self):
-    '''GLModule.getConditionalName() -> string
-    
-    Return the automake conditional name.
-    GLConfig: macro_prefix.'''
-    macro_prefix = self.config['macro_prefix']
-    nonascii = \
-    [ # Begin to filter non-ascii chars
-      char for char in self.getName() if char not in \
-      'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_'
-    ] # Finish to filter non-ascii chars
-    if nonascii:
-      name = self.getName().encode(ENCS['default'])
-      name = hashlib.md5(name).hexdigest()
-      conditional = '%s_GNULIB_ENABLED_%s' % (macro_prefix, name)
-    else: # if not nonascii
-      result = '%s_GNULIB_ENABLED_%s' (macro_prefix, name)
-    if type(result) is bytes:
-      result = result.decode(ENCS['default'])
-    return(result)
 
 
 #===============================================================================
@@ -784,7 +833,6 @@ class GLModuleTable(object):
         raise(TypeError('each avoid must be a GLModule instance'))
       self.avoids += [avoids]
     self.config = config
-    self.conddeps = self.config['conddeps']
     self.modulesystem = GLModuleSystem(self.config, filesystem)
     
   def __repr__(self):
@@ -813,11 +861,11 @@ class GLModuleTable(object):
     
     Add new conditional dependency from parent to module with condition.'''
     if type(parent) is not GLModule:
-      raise(TypeError(
-        'parent must be a GLModule, not %s' % type(parent).__name__))
+      raise(TypeError('parent must be a GLModule, not %s' % \
+        type(parent).__name__))
     if type(module) is not GLModule:
-      raise(TypeError(
-        'module must be a GLModule, not %s' % type(module).__name__))
+      raise(TypeError('module must be a GLModule, not %s' % \
+        type(module).__name__))
     if type(condition) is bytes or type(condition) is string \
     or condition == True:
       if type(condition) is bytes:
@@ -837,8 +885,8 @@ class GLModuleTable(object):
     
     Add module as unconditional dependency.'''
     if type(module) is not GLModule:
-      raise(TypeError(
-        'module must be a GLModule, not %s' % type(module).__name__))
+      raise(TypeError('module must be a GLModule, not %s' % \
+        type(module).__name__))
     if str(module) in self.dependers:
       self.dependers.pop(str(module))
     self.unconditionals[str(module)] = True
@@ -848,8 +896,8 @@ class GLModuleTable(object):
     
     Check whether module is unconditional.'''
     if type(module) is not GLModule:
-      raise(TypeError(
-        'module must be a GLModule, not %s' % type(module).__name__))
+      raise(TypeError('module must be a GLModule, not %s' % \
+        type(module).__name__))
     result = str(module) in self.dependers
     return(result)
     
@@ -859,11 +907,11 @@ class GLModuleTable(object):
     Return condition from parent to module. Condition can be string or True.
     If module is not in the list of conddeps, method returns None.'''
     if type(parent) is not GLModule:
-      raise(TypeError(
-        'parent must be a GLModule, not %s' % type(parent).__name__))
+      raise(TypeError('parent must be a GLModule, not %s' % \
+        type(parent).__name__))
     if type(module) is not GLModule:
-      raise(TypeError(
-        'module must be a GLModule, not %s' % type(module).__name__))
+      raise(TypeError('module must be a GLModule, not %s' % \
+        type(module).__name__))
     key = '%s---%s' % (str(parent), str(module))
     result = None
     if key in self.conditionals:
@@ -886,7 +934,7 @@ class GLModuleTable(object):
     handledmodules = list()
     inmodules = modules
     outmodules = list()
-    if self.conddeps:
+    if self.config['conddeps']:
       for module in modules:
         self.addUnconditional(module)
     while inmodules:
@@ -894,7 +942,7 @@ class GLModuleTable(object):
       inmodules = list()
       for module in inmodules_this_round:
         outmodules += [module]
-        if self.conddeps:
+        if self.config['conddeps']:
           automake_snippet = \
             module.getAutomakeSnippet_Conditional()
           pattern = compiler('^if')
@@ -909,6 +957,7 @@ class GLModuleTable(object):
           if self.modulesystem.exists(testsname):
             testsmodule = self.modulesystem.find(testsname)
             depmodules += [testsmodule]
+            conditions += [None]
         for depmodule in depmodules:
           include = True
           includes = list()
@@ -941,16 +990,16 @@ class GLModuleTable(object):
             include = any(includes)
           if include and depmodule not in self.avoids:
             inmodules += [depmodule]
-            if self.conddeps:
+            if self.config['conddeps']:
               index = depmodules.index(depmodule)
               condition = conditions[index]
               if condition:
-                self.addConditional(self, module, depmodule, condition)
+                self.addConditional(module, depmodule, condition)
               else: # if condition
                 if conditional:
-                  self.addConditional(self, module, depmodule, True)
+                  self.addConditional(module, depmodule, True)
                 else: # if not conditional
-                  self.addUnconditional(self, module)
+                  self.addUnconditional(module)
       listing = list() # Create empty list
       inmodules = sorted(set(inmodules))
       handledmodules = sorted(set(handledmodules +inmodules_this_round))

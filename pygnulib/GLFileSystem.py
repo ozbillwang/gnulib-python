@@ -10,7 +10,6 @@ import sys
 import codecs
 import shutil
 import filecmp
-import tempfile
 import subprocess as sp
 from . import constants
 from .GLError import GLError
@@ -65,9 +64,6 @@ class GLFileSystem(object):
       raise(TypeError('config must be a GLConfig, not %s' % \
         type(config).__name__))
     self.config = config
-    self.tempdir = tempfile.mkdtemp()
-    if type(self.tempdir) is bytes:
-      self.tempdir = self.tempdir.decode(ENCS['system'])
     
   def __repr__(self):
     '''x.__repr__ <==> repr(x)'''
@@ -92,7 +88,7 @@ class GLFileSystem(object):
     path_gnulib = joinpath(DIRS['root'], name)
     path_local = joinpath(self.config['localdir'], name)
     path_diff = joinpath(self.config['localdir'], '%s.diff' % name)
-    path_temp = joinpath(self.tempdir, name)
+    path_temp = joinpath(self.config['tempdir'], name)
     try: # Try to create directories
       os.makedirs(os.path.dirname(path_temp))
     except OSError as error:
@@ -132,6 +128,12 @@ class GLFileAssistant(object):
     if type(filesystem) is not GLFileSystem:
       raise(TypeError('filesystem must be a GLFileSystem, not %s' % \
         type(config).__name__))
+    if type(transformers) is not dict:
+      raise(TypeError('transformers must be a dict, not %s' % \
+        type(transformers).__name__))
+    for key in ['lib', 'aux', 'main', 'tests']:
+      if key not in transformers:
+        raise(KeyError('transformer must contain key %s' % repr(key)))
     self.config = config
     self.filesystem = filesystem
     self.transformers = transformers
@@ -165,7 +167,7 @@ class GLFileAssistant(object):
     else: # if self.config['dryrun']
       # Put the new contents of $file in a file in a temporary directory
       # (because the directory of "$file" might not exist).
-      tempdir = self.filesystem.tempdir
+      tempdir = self.config['tempdir']
       result = joinpath(tempdir, '%s.tmp' % os.path.basename(path))
       dirname = os.path.dirname(result)
       if not isdir(dirname):
@@ -253,7 +255,7 @@ class GLFileAssistant(object):
     is a temporary one.'''
     original = self.original
     rewritten = self.rewritten
-    self.config['destdir']
+    destdir = self.config['destdir']
     symbolic = self.config['symbolic']
     lsymbolic = self.config['lsymbolic']
     if original == None:
@@ -264,34 +266,39 @@ class GLFileAssistant(object):
       if type(lookedup) is bytes:
         lookedup = lookedup.decode(ENCS['default'])
     else: # if lookedup has not bytes or string type
-      raise(TypeError(
-        'lookedup must be a string, not %s' % type(lookedup).__name__))
+      raise(TypeError('lookedup must be a string, not %s' % \
+        type(lookedup).__name__))
     if type(already_present) is not bool:
       raise(TypeError('already_present must be a bool, not %s' % \
-          type(already_present).__name__))
-    if not filecmp.cmp(joinpath(self.config['destdir'], rewritten), tmpfile):
-      backup = string('%s~' % rewritten)
+        type(already_present).__name__))
+    basename = rewritten
+    backupname = string('%s~' % basename)
+    basepath = joinpath(destdir, basename)
+    backuppath = joinpath(destdir, backupname)
+    if not filecmp.cmp(basepath, tmpfile):
       if not self.config['dryrun']:
         if already_present:
-          print('Updating file %s (backup in %s)' % (rewritten, backup))
+          print('Updating file %s (backup in %s)' % (basename, backupname))
         else: # if not already_present
           message = 'Replacing file '
-          message += '%s (non-gnulib code backed up in ' % rewritten
-          message += '%s) !!' % backup
+          message += '%s (non-gnulib code backed up in ' % basename
+          message += '%s) !!' % backupname
           print(message)
+        if isfile(backuppath):
+          os.remove(backuppath)
         try: # Try to replace the given file
-          shutil.move(rewritten, '%s~' % rewritten)
+          shutil.move(basepath, backuppath)
         except Exception as error:
           raise(GLError(17, original))
         loriginal = joinpath(self.config['localdir'], original)
         if (symbolic or (lsymbolic and lookedup == loriginal)) \
         and not tmpflag and filecmp.cmp(lookedup, tmpfile):
-          constants.link_if_changed(lookedup, joinpath(destdir, rewritten))
+          constants.link_if_changed(lookedup, basepath)
         else: # if any of these conditions is not met
           try: # Try to move file
-            if exist(rewritten):
-              os.remove(rewritten)
-            shutil.move(tmpfile, joinpath(destdir, rewritten))
+            if exist(basepath):
+              os.remove(basepath)
+            shutil.move(tmpfile, rewritten)
           except Exception as error:
             raise(GLError(17, original))
       else: # if self.config['dryrun']
@@ -357,7 +364,7 @@ class GLFileAssistant(object):
   def super_update(self, basename, tmpfile):
     '''GLFileAssistant.super_update(basename, tmpfile) -> tuple
     
-    Move tempfile to destdir/basename path, making a backup of it.
+    Move tmpfile to destdir/basename path, making a backup of it.
     Returns tuple, which contains basename, backupname and status.
       0: tmpfile is the same as destfile;
       1: tmpfile was used to update destfile;
@@ -366,18 +373,17 @@ class GLFileAssistant(object):
     basepath = joinpath(self.config['destdir'], basename)
     backuppath = joinpath(self.config['destdir'], backupname)
     if isfile(basepath):
-      if self.config['dryrun']:
-        if filecmp.cmp(basepath, tmpfile):
-          result_flag = 0
-        else: # if not filecmp.cmp(basepath, tmpfile)
-          result_flag = 1
-          if not self.config['dryrun']:
-            if isfile(backuppath):
-              os.remove(backuppath)
-            shutil.move(basepath, backuppath)
-            shutil.move(tmpfile, basepath)
-          else: # if self.config['dryrun']
-            os.remove(tmpfile)
+      if filecmp.cmp(basepath, tmpfile):
+        result_flag = 0
+      else: # if not filecmp.cmp(basepath, tmpfile)
+        result_flag = 1
+        if not self.config['dryrun']:
+          if isfile(backuppath):
+            os.remove(backuppath)
+          shutil.move(basepath, backuppath)
+          shutil.move(tmpfile, basepath)
+        else: # if self.config['dryrun']
+          os.remove(tmpfile)
     else: # if not isfile(basepath)
       result_flag = 2
       if not self.config['dryrun']:

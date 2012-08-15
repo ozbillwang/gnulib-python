@@ -84,8 +84,9 @@ class GLImport(object):
         repr(mode)))
     
     # Initialize some values.
-    self.config = config.dictionary()
     self.cache = GLConfig()
+    self.config = config.copy()
+    os.rmdir(self.cache['tempdir'])
     
     # Get cached auxdir and libtool from configure.ac/in.
     self.cache.setAuxDir('.')
@@ -94,6 +95,7 @@ class GLImport(object):
       path = joinpath(self.config['destdir'], 'configure.in')
       if not isfile(path):
         raise(GLError(3, path))
+    self.config.setAutoconfFile(path)
     with codecs.open(path, 'rb', 'UTF-8') as file:
       data = file.read()
     pattern = compiler(r'^AC_CONFIG_AUX_DIR\((.*?)\)$', re.S | re.M)
@@ -255,6 +257,11 @@ class GLImport(object):
         if not config.isdefault(key, value):
           self.config.update_key(config, key)
       self.config.setModules(modules)
+    
+    # Check if conddeps is enabled together with inctests.
+    inctests = self.config.checkTestFlag(TESTS['tests'])
+    if self.config['conddeps'] and inctests:
+      raise(GLError(10, None))
     
     # Define GLImport attributes.
     self.emiter = GLEmiter(self.config)
@@ -436,10 +443,240 @@ class GLImport(object):
     actioncmd += ' '.join(modules)
     return(actioncmd)
     
+  def gnulib_cache(self):
+    '''GLImport.gnulib_cache() -> string
+    
+    Emit the contents of generated $m4base/gnulib-cache.m4 file.
+    GLConfig: destdir, localdir, tests, sourcebase, m4base, pobase, docbase,
+    testsbase, conddeps, libtool, macro_prefix, podomain, vc_files.'''
+    emit = string()
+    moduletable = self.moduletable
+    actioncmd = self.actioncmd()
+    destdir = self.config['destdir']
+    localdir = self.config['localdir']
+    testflags = list(self.config['testflags'])
+    sourcebase = self.config['sourcebase']
+    m4base = self.config['m4base']
+    pobase = self.config['pobase']
+    docbase = self.config['docbase']
+    testsbase = self.config['testsbase']
+    lgpl = self.config['lgpl']
+    libname = self.config['libname']
+    makefile = self.config['makefile']
+    conddeps = self.config['conddeps']
+    libtool = self.config['libtool']
+    macro_prefix = self.config['macro_prefix']
+    podomain = self.config['podomain']
+    witness_c_macro = self.config['witness_c_macro']
+    vc_files = self.config['vc_files']
+    modules = [str(module) for module in moduletable['base']]
+    avoids = [str(avoid) for avoid in moduletable['avoids']]
+    emit += self.emiter.copyright_notice()
+    emit += '''#
+# This file represents the specification of how gnulib-tool is used.
+# It acts as a cache: It is written and read by gnulib-tool.
+# In projects that use version control, this file is meant to be put under
+# version control, like the configure.ac and various Makefile.am files.
+
+
+# Specification in the form of a command-line invocation:
+#   %s
+
+# Specification in the form of a few \
+gnulib-tool.m4 macro invocations:\n''' % actioncmd
+    if not localdir or localdir.startswith('/'):
+      relative_localdir = localdir
+    else: # if localdir or not localdir.startswith('/')
+      relative_localdir = constants.relativize(destdir, localdir)
+    emit += 'gl_LOCAL_DIR([%s])\n' % relative_localdir
+    emit += 'gl_MODULES([\n'
+    emit += '  %s\n' % '\n  '.join(modules)
+    emit += '])\n'
+    if self.config.checkTestFlag(TESTS['obsolete']):
+      emit += 'gl_WITH_OBSOLETE\n'
+    if self.config.checkTestFlag(TESTS['cxx-tests']):
+      emit += 'gl_WITH_CXX_TESTS\n'
+    if self.config.checkTestFlag(TESTS['privileged-tests']):
+      emit += 'gl_WITH_PRIVILEGED_TESTS\n'
+    if self.config.checkTestFlag(TESTS['unportable-tests']):
+      emit += 'gl_WITH_UNPORTABLE_TESTS\n'
+    if self.config.checkTestFlag(TESTS['all-tests']):
+      emit += 'gl_WITH_ALL_TESTS\n'
+    emit += 'gl_AVOID([%s])\n' % ' '.join(avoids)
+    emit += 'gl_SOURCE_BASE([%s])\n' % sourcebase
+    emit += 'gl_M4_BASE([%s])\n' % m4base
+    emit += 'gl_PO_BASE([%s])\n' % pobase
+    emit += 'gl_DOC_BASE([%s])\n' % docbase
+    emit += 'gl_TESTS_BASE([%s])\n' % testsbase
+    if self.config.checkTestFlag(TESTS['tests']):
+      emit += 'gl_WITH_TESTS\n'
+    emit += 'gl_LIB([%s])\n' % libname
+    if lgpl != False:
+      if lgpl == True:
+        emit += 'gl_LGPL\n'
+      else: # if lgpl != True
+        emit += 'gl_LGPL([%d])\n' % lgpl
+    emit += 'gl_MAKEFILE_NAME([%s])\n' % makefile
+    if conddeps:
+      emit += 'gl_CONDITIONAL_DEPENDENCIES\n'
+    if libtool:
+      emit += 'gl_LIBTOOL\n'
+    emit += 'gl_MACRO_PREFIX([%s])\n' % macro_prefix
+    emit += 'gl_PO_DOMAIN([%s])\n' % podomain
+    emit += 'gl_WITNESS_C_DOMAIN([%s])\n' % witness_c_macro
+    if vc_files:
+      emit += 'gl_VC_FILES([%s])\n' % vc_files
+    if type(emit) is bytes:
+      emit = emit.decode(ENCS['default'])
+    return(constants.nlconvert(emit))
+    
+  def gnulib_comp(self, files):
+    '''GLImport.gnulib_comp(files) -> string
+    
+    Emit the contents of generated $m4base/gnulib-comp.m4 file.
+    GLConfig: destdir, localdir, tests, sourcebase, m4base, pobase, docbase,
+    testsbase, conddeps, libtool, macro_prefix, podomain, vc_files.'''
+    emit = string()
+    assistant = self.assistant
+    moduletable = self.moduletable
+    destdir = self.config['destdir']
+    localdir = self.config['localdir']
+    auxdir = self.config['auxdir']
+    testflags = list(self.config['testflags'])
+    sourcebase = self.config['sourcebase']
+    m4base = self.config['m4base']
+    pobase = self.config['pobase']
+    docbase = self.config['docbase']
+    testsbase = self.config['testsbase']
+    lgpl = self.config['lgpl']
+    libname = self.config['libname']
+    makefile = self.config['makefile']
+    conddeps = self.config['conddeps']
+    libtool = self.config['libtool']
+    macro_prefix = self.config['macro_prefix']
+    podomain = self.config['podomain']
+    witness_c_macro = self.config['witness_c_macro']
+    configure_ac = self.config['configure_ac']
+    vc_files = self.config['vc_files']
+    libtests = self.config['libtests']
+    modules = [str(module) for module in moduletable['base']]
+    avoids = [str(avoid) for avoid in moduletable['avoids']]
+    emit += '# DO NOT EDIT! GENERATED AUTOMATICALLY!\n'
+    emit += self.emiter.copyright_notice()
+    emit += '''#
+# This file represents the compiled summary of the specification in
+# gnulib-cache.m4. It lists the computed macro invocations that need
+# to be invoked from configure.ac.
+# In projects that use version control, this file can be treated like
+# other built files.
+
+
+# This macro should be invoked from %s, in the section
+# "Checks for programs", right after AC_PROG_CC, and certainly before
+# any checks for libraries, header files, types and library functions.
+AC_DEFUN([%s_EARLY],
+[
+  m4_pattern_forbid([^gl_[A-Z]])dnl the gnulib macro namespace
+  m4_pattern_allow([^gl_ES$])dnl a valid locale name
+  m4_pattern_allow([^gl_LIBOBJS$])dnl a variable
+  m4_pattern_allow([^gl_LTLIBOBJS$])dnl a variable
+  AC_REQUIRE([gl_PROG_AR_RANLIB])\n''' % (configure_ac, macro_prefix)
+    uses_subdirs = False
+    for module in moduletable['main']:
+      # Test whether there are some source files in subdirectories.
+      for file in module.getFiles():
+        if file.startswith('lib/') and file.endswith('.c') and \
+        file.count('/') > 1:
+          uses_subdirs = True
+          break
+    if uses_subdirs:
+      emit += '  AC_REQUIRE([AM_PROG_CC_C_O])\n'
+    for module in moduletable['final']:
+      emit += '  # Code from module %s:\n' % str(module)
+      snippet = module.getAutoconfSnippet_Early()
+      lines = [line for line in snippet.split(constants.NL) if line != '']
+      if lines:
+        emit += '  %s\n' % '\n  '.join(lines)
+    emit += '])\n'
+    emit += '''
+# This macro should be invoked from %s, in the section
+# "Check for header files, types and library functions".
+AC_DEFUN([%s_INIT],
+[\n''' % (configure_ac, macro_prefix)
+    if libtool:
+      emit += '  AM_CONDITIONAL([GL_COND_LIBTOOL], [true])\n'
+      emit += '  gl_cond_libtool=true\n'
+    else: # if not libtool
+      emit += '  AM_CONDITIONAL([GL_COND_LIBTOOL], [false])\n'
+      emit += '  gl_cond_libtool=false\n'
+      emit += '  gl_libdeps=\n'
+      emit += '  gl_ltlibdeps=\n'
+    replace_auxdir = False
+    if auxdir != 'build-aux':
+      replace_auxdir = True
+    emit += '  gl_m4_base=\'%s\'\n' % m4base
+    emit += self.emiter.initmacro_start(macro_prefix)
+    emit += '  gl_source_base=\'%s\'\n' % sourcebase
+    if witness_c_macro:
+      emit += '  m4_pushdef([gl_MODULE_INDICATOR_CONDITION], [%s])\n' % \
+        witness_c_macro
+    # Emit main autoconf snippets.
+    emit += self.emiter.autoconfSnippets(moduletable['main'],
+      moduletable, assistant, 0, True, False, True, replace_auxdir)
+    if witness_c_macro:
+      emit += '  m4_popdef([gl_MODULE_INDICATOR_CONDITION])\n'
+    emit += '  # End of code from modules\n'
+    emit += self.emiter.initmacro_end(macro_prefix)
+    emit += '  gltests_libdeps=\n'
+    emit += '  gltests_ltlibdeps=\n'
+    emit += self.emiter.initmacro_start('%stests' % macro_prefix)
+    emit += '  gl_source_base=\'%s\'\n' % testsbase
+    # Define a tests witness macro that depends on the package.
+    # PACKAGE is defined by AM_INIT_AUTOMAKE, PACKAGE_TARNAME is defined by
+    # AC_INIT.
+    # See <http://lists.gnu.org/archive/html/automake/2009-05/msg00145.html>.
+    emit += 'changequote(,)dnl\n'
+    emit += '  %stests_WITNESS=' % macro_prefix
+    emit += 'IN_`echo "${PACKAGE-$PACKAGE_TARNAME}" | LC_ALL=C tr \
+abcdefghijklmnopqrstuvwxyz ABCDEFGHIJKLMNOPQRSTUVWXYZ | LC_ALL=C sed -e \
+\'s/[^A-Z0-9_]/_/g\'`_GNULIB_TESTS\n'
+    emit += 'changequote([, ])dnl\n'
+    emit += '  AC_SUBST([%stests_WITNESS])\n' % macro_prefix
+    emit += '  gl_module_indicator_condition=$%stests_WITNESS\n' % macro_prefix
+    emit += '  m4_pushdef([gl_MODULE_INDICATOR_CONDITION], '
+    emit += '[$gl_module_indicator_condition])\n'
+    # Emit tests autoconf snippets.
+    emit += self.emiter.autoconfSnippets(moduletable['tests'],
+      moduletable, assistant, 0, True, True, True, replace_auxdir)
+    emit += '  m4_popdef([gl_MODULE_INDICATOR_CONDITION])\n'
+    emit += self.emiter.initmacro_end('%stests' % macro_prefix)
+    # _LIBDEPS and _LTLIBDEPS variables are not needed if this library is
+    # created using libtool, because libtool already handles the dependencies.
+    if not libtool:
+      libname_upper = libname.upper().replace('-', '_')
+      emit += '%s_LIBDEPS="$gl_libdeps"\n' % libname_upper
+      emit += '  AC_SUBST([%s_LIBDEPS])\n' % libname_upper
+      emit += '  %s_LTLIBDEPS="$gl_ltlibdeps"\n' % libname_upper
+      emit += '  AC_SUBST([%s_LTLIBDEPS])\n' % libname_upper
+    if libtests:
+      emit += '  LIBTESTS_LIBDEPS="$gltests_libdeps"\n'
+      emit += '  AC_SUBST([LIBTESTS_LIBDEPS])\n'
+    emit += '])\n'
+    emit += self.emiter.initmacro_done(macro_prefix, sourcebase)
+    emit += self.emiter.initmacro_done('%stests' % macro_prefix, testsbase)
+    emit += '''
+# This macro records the list of files which have been installed by
+# gnulib-tool and may be removed by future gnulib-tool invocations.
+AC_DEFUN([%s_FILE_LIST], [\n''' % macro_prefix
+    emit += '  %s\n' % '\n  '.join(files)
+    emit += '])\n'
+    if type(emit) is bytes:
+      emit = emit.decode(ENCS['default'])
+    return(emit)
+    
   def prepare(self):
-    '''Make all preparations before the execution of the code. Returns tuple,
-    which consists of two tables. The first table represents old files and the
-    second represents new files.'''
+    '''Make all preparations before the execution of the code.
+    Returns filetable and sed transformers, which change the license.'''
     destdir = self.config['destdir']
     localdir = self.config['localdir']
     auxdir = self.config['auxdir']
@@ -461,6 +698,7 @@ class GLImport(object):
     podomain = self.config['podomain']
     witness_c_macro = self.config['witness_c_macro']
     vc_files = self.config['vc_files']
+    configure_ac = self.config['configure_ac']
     ac_version = self.config['ac_version']
     verbose = self.config['verbosity']
     base_modules = sorted(set([self.modulesystem.find(m) for m in modules]))
@@ -515,6 +753,8 @@ class GLImport(object):
         if file.startswith('lib/'):
           libtests = True
           break
+    if libtests:
+      self.config.enableLibtests()
     
     # Add dummy package if it is needed.
     main_modules = self.moduletable.add_dummy(main_modules)
@@ -634,14 +874,30 @@ class GLImport(object):
     old_table = sorted(set(old_table))
     new_table = sorted(set(new_table))
     
+    # Prepare the filetable.
+    filetable = dict()
+    filetable['all'] = sorted(set(filelist))
+    filetable['old'] = \
+      sorted(set(old_table), key=lambda t: tuple(t[0].lower()))
+    filetable['new'] = \
+      sorted(set(new_table), key=lambda t: tuple(t[0].lower()))
+    filetable['added'] = list()
+    filetable['removed'] = list()
+    
     # Return the result.
-    result = tuple([filelist, old_table, new_table, transformers])
+    result = tuple([filetable, transformers])
     return(result)
     
-  def execute(self, filelist, old_files, new_files, transformers):
+  def execute(self, filetable, transformers):
     '''Perform operations on the lists of files, which are given in a special
     format except filelist argument. Such lists of files can be created using
     GLImport.prepare() function.'''
+    if type(filetable) is not dict:
+      raise(TypeError('filetable must be a dict, not %s' % \
+        type(filetable).__name__))
+    for key in ['all', 'old', 'new', 'added', 'removed']:
+      if key not in filetable:
+        raise(KeyError('filetable must contain key %s' % repr(key)))
     destdir = self.config['destdir']
     localdir = self.config['localdir']
     auxdir = self.config['auxdir']
@@ -663,19 +919,10 @@ class GLImport(object):
     podomain = self.config['podomain']
     witness_c_macro = self.config['witness_c_macro']
     vc_files = self.config['vc_files']
+    configure_ac = self.config['configure_ac']
     ac_version = self.config['ac_version']
     verbose = self.config['verbosity']
     actioncmd = self.actioncmd()
-    
-    # Store all files to files self.moduletable.
-    filetable = dict()
-    filetable['all'] = sorted(set(filelist))
-    filetable['old'] = \
-      sorted(set(old_files), key=lambda t: tuple(t[0].lower()))
-    filetable['new'] = \
-      sorted(set(new_files), key=lambda t: tuple(t[0].lower()))
-    filetable['added'] = list()
-    filetable['removed'] = list()
     
     # Create all necessary directories.
     dirs = list()
@@ -688,8 +935,8 @@ class GLImport(object):
     dirs = sorted(set([joinpath(destdir, d) for d in dirs]))
     for directory in dirs:
       if not isdir(directory):
+        print('Creating directory %s' % directory)
         if not self.config['dryrun']:
-            print('Creating directory %s' % directory)
             try: # Try to create directory
               os.makedirs(directory)
             except Exception as error:
@@ -785,8 +1032,8 @@ class GLImport(object):
     # Create library makefile.
     basename = joinpath(sourcebase, makefile_am)
     tmpfile = self.assistant.tmpfilename(basename)
-    emit = self.emiter.lib_Makefile_am(basename, self.moduletable,
-      self.makefiletable, actioncmd, for_test)
+    emit = self.emiter.lib_Makefile_am(basename, self.moduletable['main'],
+      self.moduletable, self.makefiletable, actioncmd, for_test)
     with codecs.open(tmpfile, 'wb', 'UTF-8') as file:
       file.write(emit)
     filename, backup, flag = self.assistant.super_update(basename, tmpfile)
@@ -800,7 +1047,9 @@ class GLImport(object):
         print('Creating %s' % filename)
       else: # if self.config['dryrun']:
         print('Create %s' % filename)
-    filetable['added'] += [filename]
+      filetable['added'] += [filename]
+    if isfile(tmpfile):
+      os.remove(tmpfile)
     
     # Create po/ directory.
     filesystem = GLFileSystem(self.config)
@@ -824,13 +1073,15 @@ class GLImport(object):
           else: # if self.config['dryrun']:
             print('Create %s' % filename)
           filetable['added'] += [filename]
+      if isfile(tmpfile):
+        os.remove(tmpfile)
       
       # Create po makefile parameterization, part 1.
-      tmpfile = self.assistant.tmpfilename(joinpath(pobase, 'Makevars'))
+      basename = joinpath(pobase, 'Makevars')
+      tmpfile = self.assistant.tmpfilename(basename)
       emit = self.emiter.po_Makevars()
       with codecs.open(tmpfile, 'wb', 'UTF-8') as file:
         file.write(emit)
-      basename = joinpath(pobase, 'Makevars')
       filename, backup, flag = self.assistant.super_update(basename, tmpfile)
       if flag == 1:
         if not self.config['dryrun']:
@@ -843,9 +1094,12 @@ class GLImport(object):
         else: # if self.config['dryrun']:
           print('Create %s' % filename)
         filetable['added'] += [filename]
+      if isfile(tmpfile):
+        os.remove(tmpfile)
       
       # Create po makefile parameterization, part 2.
-      tmpfile = self.assistant.tmpfilename(joinpath(pobase, 'POTFILES.in'))
+      basename = joinpath(pobase, 'POTFILES.in')
+      tmpfile = self.assistant.tmpfilename(basename)
       with codecs.open(tmpfile, 'wb', 'UTF-8') as file:
         file.write(self.emiter.po_POTFILES_in(filetable['all']))
       basename = joinpath(pobase, 'POTFILES.in')
@@ -861,6 +1115,8 @@ class GLImport(object):
         else: # if self.config['dryrun']:
           print('Create %s' % filename)
         filetable['added'] += [filename]
+      if isfile(tmpfile):
+        os.remove(tmpfile)
       
       # Fetch PO files.
       TP_URL = 'http://translationproject.org/latest/'
@@ -882,8 +1138,9 @@ class GLImport(object):
         print('Fetch gnulib PO files from %s' % TP_URL)
       
       # Create po/LINGUAS.
+      basename = joinpath(pobase, 'LINGUAS')
       if not self.config['dryrun']:
-        tmpfile = self.assistant.tmpfilename(joinpath(pobase, 'LINGUAS'))
+        tmpfile = self.assistant.tmpfilename(basename)
         data = string('# Set of available languages.\n')
         files = [constants.subend('.po', '', file) \
           for file in os.listdir(joinpath(destdir, pobase))]
@@ -892,15 +1149,15 @@ class GLImport(object):
         data += '\n'.join(files)
         with codecs.open(tmpfile, 'wb', 'UTF-8') as file:
           file.write(data)
-        basename = joinpath(pobase, 'LINGUAS')
         filename, backup, flag = self.assistant.super_update(basename, tmpfile)
         if flag == 1:
           print('Updating %s (backup in %s)' % (filename, backup))
         elif flag == 2:
           print('Creating %s' % filename)
           filetable['added'] += [filename]
+        if isfile(tmpfile):
+          os.remove(tmpfile)
       else: # if not self.config['dryrun']
-        basename = joinpath(pobase, 'LINGUAS')
         backupname = '%s~' % basename
         if isfile(destdir, basename):
           print('Update %s (backup in %s)' % (basename, backupname))
@@ -908,28 +1165,118 @@ class GLImport(object):
           print('Create %s' % basename)
       
     # Create m4/gnulib-cache.m4.
-    tmpfile = self.assistant.tmpfilename(m4base, 'gnulib-cache.m4')
-    contents = self.emiter.gnulib_cache(actioncmd)
-    with codecs.open(tmpfile, 'wb', 'UTF-8') as file:
-      file.write(contents)
     basename = joinpath(m4base, 'gnulib-cache.m4')
+    tmpfile = self.assistant.tmpfilename(basename)
+    emit = self.gnulib_cache()
+    with codecs.open(tmpfile, 'wb', 'UTF-8') as file:
+      file.write(emit)
     filename, backup, flag = self.assistant.super_update(basename, tmpfile)
     if flag == 1:
       if not self.config['dryrun']:
         print('Updating %s (backup in %s)' % (filename, backup))
       else: # if self.config['dryrun']
         print('Update %s (backup in %s)' % (filename, backup))
-        if False:
-          contents += '\n# gnulib-cache.m4 ends here'
-          contents = constants.nlconvert(contents)
-          print(contents)
     elif flag == 2:
       if not self.config['dryrun']:
         print('Creating %s' % filename)
       else: # if self.config['dryrun']:
         print('Create %s' % filename)
-        print(contents)
-      
-    # Create m4/gnulib-comp.m4.
+        if emit[-2:] == '\r\n':
+          emit = emit[:-2]
+        elif emit[-1:] == '\n':
+          emit = emit[:-1]
+        print(emit)
+    if isfile(tmpfile):
+      os.remove(tmpfile)
     
+    # Create m4/gnulib-comp.m4.
+    basename = joinpath(m4base, 'gnulib-comp.m4')
+    tmpfile = self.assistant.tmpfilename(basename)
+    emit = self.gnulib_comp(filetable['all'])
+    with codecs.open(tmpfile, 'wb', 'UTF-8') as file:
+      file.write(emit)
+    filename, backup, flag = self.assistant.super_update(basename, tmpfile)
+    if flag == 1:
+      if not self.config['dryrun']:
+        print('Updating %s (backup in %s)' % (filename, backup))
+      else: # if self.config['dryrun']
+        print('Update %s (backup in %s)' % (filename, backup))
+    elif flag == 2:
+      if not self.config['dryrun']:
+        print('Creating %s' % filename)
+      else: # if self.config['dryrun']:
+        print('Create %s' % filename)
+        if emit[-2:] == '\r\n':
+          emit = emit[:-2]
+        elif emit[-1:] == '\n':
+          emit = emit[:-1]
+        print(emit)
+    if isfile(tmpfile):
+      os.remove(tmpfile)
+    
+    # Create tests Makefile.
+    inctests = self.config.checkTestFlag(TESTS['tests'])
+    if inctests:
+      basename = joinpath(testsbase, makefile_am)
+      tmpfile = self.assistant.tmpfilename(basename)
+      emit = self.emiter.lib_Makefile_am(basename, self.moduletable['tests'],
+        self.moduletable, self.makefiletable, actioncmd, for_test)
+      with codecs.open(tmpfile, 'wb', 'UTF-8') as file:
+        file.write(emit)
+      filename, backup, flag = self.assistant.super_update(basename, tmpfile)
+      if flag == 1:
+        if not self.config['dryrun']:
+          print('Updating %s (backup in %s)' % (filename, backup))
+        else: # if self.config['dryrun']
+          print('Update %s (backup in %s)' % (filename, backup))
+      elif flag == 2:
+        if not self.config['dryrun']:
+          print('Creating %s' % filename)
+        else: # if self.config['dryrun']:
+          print('Create %s' % filename)
+        filetable['added'] += [filename]
+      if isfile(tmpfile):
+        os.remove(tmpfile)
+    
+    # Update the .cvsignore and .gitignore files.
+    
+    # Finish the work.
+    print('Finished.\n')
+    print('You may need to add #include directives \
+for the following .h files.')
+    modules = sorted(set([module for module in self.moduletable['base'] \
+      if module in self.moduletable['main']]))
+    # First the #include <...> directives without #ifs, sorted for convenience,
+    # then the #include "..." directives without #ifs, sorted for convenience,
+    # then the #include directives that are surrounded by #ifs. Not sorted.
+    includes_angles = list()
+    includes_quotes = list()
+    includes_if = list()
+    for module in modules:
+      include = module.getInclude()
+      for include in include.split('\n'):
+        if '%s#if' % constants.NL in '%s%s' % (constants.NL, include):
+          includes_if += [include]
+        else: # if '%s#if' % constants.NL in '%s%s' % (constants.NL, include)
+          if 'include "' in include:
+            includes_quotes += [include]
+          else: # if 'include "' not in include
+            includes_angles += [include]
+    includes_angles = sorted(set(includes_angles))
+    includes_quotes = sorted(set(includes_quotes))
+    includes = includes_angles +includes_quotes +includes_if
+    includes = [include for include in includes if include.split()]
+    for include in includes:
+      print('  %s' % include)
+    
+    # Get link directives.
+    links = [module.getLink() for module in self.moduletable['main']]
+    links = sorted(set([link for link in links if link.strip()]))
+    if links:
+      print('''
+You may need to use the following Makefile variables when linking.
+Use them in <program>_LDADD when linking a program, or
+in <library>_a_LDFLAGS or <library>_la_LDFLAGS when linking a library.''')
+      for link in links:
+        print('  %s' % link)
 

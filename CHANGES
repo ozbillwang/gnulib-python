@@ -1,3 +1,6 @@
+15 August 2012, Dmitriy Selyutin
+GNULibImport is almost finished. A large portion of fixes is inside.
+
 13 August 2012, Dmitriy Selyutin
 GLEmiter.lib_Makefile_am is finished and works except horrible regex where we
 decide if we shall emit 'noinst_${perhapsLT}LIBRARIES += $libname.$libext'.

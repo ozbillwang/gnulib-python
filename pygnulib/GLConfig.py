@@ -9,6 +9,7 @@ import re
 import sys
 import copy
 import codecs
+import tempfile
 import subprocess as sp
 from . import constants
 from .GLError import GLError
@@ -60,10 +61,13 @@ class GLConfig(object):
     modules=None, avoids=None, files=None, tests=None, libname=None, lgpl=None,
     makefile=None, libtool=None, conddeps=None, macro_prefix=None,
     podomain=None, witness_c_macro=None, vc_files=None, symbolic=None,
-    lsymbolic=None, modcache=None, ac_version=None, verbose=None, dryrun=None,
-    errors=None):
-    '''Create new GLConfig instance.'''
+    lsymbolic=None, modcache=None, configure_ac=None, ac_version=None,
+    libtests=None, verbose=None, dryrun=None, errors=None):
+    '''GLConfig.__init__(arguments) -> GLConfig
+    
+    Create new GLConfig instance.'''
     self.table = dict()
+    self.table['tempdir'] = tempfile.mkdtemp()
     # destdir
     self.resetDestDir()
     if destdir != None:
@@ -209,10 +213,25 @@ class GLConfig(object):
       else: # if type(modcache) is not bool
         raise(TypeError('modcache must be a bool, not %s' % \
           type(modcache).__name__))
+    # configure_ac
+    self.resetAutoconfFile()
+    if configure_ac != None:
+      self.setAutoconfFile(configure_ac)
     # ac_version
     self.resetAutoconfVersion()
     if ac_version != None:
       self.setAutoconfVersion(ac_version)
+    # libtests
+    self.resetLibtests()
+    if libtests != None:
+      if type(libtests) is bool:
+        if not libtests:
+          self.disableLibtests()
+        else: # if libtests
+          self.enableLibtests()
+      else: # if type(libtests) is not bool
+        raise(TypeError('libtests must be a bool, not %s' % \
+          type(libtests).__name__))
     # verbose
     self.resetVerbosity()
     if verbose != None:
@@ -233,9 +252,9 @@ class GLConfig(object):
     if errors != None:
       if type(errors) is bool:
         if not errors:
-          self.disableDryRun()
+          self.disableErrors()
         else: # if errors
-          self.enableDryRun()
+          self.enableErrors()
       else: # if type(errors) is not bool
         raise(TypeError('errors must be a bool, not %s' % \
           type(errors).__name__))
@@ -255,11 +274,12 @@ class GLConfig(object):
     else: # if y not in self.table
       raise(KeyError('GLConfig does not contain key: %s' % repr(y)))
     
-  def pydict(self):
-    return(self.table)
-    
   def dictionary(self):
     '''Return the configuration as a dict object.'''
+    return(dict(self.table))
+    
+  def copy(self):
+    '''Return the copy of the configuration.'''
     table = copy.deepcopy(self)
     return(table)
     
@@ -296,14 +316,6 @@ class GLConfig(object):
     else: # if key not in self.table
       raise(KeyError('GLConfig does not contain key: %s' % repr(key)))
     
-  def check(self, key):
-    '''Return True if the specified key has not default value. If key is not
-    presented, raise KeyError.'''
-    if key in self.table:
-      return(self.table[key] != None)
-    else: # if key not in self.table
-      raise(KeyError('GLConfig does not contain key: %s' % repr(key)))
-    
   def default(self, key):
     '''Return default value for the given key.'''
     if key in self.table:
@@ -317,20 +329,19 @@ class GLConfig(object):
         return(string('GL'))
       elif key == 'ac_version':
         return(2.59)
-      elif key == 'libtool':
-        return(False)
       elif key == 'verbosity':
         return(0)
       elif key == 'copyrights':
         return(True)
-      elif key == 'dryrun':
-        return(False)
       elif key in ['modules', 'avoids', 'tests', 'testflags']:
         return(list())
-      elif key in ['lgpl', 'conddeps', 'modcache', 'symbolic', 'lsymbolic']:
+      elif key in ['libtool', 'lgpl', 'conddeps', 'modcache', 'symbolic',
+      'lsymbolic', 'libtests', 'dryrun']:
         return(False)
       if key == 'vc_files':
         return(None)
+      elif key == 'errors':
+        return(True)
       else: # otherwise
         return(string())
     else: # if key not in self.table
@@ -347,6 +358,10 @@ class GLConfig(object):
   def keys(self):
     '''Return list of keys.'''
     return(list(self.table.keys()))
+    
+  def values(self):
+    '''Return list of values.'''
+    return(list(self.table.values()))
     
     
   # Define destdir methods.
@@ -413,7 +428,7 @@ class GLConfig(object):
         self.table['auxdir'] = relpath(self.table['destdir'], auxdir)
     else: # if type of auxdir is not bytes or string
       raise(TypeError('auxdir must be a string, not %s' % \
-          type(auxdir).__name__))
+        type(auxdir).__name__))
     
   def resetAuxDir(self):
     '''Reset directory relative to --dir where auxiliary build tools are
@@ -435,7 +450,7 @@ class GLConfig(object):
         self.table['sourcebase'] = relpath(self.table['destdir'], sourcebase)
     else: # if type of sourcebase is not bytes or string
       raise(TypeError('sourcebase must be a string, not %s' % \
-          type(sourcebase).__name__))
+        type(sourcebase).__name__))
     
   def resetSourceBase(self):
     '''Return directory relative to destdir where source code is placed.'''
@@ -456,7 +471,7 @@ class GLConfig(object):
         self.table['m4base'] = relpath(self.table['destdir'], m4base)
     else: # if type of m4base is not bytes or string
       raise(TypeError('m4base must be a string, not %s' % \
-          type(m4base).__name__))
+        type(m4base).__name__))
     
   def resetM4Base(self):
     '''Reset directory relative to destdir where *.m4 macros are placed.'''
@@ -477,7 +492,7 @@ class GLConfig(object):
         self.table['pobase'] = relpath(self.table['destdir'], pobase)
     else: # if type of pobase is not bytes or string
       raise(TypeError('pobase must be a string, not %s' % \
-          type(pobase).__name__))
+        type(pobase).__name__))
     
   def resetPoBase(self):
     '''Reset directory relative to destdir where *.po files are placed.'''
@@ -500,7 +515,7 @@ class GLConfig(object):
         self.table['docbase'] = relpath(self.table['destdir'], docbase)
     else: # if type of docbase is not bytes or string
       raise(TypeError('docbase must be a string, not %s' % \
-          type(docbase).__name__))
+        type(docbase).__name__))
     
   def resetDocBase(self):
     '''Reset directory relative to destdir where doc files are placed.
@@ -524,7 +539,7 @@ class GLConfig(object):
         self.table['testsbase'] = relpath(self.table['destdir'], testsbase)
     else: # if type of testsbase is not bytes or string
       raise(TypeError('testsbase must be a string, not %s' % \
-          type(testsbase).__name__))
+        type(testsbase).__name__))
     
   def resetTestsBase(self):
     '''Reset directory relative to destdir where unit tests are placed.
@@ -634,49 +649,49 @@ class GLConfig(object):
     
     
   # Define files methods.
-  def addFile(self, module):
+  def addFile(self, file):
     '''Add file to the list of files.'''
-    if type(module) is bytes or type(module) is string:
-      if type(module) is bytes:
-        module = module.decode(ENCS['default'])
+    if type(file) is bytes or type(file) is string:
+      if type(file) is bytes:
+        file = file.decode(ENCS['default'])
       if file not in self.table['files']:
-        self.table['files'].append(module)
-    else: # if module has not bytes or string type
+        self.table['files'].append(file)
+    else: # if file has not bytes or string type
       raise(TypeError('file must be a string, not %s' % \
-        type(module).__name__))
+        type(file).__name__))
     
-  def removeFile(self, module):
+  def removeFile(self, file):
     '''Remove the given file from the list of files.'''
-    if type(module) is bytes or type(module) is string:
-      if type(module) is bytes:
-        module = module.decode(ENCS['default'])
+    if type(file) is bytes or type(file) is string:
+      if type(file) is bytes:
+        file = file.decode(ENCS['default'])
       if file in self.table['files']:
-        self.table['files'].remove(module)
-    else: # if module has not bytes or string type
+        self.table['files'].remove(file)
+    else: # if file has not bytes or string type
       raise(TypeError('file must be a string, not %s' % \
-        type(module).__name__))
+        type(file).__name__))
     
   def getFiles(self):
-    '''Return the list of the fileed modules.'''
+    '''Return the list of the fileed files.'''
     return(list(self.table['files']))
     
-  def setFiles(self, modules):
+  def setFiles(self, files):
     '''Specify the list of files.'''
-    if type(modules) is list or type(modules) is tuple:
+    if type(files) is list or type(files) is tuple:
       old_files = self.table['files']
       self.table['files'] = list()
-      for module in modules:
-        try: # Try to add each module
-          self.addFile(module)
+      for file in files:
+        try: # Try to add each file
+          self.addFile(file)
         except TypeError as error:
           self.table['files'] = old_files
-          raise(TypeError('each module must be a string'))
+          raise(TypeError('each file must be a string'))
         except GLError as error:
           self.table['files'] = old_files
           raise(GLError(error.errno, error.errinfo))
-    else: # if type of modules is not list or tuple
-      raise(TypeError('modules must be a list or a tuple, not %s' % \
-          type(modules).__name__))
+    else: # if type of files is not list or tuple
+      raise(TypeError('files must be a list or a tuple, not %s' % \
+          type(files).__name__))
     
   def resetFiles(self):
     '''Reset the list of files.'''
@@ -956,6 +971,37 @@ class GLConfig(object):
     self.table['modcache'] = False
     
     
+  # Define configure_ac methods.
+  def getAutoconfFile(self):
+    '''Return path of autoconf file relative to destdir.'''
+    return(self.table['configure_ac'])
+    
+  def setAutoconfFile(self, configure_ac):
+    '''Specify path of autoconf file relative to destdir.'''
+    if type(configure_ac) is bytes or type(configure_ac) is string:
+      if type(configure_ac) is bytes:
+        configure_ac = string(configure_ac, ENCS['system'])
+      if configure_ac:
+        self.table['configure_ac'] = \
+          relpath(self.table['destdir'],configure_ac)
+    else: # if type of configure_ac is not bytes or string
+      raise(TypeError('configure_ac must be a string, not %s' % \
+        type(configure_ac).__name__))
+    
+  def resetAutoconfFile(self):
+    '''Reset path of autoconf file relative to destdir.'''
+    configure_ac = string()
+    if isfile(joinpath(self.table['destdir'], 'configure.ac')):
+      configure_ac = joinpath(self.table['destdir'], 'configure.ac')
+    elif isfile(joinpath(self.table['destdir'], 'configure.in')):
+      configure_ac = joinpath(self.table['destdir'], 'configure.in')
+    if configure_ac == 'configure.ac':
+      configure_ac = './configure.ac'
+    elif configure_ac == 'configure.in':
+      configure_ac = './configure.in'
+    self.table['configure_ac'] = configure_ac
+    
+    
   # Define ac_version methods.
   def getAutoconfVersion(self):
     '''Return preferred autoconf version. Default value is 2.59.'''
@@ -1054,6 +1100,24 @@ class GLConfig(object):
   def resetVerbosity(self):
     '''Reset verbosity level.'''
     self.table['verbosity'] = 0
+    
+    
+  # Define libtests methods.
+  def checkLibtests(self):
+    '''Return True if a testsbase/libtests.a is needed.'''
+    return(self.table['libtests'])
+    
+  def enableLibtests(self):
+    '''If libtests is enabled, then testsbase/libtests.a is needed.'''
+    self.table['libtests'] = True
+    
+  def disableLibtests(self):
+    '''If libtests is disabled, then testsbase/libtests.a is not needed.'''
+    self.table['libtests'] = False
+    
+  def resetLibtests(self):
+    '''Reset status of testsbase/libtests.a.'''
+    self.table['libtests'] = False
     
     
   # Define dryrun methods.
