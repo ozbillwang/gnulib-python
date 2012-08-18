@@ -3,28 +3,68 @@
 
 '''An easy access to pygnulib classes.'''
 
-from __future__ import unicode_literals
 #===============================================================================
 # Define global imports
 #===============================================================================
-import os
-import re
-import sys
-import locale
-import codecs
-import subprocess as sp
-from . import constants
-from .GLInfo import GLInfo
-from .GLConfig import GLConfig
-from .GLError import GLError
-from .GLFileSystem import GLFileSystem
-from .GLFileSystem import GLFileAssistant
-from .GLModuleSystem import GLModule
-from .GLModuleSystem import GLModuleTable
-from .GLModuleSystem import GLModuleSystem
-from .GLImport import GLImport
-from .GLEmiter import GLEmiter
+__all__ = list()
 
+try:
+  # Constants
+  from . import constants
+  
+  # Main classes
+  from .GLConfig import GLConfig
+  from .GLError import GLError
+  from .GLInfo import GLInfo
+  
+  # File system
+  from .GLFileSystem import GLFileSystem
+  from .GLFileSystem import GLFileAssistant
+  
+  # Module system
+  from .GLModuleSystem import GLModule
+  from .GLModuleSystem import GLModuleSystem
+  from .GLModuleSystem import GLModuleTable
+  
+  # Different modes
+  from .GLImport import GLImport
+  from .GLEmiter import GLEmiter
+  from .GLTestDir import GLTestDir
+  
+  # Other modules
+  from .GLMakefileTable import GLMakefileTable
+except ValueError as error:
+  # Constants
+  import constants
+  
+  # Main classes
+  from GLConfig import GLConfig
+  from GLError import GLError
+  from GLInfo import GLInfo
+  
+  # File system
+  from GLFileSystem import GLFileSystem
+  from GLFileSystem import GLFileAssistant
+  
+  # Module system
+  from GLModuleSystem import GLModule
+  from GLModuleSystem import GLModuleSystem
+  from GLModuleSystem import GLModuleTable
+  
+  # Different modes
+  from GLImport import GLImport
+  from GLEmiter import GLEmiter
+  from GLTestDir import GLTestDir
+  
+  # Other modules
+  from GLMakefileTable import GLMakefileTable
+
+# Append modules to namespace.
+__all__ += ['GLConfig', 'GLError', 'GLInfo']
+__all__ += ['GLFileSystem', 'GLFileAssistant']
+__all__ += ['GLModule', 'GLModuleSystem', 'GLModuleTable']
+__all__ += ['GLImport', 'GLEmiter', 'GLTestDir']
+__all__ += ['GLMakefileTable']
 
 #===============================================================================
 # Define module information
@@ -33,27 +73,4 @@ __author__ = constants.__author__
 __license__ = constants.__license__
 __copyright__ = constants.__copyright__
 __version__ = constants.__version__
-__all__ = ['GLError', 'GLErrorHandler', 'GLInfo', 'GLFileSystem', 'GLConfig',
-'GLModule', 'GLModuleTable', 'GLModuleSystem', 'GLImport']
-
-
-#===============================================================================
-# Define global constants
-#===============================================================================
-APP = constants.APP
-DIRS = constants.DIRS
-ENCS = constants.ENCS
-UTILS = constants.UTILS
-FILES = constants.FILES
-MODES = constants.MODES
-TESTS = constants.TESTS
-compiler = constants.compiler
-joinpath = constants.joinpath
-cleaner = constants.cleaner
-string = constants.string
-isabs = os.path.isabs
-isdir = os.path.isdir
-isfile = os.path.isfile
-normpath = os.path.normpath
-relpath = os.path.relpath
 

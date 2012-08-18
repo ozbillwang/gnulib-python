@@ -71,6 +71,7 @@ class GLError(Exception):
      16: cannot transform the given file: <file>
      17: cannot update the given file: <file>
      18: module lacks a license: <module>
+     19: error when running subprocess: <sp>
     errinfo: additional information;
     style: 0 or 1, wheter old-style'''
     self.errno = errno; self.errinfo = errinfo
@@ -103,6 +104,7 @@ class GLError(Exception):
       "cannot transform the given file: %s" % repr(errinfo),
       "cannot update/replace the given file: %s" % repr(errinfo),
       "module lacks a license: %s" % repr(errinfo),
+      "error when running subprocess: %s" % repr(errinfo),
     ] # Complete list of errors
     if not PYTHON3:
       self.message = (b'[Errno %d] %s' % \

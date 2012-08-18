@@ -11,6 +11,8 @@ import re
 import os
 import sys
 import platform
+import tempfile
+import subprocess as sp
 
 
 #===============================================================================
@@ -220,6 +222,37 @@ else:
 #===============================================================================
 # Define global functions
 #===============================================================================
+def execute(args, verbose):
+  '''Execute the given shell command.'''
+  if verbose >= 0:
+    print("executing %s" % ' '.join(args))
+    try: # Try to run
+      retcode = sp.call(args)
+    except Exception as error:
+      print(error)
+      sys.exit()
+  else:
+    # Commands like automake produce output to stderr even when they succeed.
+    # Turn this output off if the command succeeds.
+    temp = tempfile.mktemp()
+    if type(temp) is bytes:
+      temp = temp.decode(ENCS['system'])
+    xargs = '%s > %s 2>&1' % (' '.join(args), temp)
+    try: # Try to run
+      retcode = sp.call(xargs, shell=True)
+    except Exception as error:
+      print(error)
+      sys.exit()
+    if retcode == 0:
+      os.remove(temp)
+    else:
+      print("executing %s" % ' '.join(args))
+      with codecs.open(temp, 'rb') as file:
+        cmdout = file.read()
+      print(cmdout)
+      os.remove(temp)
+      sys.exit(retcode)
+
 def compiler(pattern, flags=0):
   '''Compile regex pattern depending on version of Python.'''
   if not PYTHON3:
@@ -361,6 +394,7 @@ def substart(orig, repl, data):
   return(result)
 
 def subend(orig, repl, data):
+  result = data
   if data.endswith(orig):
     result = repl +data[:len(repl)]
   return(result)
@@ -381,6 +415,21 @@ def nlremove(text):
   text = '\n'.join(lines)
   text = nlconvert(text)
   return(text)
+
+def nlcount(text):
+  '''Return count of newlines before and after text.'''
+  counter = int()
+  before = int()
+  after = int()
+  text = text.replace('\r\n', '\n')
+  while text[counter] == '\n':
+    before += 1
+    counter += 1
+  counter = len(text) -1
+  while text[counter] == '\n':
+    after += 1
+    counter -= 1
+  print(before, after)
 
 __all__ += ['APP', 'DIRS', 'FILES', 'MODES', 'UTILS']
 

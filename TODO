@@ -1,0 +1,5 @@
+TODO LIST
+* Replace every get* method in GLModule to be a @property since there are no
+  *set methods inside this class.
+* Deprecate shell utilities completely.
+* Make a class which can replace rsync.

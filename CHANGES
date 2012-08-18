@@ -1,3 +1,27 @@
+18 August 2012, Dmitriy Selyutin
+A lot of changes inside all modules. I'll list them by alphabetical order.
+  GLConfig now has single_configure option and set*/get* methods for it.
+  GLEmiter now has tests_Makefile_am method. Both GLEmiter.tests_Makefile_am
+and GLEmiter.lib_Makefile_am now return tuple of emit and uses_subdirs.
+  GLError now has new error which is raised when subprocess ends with error.
+  GLFileAssistant now has some checks for transformers dictionary which allow
+to emit empty dictionary. I'll delete it at all, because I want to remove sed
+from pygnulib. Also GLFileAssistant and GLFileSystem now don't have to contain
+filesystem argument, because it is automatically created from GLConfig.
+  GLImport has some small changes in __init__ part. It can do everything what
+gnulib-tool.sh could do, except for vc_files generation (I'm waiting for your
+answer, I still can't do this part of code, because I can't understand what
+happens in original gnulib-tool.sh).
+  GLMakefileTable has only one fix, but a really important one.
+  GLModule has some great changes inside. I've looked through the code and
+found a lot of bugs inside its parts. It was redone from zero. Later I'm going
+to deprecate all methods and transform them into attributes.
+  GLModuleSystem and GLModuleTable now don't need filesystem argument too.
+  GLTestDir was created and successfully works with different variables.
+  classes now support relative import correctly.
+  gnulib-tool.py has a lot of changes inside main function. It now looks more
+close to gnulib-tool.sh, and it supports different modes already.
+
 15 August 2012, Dmitriy Selyutin
 GNULibImport is almost finished. A large portion of fixes is inside.
 

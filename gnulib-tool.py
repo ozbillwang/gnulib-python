@@ -62,20 +62,19 @@ relpath = os.path.relpath
 #===============================================================================
 def main():
   # Define default arguments
-  mode = 1
-  destdir = '.'
+  mode = 'create-testdir'
+  destdir = 'testdir-python'
   localdir = None
   modcache = None
   verbose = None
-  auxdir = 'AUX'
+  auxdir = None
   modules = list(['string'])
   avoids = list()
-  sourcebase = 'LIB'
+  sourcebase = None
   m4base = None
   pobase = None
   docbase = None
-  testsbase = 'TESTS'
-  tests = None
+  testsbase = None
   libname = None
   lgpl = None
   makefile = None
@@ -87,220 +86,183 @@ def main():
   vc_files = None
   dryrun = None
   errors = True
+  # testflags
+  inctests = None
+  testflags = None
   
-  if mode == MODES['import']:
-    if not sourcebase:
-      sourcebase = 'lib'
-    if not m4base:
-      m4base = 'm4'
-    if not docbase:
-      docbase = 'doc'
-    if not testsbase:
-      testsbase = 'tests'
-    if not macro_prefix:
-      macro_prefix = 'gl'
-    config = classes.GLConfig\
-    (
-      destdir=destdir,
-      localdir=localdir,
-      m4base=m4base,
-      auxdir=auxdir,
-      modules=modules,
-      avoids=avoids,
-      sourcebase=sourcebase,
-      pobase=pobase,
-      docbase=docbase,
-      testsbase=testsbase,
-      tests=tests,
-      libname=libname,
-      lgpl=lgpl,
-      makefile=makefile,
-      libtool=libtool,
-      conddeps=conddeps,
-      macro_prefix=macro_prefix,
-      podomain=podomain,
-      witness_c_macro=witness_c_macro,
-      vc_files=vc_files,
-      modcache=modcache,
-      verbose=verbose,
-      dryrun=dryrun,
-    )
+  # Create pygnulib configuration.
+  config = classes.GLConfig\
+  (
+    destdir=destdir,
+    localdir=localdir,
+    m4base=m4base,
+    auxdir=auxdir,
+    modules=modules,
+    avoids=avoids,
+    sourcebase=sourcebase,
+    pobase=pobase,
+    docbase=docbase,
+    testsbase=testsbase,
+    testflags=testflags,
+    libname=libname,
+    lgpl=lgpl,
+    makefile=makefile,
+    libtool=libtool,
+    conddeps=conddeps,
+    macro_prefix=macro_prefix,
+    podomain=podomain,
+    witness_c_macro=witness_c_macro,
+    vc_files=vc_files,
+    modcache=modcache,
+    verbose=verbose,
+    dryrun=dryrun,
+  )
   
-  else: # if mode != MODE['--import']
-    if m4base:
-      if not isfile(joinpath(destdir, m4base, 'gnulib-cache.m4')):
-        if not sourcebase:
-          sourcebase = 'lib'
-        if not docbase:
-          docbase = 'doc'
-        if not testsbase:
-          testsbase = 'tests'
-        if not macro_prefix:
-          macro_prefix = 'gl'
-        config = classes.GLConfig\
-        (
-          destdir=destdir,
-          localdir=localdir,
-          m4base=m4base,
-          auxdir=auxdir,
-          modules=modules,
-          avoids=avoids,
-          sourcebase=sourcebase,
-          pobase=pobase,
-          docbase=docbase,
-          testsbase=testsbase,
-          tests=tests,
-          libname=libname,
-          lgpl=lgpl,
-          makefile=makefile,
-          libtool=libtool,
-          conddeps=conddeps,
-          macro_prefix=macro_prefix,
-          podomain=podomain,
-          witness_c_macro=witness_c_macro,
-          vc_files=vc_files,
-          modcache=modcache,
-          verbose=verbose,
-          dryrun=dryrun,
-          errors=errors,
-        )
-    else: # if not m4base
-      m4dirs = list()
-      dirisnext = bool()
-      filepath = joinpath(destdir, 'Makefile.am')
-      if isfile(filepath):
-        with codecs.open(filepath, 'rb', 'UTF-8') as file:
-          data = file.read()
-          data = data.split('ACLOCAL_AMFLAGS')[1]
-          data = data[data.find('=')+1:data.find('\n')]
-        aclocal_amflags = data.split()
-        for aclocal_amflag in aclocal_amflags:
-          if dirisnext:
-            if not isabs(aclocal_amflag):
-              m4dirs += [aclocal_amflag]
-          else: # if not dirisnext
-            if aclocal_amflag == '-I':
-              dirisnext = True
-            else: # if aclocal_amflag != '-I'
-              dirisnext = False
-      else: # if not isfile(filepath)
-        filepath = joinpath(destdir, 'aclocal.m4')
-        if isfile(filepath):
-          pattern = constants.compiler(r'm4_include\(\[(.*?)\]\)')
-          with codecs.open(filepath, 'rb', 'UTF-8') as file:
-            m4dirs = pattern.findall(file.read())
-          m4dirs = [os.path.dirname(m4dir) for m4dir in m4dirs]
-          m4dirs = \
-          [ # Begin filtering
-            m4dir for m4dir in m4dirs \
-            if isfile(joinpath(destdir, m4dir, 'gnulib-cache.m4'))
-          ] # Finish filtering
-          m4dirs = sorted(set(m4dirs))
-      
-      if len(m4dirs) == 0:
-        # First use of gnulib in a package.
-        # Any number of additional modules can be given.
-        if not sourcebase:
-          sourcebase = 'lib'
+  # Canonicalize the inctests variable.
+  if inctests == None:
+    if mode in ['import', 'add-import', 'remove-import', 'update']:
+      config.disableTestFlag(TESTS['tests'])
+    elif mode in ['create-testdir', 'create-megatestdir', 'test', 'megatest']:
+      config.enableTestFlag(TESTS['tests'])
+  
+  if mode in ['list']:
+    modulesystem = classes.GLModuleSystem(config)
+    listing = modulesystem.list()
+    result = '\n'.join(listing)
+    os.rmdir(config['tempdir'])
+    print(result)
+  
+  elif mode in ['import', 'add-import', 'remove-import', 'update']:
+    mode = MODES[mode]
+    if not destdir:
+      destdir = '.'
+    config.setDestDir(destdir)
+    
+    if mode == MODES['import']:
+      # Set variables to default values.
+      if not sourcebase:
+        sourcebase = 'lib'
+      if not m4base:
         m4base = 'm4'
-        if not docbase:
-          docbase = 'doc'
-        if not testsbase:
-          testsbase = 'tests'
-        if not macro_prefix:
-          macro_prefix = 'gl'
-        config = classes.GLConfig\
-        (
-          destdir=destdir,
-          localdir=localdir,
-          m4base=m4base,
-          auxdir=auxdir,
-          modules=modules,
-          avoids=avoids,
-          sourcebase=sourcebase,
-          pobase=pobase,
-          docbase=docbase,
-          testsbase=testsbase,
-          tests=tests,
-          libname=libname,
-          lgpl=lgpl,
-          makefile=makefile,
-          libtool=libtool,
-          conddeps=conddeps,
-          macro_prefix=macro_prefix,
-          podomain=podomain,
-          witness_c_macro=witness_c_macro,
-          vc_files=vc_files,
-          modcache=modcache,
-          verbose=verbose,
-          dryrun=dryrun,
-          errors=errors,
-        )
-      elif len(m4dirs) == 1:
-        m4base = m4dirs[-1]
-        config = classes.GLConfig\
-        (
-          destdir=destdir,
-          localdir=localdir,
-          m4base=m4base,
-          auxdir=auxdir,
-          modules=modules,
-          avoids=avoids,
-          sourcebase=sourcebase,
-          pobase=pobase,
-          docbase=docbase,
-          testsbase=testsbase,
-          tests=tests,
-          libname=libname,
-          lgpl=lgpl,
-          makefile=makefile,
-          libtool=libtool,
-          conddeps=conddeps,
-          macro_prefix=macro_prefix,
-          podomain=podomain,
-          witness_c_macro=witness_c_macro,
-          vc_files=vc_files,
-          modcache=modcache,
-          verbose=verbose,
-          dryrun=dryrun,
-          errors=errors,
-        )
-      else: # if len(m4dirs) > 1
-        for m4base in m4dirs:
-          config = classes.GLConfig\
-          (
-            destdir=destdir,
-            localdir=localdir,
-            m4base=m4base,
-            auxdir=auxdir,
-            modules=modules,
-            avoids=avoids,
-            sourcebase=sourcebase,
-            pobase=pobase,
-            docbase=docbase,
-            testsbase=testsbase,
-            tests=tests,
-            libname=libname,
-            lgpl=lgpl,
-            makefile=makefile,
-            libtool=libtool,
-            conddeps=conddeps,
-            macro_prefix=macro_prefix,
-            podomain=podomain,
-            witness_c_macro=witness_c_macro,
-            vc_files=vc_files,
-            modcache=modcache,
-            verbose=verbose,
-            dryrun=dryrun,
-            errors=errors,
-          )
+      if not docbase:
+        docbase = 'doc'
+      if not testsbase:
+        testsbase = 'tests'
+      if not macro_prefix:
+        macro_prefix = 'gl'
+      config.setSourceBase(sourcebase)
+      config.setM4Base(m4base)
+      config.setDocBase(docbase)
+      config.setTestsBase(testsbase)
+      config.setMacroPrefix(macro_prefix)
+      # Perform GLImport actions.
+      importer = classes.GLImport(config, mode)
+      filetable, transformers = importer.prepare()
+      importer.execute(filetable, transformers)
+    
+    else: # if mode != MODE['--import']
+      if m4base:
+        if not isfile(joinpath(destdir, m4base, 'gnulib-cache.m4')):
+          if not sourcebase:
+            sourcebase = 'lib'
+          if not docbase:
+            docbase = 'doc'
+          if not testsbase:
+            testsbase = 'tests'
+          if not macro_prefix:
+            macro_prefix = 'gl'
+          config.setSourceBase(sourcebase)
+          config.setM4Base(m4base)
+          config.setDocBase(docbase)
+          config.setTestsBase(testsbase)
+          config.setMacroPrefix(macro_prefix)
+          # Perform GLImport actions.
+          importer = classes.GLImport(config, mode)
+          filetable, transformers = importer.prepare()
+          importer.execute(filetable, transformers)
+      else: # if not m4base
+        m4dirs = list()
+        dirisnext = bool()
+        filepath = joinpath(destdir, 'Makefile.am')
+        if isfile(filepath):
+          with codecs.open(filepath, 'rb', 'UTF-8') as file:
+            data = file.read()
+            data = data.split('ACLOCAL_AMFLAGS')[1]
+            data = data[data.find('=')+1:data.find('\n')]
+          aclocal_amflags = data.split()
+          for aclocal_amflag in aclocal_amflags:
+            if dirisnext:
+              if not isabs(aclocal_amflag):
+                m4dirs += [aclocal_amflag]
+            else: # if not dirisnext
+              if aclocal_amflag == '-I':
+                dirisnext = True
+              else: # if aclocal_amflag != '-I'
+                dirisnext = False
+        else: # if not isfile(filepath)
+          filepath = joinpath(destdir, 'aclocal.m4')
+          if isfile(filepath):
+            pattern = constants.compiler(r'm4_include\(\[(.*?)\]\)')
+            with codecs.open(filepath, 'rb', 'UTF-8') as file:
+              m4dirs = pattern.findall(file.read())
+            m4dirs = [os.path.dirname(m4dir) for m4dir in m4dirs]
+            m4dirs = \
+            [ # Begin filtering
+              m4dir for m4dir in m4dirs \
+              if isfile(joinpath(destdir, m4dir, 'gnulib-cache.m4'))
+            ] # Finish filtering
+            m4dirs = sorted(set(m4dirs))
+        if len(m4dirs) == 0:
+          # First use of gnulib in a package.
+          # Any number of additional modules can be given.
+          if not sourcebase:
+            sourcebase = 'lib'
+          m4base = 'm4'
+          if not docbase:
+            docbase = 'doc'
+          if not testsbase:
+            testsbase = 'tests'
+          if not macro_prefix:
+            macro_prefix = 'gl'
+          config.setSourceBase(sourcebase)
+          config.setM4Base(m4base)
+          config.setDocBase(docbase)
+          config.setTestsBase(testsbase)
+          config.setMacroPrefix(macro_prefix)
+          # Perform GLImport actions.
+          importer = classes.GLImport(config, mode)
+          filetable, transformers = importer.prepare()
+          importer.execute(filetable, transformers)
+        elif len(m4dirs) == 1:
+          m4base = m4dirs[-1]
+          config.setM4Base(m4base)
+          # Perform GLImport actions.
+          importer = classes.GLImport(config, mode)
+          filetable, transformers = importer.prepare()
+          importer.execute(filetable, transformers)
+        else: # if len(m4dirs) > 1
+          for m4base in m4dirs:
+            config.setM4Base(m4base)
+            # Perform GLImport actions.
+            importer = classes.GLImport(config, mode)
+            filetable, transformers = importer.prepare()
+            importer.execute(filetable, transformers)
   
-  # Execute operations depending on type of action
-  if mode in range(0, 4):
-    importer = classes.GLImport(config, mode)
-    filetable, transformers = importer.prepare()
-    importer.execute(filetable, transformers)
-
+  elif mode == 'create-testdir':
+    if not destdir:
+      message = '%s: *** ' % constants.APP['name']
+      message += 'please specify --dir option'
+      message += '\n%s: *** Exit.\n' % constants.APP['name']
+      sys.stderr.write(message)
+      sys.exit(1)
+    if not auxdir:
+      auxdir = 'build-aux'
+    config.setDestDir(destdir)
+    config.setAuxDir(auxdir)
+    #config.enableSingleConfigure()
+    testdir = classes.GLTestDir(config, destdir)
+    testdir.execute()
+  
 if __name__ == '__main__':
   try: # Try to execute
     main()

@@ -22,7 +22,6 @@ from .GLFileSystem import GLFileSystem
 from .GLFileSystem import GLFileAssistant
 from .GLMakefileTable import GLMakefileTable
 from .GLEmiter import GLEmiter
-from pprint import pprint
 
 
 #===============================================================================
@@ -266,8 +265,8 @@ class GLImport(object):
     # Define GLImport attributes.
     self.emiter = GLEmiter(self.config)
     self.filesystem = GLFileSystem(self.config)
-    self.modulesystem = GLModuleSystem(self.config, self.filesystem)
-    self.moduletable = GLModuleTable(self.config, self.filesystem, list())
+    self.modulesystem = GLModuleSystem(self.config)
+    self.moduletable = GLModuleTable(self.config, list())
     self.makefiletable = GLMakefileTable(self.config)
     
   def __repr__(self):
@@ -276,8 +275,10 @@ class GLImport(object):
     return(result)
     
   def rewrite_old_files(self, files):
-    '''Replace auxdir, docbase, sourcebase, m4base and testsbase from default
-    to their version from cache.'''
+    '''GLImport.rewrite_old_files(files) -> list
+    
+    Replace auxdir, docbase, sourcebase, m4base and testsbase from default
+    to their version from cached config.'''
     if type(files) is not list:
       raise(TypeError(
         'files argument must has list type, not %s' % type(files).__name__))
@@ -320,8 +321,10 @@ class GLImport(object):
     return(list(result))
     
   def rewrite_new_files(self, files):
-    '''Replace auxdir, docbase, sourcebase, m4base and testsbase from default
-    to their version from arguments.'''
+    '''GLImport.rewrite_new_files(files)
+    
+    Replace auxdir, docbase, sourcebase, m4base and testsbase from default
+    to their version from config.'''
     if type(files) is not list:
       raise(TypeError(
         'files argument must has list type, not %s' % type(files).__name__))
@@ -654,7 +657,7 @@ abcdefghijklmnopqrstuvwxyz ABCDEFGHIJKLMNOPQRSTUVWXYZ | LC_ALL=C sed -e \
     # created using libtool, because libtool already handles the dependencies.
     if not libtool:
       libname_upper = libname.upper().replace('-', '_')
-      emit += '%s_LIBDEPS="$gl_libdeps"\n' % libname_upper
+      emit += '  %s_LIBDEPS="$gl_libdeps"\n' % libname_upper
       emit += '  AC_SUBST([%s_LIBDEPS])\n' % libname_upper
       emit += '  %s_LTLIBDEPS="$gl_ltlibdeps"\n' % libname_upper
       emit += '  AC_SUBST([%s_LTLIBDEPS])\n' % libname_upper
@@ -708,7 +711,7 @@ AC_DEFUN([%s_FILE_LIST], [\n''' % macro_prefix
     self.moduletable.setAvoids(avoids)
     final_modules = self.moduletable.transitive_closure(base_modules)
     
-    # Show module list.
+    # Show final module list.
     if verbose >= 0:
       bold_on = ''
       bold_off = ''
@@ -716,8 +719,6 @@ AC_DEFUN([%s_FILE_LIST], [\n''' % macro_prefix
       if term == 'xterm':
         bold_on = '\x1b[1m'
         bold_off = '\x1b[0m'
-        bold_on = '' # Uncomment these lines to let diff work
-        bold_off = '' # Uncomment these lines to let diff work
       print('Module list with included dependencies (indented):')
       for module in final_modules:
         if str(module) in self.config.getModules():
@@ -945,8 +946,7 @@ AC_DEFUN([%s_FILE_LIST], [\n''' % macro_prefix
           print('Create directory %s' % directory)
     
     # Create GLFileAssistant instance to process files.
-    self.assistant = GLFileAssistant(self.config,
-      self.filesystem, transformers)
+    self.assistant = GLFileAssistant(self.config, transformers)
     
     # Files which are in filetable['old'] and not in filetable['new'].
     # They will be removed and added to filetable['removed'] list.
@@ -1032,8 +1032,9 @@ AC_DEFUN([%s_FILE_LIST], [\n''' % macro_prefix
     # Create library makefile.
     basename = joinpath(sourcebase, makefile_am)
     tmpfile = self.assistant.tmpfilename(basename)
-    emit = self.emiter.lib_Makefile_am(basename, self.moduletable['main'],
-      self.moduletable, self.makefiletable, actioncmd, for_test)
+    emit, uses_subdirs = self.emiter.lib_Makefile_am(basename,
+      self.moduletable['main'], self.moduletable, self.makefiletable,
+      actioncmd, for_test)
     with codecs.open(tmpfile, 'wb', 'UTF-8') as file:
       file.write(emit)
     filename, backup, flag = self.assistant.super_update(basename, tmpfile)
@@ -1219,8 +1220,9 @@ AC_DEFUN([%s_FILE_LIST], [\n''' % macro_prefix
     if inctests:
       basename = joinpath(testsbase, makefile_am)
       tmpfile = self.assistant.tmpfilename(basename)
-      emit = self.emiter.lib_Makefile_am(basename, self.moduletable['tests'],
-        self.moduletable, self.makefiletable, actioncmd, for_test)
+      emit, uses_subdirs = self.emiter.lib_Makefile_am(basename,
+        self.moduletable['tests'], self.moduletable, self.makefiletable,
+        actioncmd, for_test)
       with codecs.open(tmpfile, 'wb', 'UTF-8') as file:
         file.write(emit)
       filename, backup, flag = self.assistant.super_update(basename, tmpfile)
@@ -1279,4 +1281,53 @@ Use them in <program>_LDADD when linking a program, or
 in <library>_a_LDFLAGS or <library>_la_LDFLAGS when linking a library.''')
       for link in links:
         print('  %s' % link)
+    
+    # Print reminders.
+    print('')
+    print('Don\'t forget to')
+    if makefile_am == 'Makefile.am':
+      print('  - add "%s/Makefile" to AC_CONFIG_FILES in %s,' % \
+        (sourcebase, configure_ac))
+    else: # if makefile_am != 'Makefile.am'
+      print('  - "include %s" from within "%s/Makefile.am",' % \
+        (makefile, sourcebase))
+    if pobase:
+      print('  - add "%s/Makefile.in to AC_CONFIG_FILES in %s,' % \
+        (pobase, configure_ac))
+    if inctests:
+      if makefile_am == 'Makefile.am':
+        print('  - add "%s/Makefile" to AC_CONFIG_FILES in %s,' % \
+          (testsbase, configure_ac))
+      else: # if makefile_am != 'Makefile.am'
+        print('  - "include %s" from within "%s/Makefile.am",' % \
+          (makefile, testsbase))
+    # Print makefile edits.
+    current_edit = int()
+    makefile_am_edits = self.makefiletable.count()
+    while current_edit != makefile_am_edits:
+      dictionary = self.makefiletable[current_edit]
+      if dictionary['var']:
+        print('  - mention "%s" in %s in %s,' % \
+          (dictionary['val'], dictionary['var'],
+            joinpath(dictionary['dir'], 'Makefile.am')))
+      current_edit += 1
+    
+    # Detect position_early_after.
+    with codecs.open(configure_ac, 'rb', 'UTF-8') as file:
+      data = file.read()
+    match_result1 = \
+      bool(compiler('^ *AC_PROG_CC_STDC', re.S | re.M).findall(data))
+    match_result2 = \
+      bool(compiler('^ *AC_PROG_CC_C99', re.S | re.M).findall(data))
+    if match_result1:
+      position_early_after = 'AC_PROG_CC_STDC'
+    elif match_result2:
+      position_early_after = 'AC_PROG_CC_C99'
+    else: # if not any([match_result1, match_result2])
+      position_early_after = 'AC_PROG_CC'
+    print('  - invoke %s_EARLY in %s, right after %s,' % \
+      (macro_prefix, configure_ac, position_early_after))
+    print('  - invoke %s_INIT in %s.' % \
+      (macro_prefix, configure_ac))
+    sp.call(['rm', '-rf', self.config['tempdir']], shell=False)
 
