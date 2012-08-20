@@ -1,4 +1,6 @@
 TODO LIST
+* Create GLTarModule class to reduce count of modules and to put all files
+  for every module all together.
 * Replace every get* method in GLModule to be a @property since there are no
   *set methods inside this class.
 * Deprecate shell utilities completely.

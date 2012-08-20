@@ -318,6 +318,11 @@ Include:|Link:|License:|Maintainer:)'
       result += '-tests'
     return(result)
     
+  def getTestsModule(self):
+    '''Return -tests version of the module as GLModule.'''
+    result = self.modulesystem.find(self.getTestsName())
+    return(result)
+    
   def getShellFunc(self):
     '''GLModule.getShellFunc() -> string
     
@@ -436,13 +441,21 @@ Include:|Link:|License:|Maintainer:)'
       if section not in self.content:
         result = string()
       else: # if section in self.content
-        pattern = '^%s[\t ]*(.*?)%s' % (section, self.regex)
-        pattern = compiler(pattern, re.S | re.M)
-        result = pattern.findall(self.content)
-        if type(result) is list:
-          if result:
-            result = result[-1].strip().split('\n')
-      self.cache['status'] = result
+        snippet = self.content.split(section)[-1]
+        snippet = snippet.replace('\r\n', '\n')
+        lines = ['%s\n' % line for line in snippet.split('\n')]
+        parts = list()
+        for line in lines:
+          regex = '^(Description|Comment|Status|Notice|Applicability|'
+          regex += 'Files|Depends-on|configure\\.ac-early|configure\\.ac|'
+          regex += 'Makefile\\.am|Include|Link|License|Maintainer):$'
+          pattern = compiler(regex)
+          findflag = pattern.findall(line)
+          if findflag:
+            break
+          parts += [line]
+        result = [part.strip() for part in parts if part.strip()]
+      self.cache['status'] = list(result)
     return(list(self.cache['status']))
     
   def getNotice(self):
@@ -777,15 +790,21 @@ Include:|Link:|License:|Maintainer:)'
       if section not in self.content:
         result = string()
       else: # if section in self.content
-        pattern = '^%s[\t ]*(.*?)%s' % (section, self.regex)
-        pattern = compiler(pattern, re.S | re.M)
-        result = pattern.findall(self.content)
-        if type(result) is list:
-          if not result:
-            result = string()
-          else: # if result
-            result = result[-1]
-      result = result.strip()
+        snippet = self.content.split(section)[-1]
+        snippet = snippet.replace('\r\n', '\n')
+        lines = ['%s\n' % line for line in snippet.split('\n')]
+        parts = list()
+        for line in lines:
+          regex = '^(Description|Comment|Status|Notice|Applicability|'
+          regex += 'Files|Depends-on|configure\\.ac-early|configure\\.ac|'
+          regex += 'Makefile\\.am|Include|Link|License|Maintainer):$'
+          pattern = compiler(regex)
+          findflag = pattern.findall(line)
+          if findflag:
+            break
+          parts += [line]
+        parts = [part.strip() for part in parts if part.strip()]
+        result = ''.join(parts)
       self.cache['link'] = result
     return(self.cache['link'])
     
@@ -835,14 +854,20 @@ Include:|Link:|License:|Maintainer:)'
       if section not in self.content:
         result = string()
       else: # if section in self.content
-        pattern = '^%s[\t ]*(.*?)%s' % (section, self.regex)
-        pattern = compiler(pattern, re.S | re.M)
-        result = pattern.findall(self.content)
-        if type(result) is list:
-          if not result:
-            result = string()
-          else: # if result
-            result = result[-1]
+        snippet = self.content.split(section)[-1]
+        snippet = snippet.replace('\r\n', '\n')
+        lines = ['%s\n' % line for line in snippet.split('\n')]
+        parts = list()
+        for line in lines:
+          regex = '^(Description|Comment|Status|Notice|Applicability|'
+          regex += 'Files|Depends-on|configure\\.ac-early|configure\\.ac|'
+          regex += 'Makefile\\.am|Include|Link|License|Maintainer):$'
+          pattern = compiler(regex)
+          findflag = pattern.findall(line)
+          if findflag:
+            break
+          parts += [line]
+        result = ''.join(parts)
       result = result.strip()
       self.cache['maintainer'] = result
     return(self.cache['maintainer'])

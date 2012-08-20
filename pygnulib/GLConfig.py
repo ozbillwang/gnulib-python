@@ -614,7 +614,7 @@ class GLConfig(object):
     if type(module) is bytes or type(module) is string:
       if type(module) is bytes:
         module = module.decode(ENCS['default'])
-      if avoid not in self.table['avoids']:
+      if module not in self.table['avoids']:
         self.table['avoids'].append(module)
     else: # if module has not bytes or string type
       raise(TypeError('avoid must be a string, not %s' % \
@@ -625,7 +625,7 @@ class GLConfig(object):
     if type(module) is bytes or type(module) is string:
       if type(module) is bytes:
         module = module.decode(ENCS['default'])
-      if avoid in self.table['avoids']:
+      if module in self.table['avoids']:
         self.table['avoids'].remove(module)
     else: # if module has not bytes or string type
       raise(TypeError('avoid must be a string, not %s' % \

@@ -111,8 +111,8 @@ class GLImport(object):
     if versions:
       version = sorted(set([float(version) for version in versions]))[-1]
       self.config.setAutoconfVersion(version)
-    if version < 2.59:
-      raise(GLError(4, version))
+      if version < 2.59:
+        raise(GLError(4, version))
     
     # Get other cached variables.
     path = joinpath(self.config['m4base'], 'gnulib-cache.m4')

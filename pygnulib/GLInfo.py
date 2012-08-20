@@ -97,14 +97,10 @@ class GLInfo(object):
     if isdir(DIRS['git']):
       counter = int() # Create counter
       result = string() # Create string
-      args1 = ['git', 'log', FILES['changelog']]
-      args2 = ['head', '-n', '3']
-      proc1 = sp.Popen(args1, stdout=sp.PIPE)
-      proc2 = sp.Popen(args2, stdin=proc1.stdout, stdout=sp.PIPE)
-      proc1.stdout.close() # Close the first shell pipe
-      result = string(proc2.stdout.read(), ENCS['shell'])
+      args = ['git', 'log']
+      result = sp.check_output(args).decode(ENCS['shell'])
       # Get date as "Fri Mar 21 07:16:51 2008 -0600" from string
-      pattern = re.compile('Date:[\t ]*(.*?)\n')
+      pattern = re.compile('Date:[\t ]*(.*?)$', re.S | re.M)
       result = pattern.findall(result)[0]
       # Turn "Fri Mar 21 07:16:51 2008 -0600" into "Mar 21 2008 07:16:51 -0600"
       pattern = re.compile('^[^ ]* ([^ ]*) ([0-9]*) ([0-9:]*) ([0-9]*) ')
@@ -116,7 +112,7 @@ class GLInfo(object):
       result = result.rstrip(os.linesep)
       return(result)
     
-  def help(self):
+  def usage(self):
     '''Show help message.'''
     result = '''\
 Usage: gnulib-tool --list
@@ -299,8 +295,9 @@ Report bugs to <bug-gnulib@gnu.org>.'''
     if isdir(DIRS['git']):
       version_gen = joinpath(DIRS['build-aux'], 'git-version-gen')
       args = [version_gen, DIRS['root']]
-      proc = sp.check_output(args)
-      result = string(proc, ENCS['shell'])
-      result = result.rstrip(os.linesep)
+      result = sp.check_output(args).decode(ENCS['shell'])
+      result = result.strip()
+      if result == 'UNKNOWN':
+        result = string()
       return(result)
 

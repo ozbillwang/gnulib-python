@@ -30,6 +30,7 @@ try:
   from .GLImport import GLImport
   from .GLEmiter import GLEmiter
   from .GLTestDir import GLTestDir
+  from .GLTestDir import GLMegaTestDir
   
   # Other modules
   from .GLMakefileTable import GLMakefileTable
@@ -55,6 +56,7 @@ except ValueError as error:
   from GLImport import GLImport
   from GLEmiter import GLEmiter
   from GLTestDir import GLTestDir
+  from GLTestDir import GLMegaTestDir
   
   # Other modules
   from GLMakefileTable import GLMakefileTable

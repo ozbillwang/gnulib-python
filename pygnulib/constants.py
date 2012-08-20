@@ -27,7 +27,7 @@ __author__ = \
   'Dmitriy Selyutin',
 ]
 __license__ = 'GNU GPLv3+'
-__copyright__ = '2002-2012 Free Software Foundation, Inc.'
+__copyright__ = '2012 Free Software Foundation, Inc.'
 __version__ = 0.1
 
 
@@ -85,6 +85,8 @@ if ENCS['shell'] == None:
 
 # Set APP dictionary
 APP['name'] = sys.argv[0]
+if not APP['name']:
+  APP['name'] = 'gnulib-tool.py'
 APP['path'] = os.path.realpath(sys.argv[0])
 if type(APP['name']) is bytes:
   APP['name'] = string(APP['name'], ENCS['system'])
@@ -230,7 +232,7 @@ def execute(args, verbose):
       retcode = sp.call(args)
     except Exception as error:
       print(error)
-      sys.exit()
+      sys.exit(1)
   else:
     # Commands like automake produce output to stderr even when they succeed.
     # Turn this output off if the command succeeds.
@@ -242,7 +244,7 @@ def execute(args, verbose):
       retcode = sp.call(xargs, shell=True)
     except Exception as error:
       print(error)
-      sys.exit()
+      sys.exit(1)
     if retcode == 0:
       os.remove(temp)
     else:
