@@ -18,7 +18,6 @@ from . import constants
 __author__ = constants.__author__
 __license__ = constants.__license__
 __copyright__ = constants.__copyright__
-__version__ = constants.__version__
 
 
 #===============================================================================
@@ -62,7 +61,7 @@ class GLError(Exception):
       7: missing docbase argument
       8: missing testsbase argument
       9: missing libname argument
-     10: conddeps are not supported with testflag['tests']
+     10: conddeps are not supported with inctests
      11: incompatible licenses on modules: <modules>
      12: cannot process empy filelist
      13: cannot create the given directory: <directory>
@@ -71,6 +70,7 @@ class GLError(Exception):
      16: cannot transform the given file: <file>
      17: cannot update the given file: <file>
      18: module lacks a license: <module>
+     19: could not create destination directory: <directory>
     errinfo: additional information;
     style: 0 or 1, wheter old-style'''
     self.errno = errno; self.errinfo = errinfo
@@ -94,7 +94,7 @@ class GLError(Exception):
         +" so you might have to set this argument"
       "missing libname argument; cache file doesn't contain it,"
         +" so you might have to set this argument",
-      "conddeps are not supported with testflag['tests']",
+      "conddeps are not supported with inctests",
       "incompatible licenses on modules: %s" % repr(errinfo),
       "cannot process empy filelist",
       "cannot create the given directory: %s" % repr(errinfo),
@@ -103,6 +103,7 @@ class GLError(Exception):
       "cannot transform the given file: %s" % repr(errinfo),
       "cannot update/replace the given file: %s" % repr(errinfo),
       "module lacks a license: %s" % repr(errinfo),
+      "error when running subprocess: %s" % repr(errinfo),
     ] # Complete list of errors
     if not PYTHON3:
       self.message = (b'[Errno %d] %s' % \

@@ -21,7 +21,6 @@ from .GLError import GLError
 __author__ = constants.__author__
 __license__ = constants.__license__
 __copyright__ = constants.__copyright__
-__version__ = constants.__version__
 
 
 #===============================================================================
@@ -58,11 +57,12 @@ class GLConfig(object):
   
   def __init__(self, destdir=None, localdir=None, auxdir=None,
     sourcebase=None, m4base=None, pobase=None, docbase=None, testsbase=None,
-    modules=None, avoids=None, files=None, tests=None, libname=None, lgpl=None,
-    makefile=None, libtool=None, conddeps=None, macro_prefix=None,
+    modules=None, avoids=None, files=None, testflags=None, libname=None,
+    lgpl=None, makefile=None, libtool=None, conddeps=None, macro_prefix=None,
     podomain=None, witness_c_macro=None, vc_files=None, symbolic=None,
     lsymbolic=None, modcache=None, configure_ac=None, ac_version=None,
-    libtests=None, verbose=None, dryrun=None, errors=None):
+    libtests=None, single_configure=None, verbose=None, dryrun=None,
+    errors=None):
     '''GLConfig.__init__(arguments) -> GLConfig
     
     Create new GLConfig instance.'''
@@ -112,10 +112,10 @@ class GLConfig(object):
     self.resetFiles()
     if files != None:
       self.setFiles(files)
-    # tests
+    # testflags
     self.resetTestFlags()
-    if tests != None:
-      self.setTestFlags(tests)
+    if testflags != None:
+      self.setTestFlags(testflags)
     # libname
     self.resetLibName()
     if libname != None:
@@ -232,6 +232,17 @@ class GLConfig(object):
       else: # if type(libtests) is not bool
         raise(TypeError('libtests must be a bool, not %s' % \
           type(libtests).__name__))
+    # single_configure
+    self.resetSingleConfigure()
+    if single_configure != None:
+      if type(single_configure) is bool:
+        if not single_configure:
+          self.disableSingleConfigure()
+        else: # if single_configure
+          self.enableSingleConfigure()
+      else: # if type(single_configure) is not bool
+        raise(TypeError('single_configure must be a bool, not %s' % \
+          type(single_configure).__name__))
     # verbose
     self.resetVerbosity()
     if verbose != None:
@@ -319,9 +330,7 @@ class GLConfig(object):
   def default(self, key):
     '''Return default value for the given key.'''
     if key in self.table:
-      if key == 'destdir':
-        return(string('.'))
-      elif key == 'libname':
+      if key == 'libname':
         return(string('libgnu'))
       elif key == 'macro_prefix':
         return(string('gl'))
@@ -385,7 +394,7 @@ class GLConfig(object):
   def resetDestDir(self):
     '''Reset the target directory. For --import, this specifies where your
     configure.ac can be found. Defaults to current directory.'''
-    self.table['destdir'] = string('.')
+    self.table['destdir'] = string()
     
     
   # Define localdir methods.
@@ -425,7 +434,7 @@ class GLConfig(object):
       if type(auxdir) is bytes:
         auxdir = string(auxdir, ENCS['system'])
       if auxdir:
-        self.table['auxdir'] = relpath(self.table['destdir'], auxdir)
+        self.table['auxdir'] = auxdir
     else: # if type of auxdir is not bytes or string
       raise(TypeError('auxdir must be a string, not %s' % \
         type(auxdir).__name__))
@@ -447,7 +456,7 @@ class GLConfig(object):
       if type(sourcebase) is bytes:
         sourcebase = string(sourcebase, ENCS['system'])
       if sourcebase:
-        self.table['sourcebase'] = relpath(self.table['destdir'], sourcebase)
+        self.table['sourcebase'] = sourcebase
     else: # if type of sourcebase is not bytes or string
       raise(TypeError('sourcebase must be a string, not %s' % \
         type(sourcebase).__name__))
@@ -468,7 +477,7 @@ class GLConfig(object):
       if type(m4base) is bytes:
         m4base = string(m4base, ENCS['system'])
       if m4base:
-        self.table['m4base'] = relpath(self.table['destdir'], m4base)
+        self.table['m4base'] = m4base
     else: # if type of m4base is not bytes or string
       raise(TypeError('m4base must be a string, not %s' % \
         type(m4base).__name__))
@@ -489,7 +498,7 @@ class GLConfig(object):
       if type(pobase) is bytes:
         pobase = string(pobase, ENCS['system'])
       if pobase:
-        self.table['pobase'] = relpath(self.table['destdir'], pobase)
+        self.table['pobase'] = pobase
     else: # if type of pobase is not bytes or string
       raise(TypeError('pobase must be a string, not %s' % \
         type(pobase).__name__))
@@ -512,7 +521,7 @@ class GLConfig(object):
       if type(docbase) is bytes:
         docbase = string(docbase, ENCS['system'])
       if docbase:
-        self.table['docbase'] = relpath(self.table['destdir'], docbase)
+        self.table['docbase'] = docbase
     else: # if type of docbase is not bytes or string
       raise(TypeError('docbase must be a string, not %s' % \
         type(docbase).__name__))
@@ -536,7 +545,7 @@ class GLConfig(object):
       if type(testsbase) is bytes:
         testsbase = string(testsbase, ENCS['system'])
       if testsbase:
-        self.table['testsbase'] = relpath(self.table['destdir'], testsbase)
+        self.table['testsbase'] = testsbase
     else: # if type of testsbase is not bytes or string
       raise(TypeError('testsbase must be a string, not %s' % \
         type(testsbase).__name__))
@@ -604,7 +613,7 @@ class GLConfig(object):
     if type(module) is bytes or type(module) is string:
       if type(module) is bytes:
         module = module.decode(ENCS['default'])
-      if avoid not in self.table['avoids']:
+      if module not in self.table['avoids']:
         self.table['avoids'].append(module)
     else: # if module has not bytes or string type
       raise(TypeError('avoid must be a string, not %s' % \
@@ -615,7 +624,7 @@ class GLConfig(object):
     if type(module) is bytes or type(module) is string:
       if type(module) is bytes:
         module = module.decode(ENCS['default'])
-      if avoid in self.table['avoids']:
+      if module in self.table['avoids']:
         self.table['avoids'].remove(module)
     else: # if module has not bytes or string type
       raise(TypeError('avoid must be a string, not %s' % \
@@ -726,20 +735,20 @@ class GLConfig(object):
     '''Return test flags. You can get flags from TESTS variable.'''
     return(list(self.table['testflags']))
     
-  def setTestFlags(self, flags):
+  def setTestFlags(self, testflags):
     '''Specify test flags. You can get flags from TESTS variable.'''
-    if type(flags) is list or type(flags) is tuple:
-      old_flags = self.table['testflags']
+    if type(testflags) is list or type(testflags) is tuple:
+      old_testflags = self.table['testflags']
       self.table['testflags'] = list()
-      for flag in flags:
+      for flag in testflags:
         try: # Try to enable each flag
           self.enableTestFlag(flag)
         except TypeError as error:
           raise(TypeError('each flag must be one of TESTS integers'))
-      self.table['testflags'] = flags
-    else: # if type of flags is not list or tuple
-      raise(TypeError('flags must be a list or a tuple, not %s' % \
-        type(flags).__name__))
+      self.table['testflags'] = testflags
+    else: # if type of testflags is not list or tuple
+      raise(TypeError('testflags must be a list or a tuple, not %s' % \
+        type(testflags).__name__))
     
   def resetTestFlags(self):
     '''Reset test flags (only default flag will be enabled).'''
@@ -995,10 +1004,6 @@ class GLConfig(object):
       configure_ac = joinpath(self.table['destdir'], 'configure.ac')
     elif isfile(joinpath(self.table['destdir'], 'configure.in')):
       configure_ac = joinpath(self.table['destdir'], 'configure.in')
-    if configure_ac == 'configure.ac':
-      configure_ac = './configure.ac'
-    elif configure_ac == 'configure.in':
-      configure_ac = './configure.in'
     self.table['configure_ac'] = configure_ac
     
     
@@ -1118,6 +1123,24 @@ class GLConfig(object):
   def resetLibtests(self):
     '''Reset status of testsbase/libtests.a.'''
     self.table['libtests'] = False
+    
+    
+  # Define single_configure methods.
+  def checkSingleConfigure(self):
+    '''Check whether single configure file should be generated.'''
+    return(self.table['single_configure'])
+    
+  def enableSingleConfigure(self):
+    '''Enable generation of the single configure file.'''
+    self.table['single_configure'] = True
+    
+  def disableSingleConfigure(self):
+    '''Disable generation of the single configure file.'''
+    self.table['single_configure'] = False
+    
+  def resetSingleConfigure(self):
+    '''Reset status of the single configure file generation.'''
+    self.table['single_configure'] = False
     
     
   # Define dryrun methods.

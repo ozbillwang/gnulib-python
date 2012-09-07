@@ -27,7 +27,6 @@ from pprint import pprint
 __author__ = constants.__author__
 __license__ = constants.__license__
 __copyright__ = constants.__copyright__
-__version__ = constants.__version__
 
 
 #===============================================================================
@@ -162,7 +161,7 @@ class GLEmiter(object):
       snippet = snippet.replace('${gl_include_guard_prefix}',
         include_guard_prefix)
       lines = [line for line in snippet.split('\n') if line.strip()]
-      snippet = '%s\n' % '\n'.join(lines).strip()
+      snippet = '%s\n' % '\n'.join(lines)
       transformer = fileassistant.transformers.get('aux', '')
       pattern = compiler('(^.*?$)', re.S | re.M)
       snippet = pattern.sub('%s\\1' % indentation, snippet)
@@ -599,10 +598,19 @@ AC_DEFUN([%V1%_LIBSOURCES], [
     '''GLEmiter.lib_Makefile_am(destfile, modules, moduletable, makefiletable,
          actioncmd, for_test) -> tuple of string and bool
     
-    Emits the contents of library Makefile. Returns contents and bool detecting
-    if library Makefile uses subdirs.
+    Emit the contents of the library Makefile. Returns string and a bool
+    variable which shows if subdirectories are used.
     GLConfig: localdir, sourcebase, libname, pobase, auxdir, makefile, libtool,
-    macro_prefix, podomain, conddeps, witness_c_macro.'''
+    macro_prefix, podomain, conddeps, witness_c_macro.
+    
+    destfile is a filename relative to destdir of Makefile being generated.
+    modules is a list of GLModule instances.
+    moduletable is a GLModuleTable instance.
+    makefiletable is a GLMakefileTable instance.
+    actioncmd is a string variable, which represents the actioncmd; it can be
+      an empty string e.g. when user wants to generate files for GLTestDir.
+    for_test is a bool variable; it must be set to True if creating a package
+      for testing, False otherwise.'''
     if type(destfile) is bytes or type(destfile) is string:
       if type(destfile) is bytes:
         destfile = destfile.decode(ENCS['default'])
@@ -643,6 +651,7 @@ AC_DEFUN([%V1%_LIBSOURCES], [
     include_guard_prefix = self.config['include_guard_prefix']
     ac_version = self.config['ac_version']
     destfile = os.path.normpath(destfile)
+    
     # When creating an includable Makefile.am snippet, augment variables with
     # += instead of assigning them.
     if makefile:
@@ -652,19 +661,19 @@ AC_DEFUN([%V1%_LIBSOURCES], [
     if libtool:
       libext = 'la'
       perhapsLT = 'LT'
-      repl_LD_flags = False
+      LD_flags = False
     else: # if not libtool
       libext = 'a'
       perhapsLT = ''
-      repl_LD_flags = True
+      LD_flags = True
     if for_test:
       # When creating a package for testing: Attempt to provoke failures,
       # especially link errors, already during "make" rather than during
       # "make check", because "make check" is not possible in a cross-compiling
       # situation. Turn check_PROGRAMS into noinst_PROGRAMS.
-      repl_check_PROGRAMS = True
+      check_PROGRAMS = True
     else: # if not for_test
-      repl_check_PROGRAMS = False
+      check_PROGRAMS = False
     emit += "## DO NOT EDIT! GENERATED AUTOMATICALLY!\n"
     emit += "## Process this file with automake to produce Makefile.in.\n"
     emit += self.copyright_notice()
@@ -682,7 +691,7 @@ AC_DEFUN([%V1%_LIBSOURCES], [
         amsnippet1 = module.getAutomakeSnippet_Conditional()
         amsnippet1 = amsnippet1.replace('lib_LIBRARIES', 'lib%_LIBRARIES')
         amsnippet1 = amsnippet1.replace('lib_LTLIBRARIES', 'lib%_LTLIBRARIES')
-        if repl_LD_flags:
+        if LD_flags:
           pattern = compiler('lib_LDFLAGS[\t ]*\\+=(.*?)$', re.S | re.M)
           amsnippet1 = pattern.sub('', amsnippet1)
         pattern = compiler('lib_([A-Z][A-Z](?:.*?))', re.S | re.M)
@@ -696,6 +705,8 @@ AC_DEFUN([%V1%_LIBSOURCES], [
             (libname, libext, perhapsLT)
           amsnippet1 += '%s_%s_DEPENDENCIES += @%sALLOCA@\n' % \
             (libname, libext, perhapsLT)
+        if check_PROGRAMS:
+          amsnippet1 = amsnippet1.replace('check_PROGRAMS', 'noinst_PROGRAMS')
         
         # Get unconditional snippet, edit it and save to amsnippet1.
         amsnippet2 = module.getAutomakeSnippet_Unconditional()
@@ -849,5 +860,279 @@ AC_DEFUN([%V1%_LIBSOURCES], [
     emit = constants.nlconvert(emit)
     if type(emit) is bytes:
       emit = emit.decode(ENCS['default'])
-    return(emit)
+    result = tuple([emit, uses_subdirs])
+    return(result)
+    
+  def tests_Makefile_am(self, destfile, modules, makefiletable,
+    witness_macro, for_test):
+    '''GLEmiter.tests_Makefile_am(destfile, modules, makefiletable,
+         witness_c_macro, for_test) -> tuple of string and bool
+    
+    Emit the contents of the tests Makefile. Returns string and a bool variable
+    which shows if subdirectories are used.
+    GLConfig: localdir, modules, libname, auxdir, makefile, libtool,
+    sourcebase, m4base, testsbase, macro_prefix, witness_c_macro,
+    single_configure, libtests.
+    
+    destfile is a filename relative to destdir of Makefile being generated.
+    witness_macro is a string which represents witness_c_macro with the suffix.
+    modules is a list of GLModule instances.
+    moduletable is a GLModuleTable instance.
+    makefiletable is a GLMakefileTable instance.
+    actioncmd is a string variable, which represents the actioncmd; it can be
+      an empty string e.g. when user wants to generate files for GLTestDir.
+    for_test is a bool variable; it must be set to True if creating a package
+      for testing, False otherwise.'''
+    if type(destfile) is bytes or type(destfile) is string:
+      if type(destfile) is bytes:
+        destfile = destfile.decode(ENCS['default'])
+    else: # if destfile has not bytes or string type
+      raise(TypeError('destfile must be a string, not %s' % \
+        type(destfile).__name__))
+    for module in modules:
+      if type(module) is not GLModule:
+        raise(TypeError('each module must be a GLModule instance'))
+    if type(makefiletable) is not GLMakefileTable:
+      raise(TypeError('makefiletable must be a GLMakefileTable, not %s' % \
+        type(makefiletable).__name__))
+    if type(witness_macro) is bytes or type(witness_macro) is string:
+      if type(witness_macro) is bytes:
+        witness_macro = witness_macro.decode(ENCS['default'])
+    else: # if witness_macro has not bytes or string type
+      raise(TypeError('witness_macro must be a string, not %s' % \
+        type(witness_macro).__name__))
+    if type(for_test) is not bool:
+      raise(TypeError('for_test must be a bool, not %s' % \
+        type(for_test).__name__))
+    emit = string()
+    localdir = self.config['localdir']
+    auxdir = self.config['auxdir']
+    sourcebase = self.config['sourcebase']
+    modcache = self.config['modcache']
+    libname = self.config['libname']
+    m4base = self.config['m4base']
+    pobase = self.config['pobase']
+    testsbase = self.config['testsbase']
+    makefile = self.config['makefile']
+    libtool = self.config['libtool']
+    macro_prefix = self.config['macro_prefix']
+    podomain = self.config['podomain']
+    conddeps = self.config['conddeps']
+    witness_c_macro = self.config['witness_c_macro']
+    include_guard_prefix = self.config['include_guard_prefix']
+    ac_version = self.config['ac_version']
+    libtests = self.config['libtests']
+    single_configure = self.config['single_configure']
+    
+    if libtool:
+      libext = 'la'
+      perhapsLT = 'LT'
+      LD_flags = False
+    else: # if not libtool
+      libext = 'a'
+      perhapsLT = ''
+      LD_flags = True
+    if for_test:
+      # When creating a package for testing: Attempt to provoke failures,
+      # especially link errors, already during "make" rather than during
+      # "make check", because "make check" is not possible in a cross-compiling
+      # situation. Turn check_PROGRAMS into noinst_PROGRAMS.
+      check_PROGRAMS = True
+    else: # if not for_test
+      check_PROGRAMS = False
+    
+    # Calculate testsbase_inverse
+    counter = int()
+    testsbase_inverse = string()
+    while counter < len(testsbase.split('/')):
+      testsbase_inverse += '../'
+      counter += 1
+    testsbase_inverse = os.path.normpath(testsbase_inverse)
+    
+    # Begin the generation.
+    emit += "## DO NOT EDIT! GENERATED AUTOMATICALLY!\n"
+    emit += "## Process this file with automake to produce Makefile.in.\n"
+    emit += '%s\n' % self.copyright_notice()
+    
+    uses_subdirs = False
+    main_snippets = string()
+    longrun_snippets = string()
+    for module in modules:
+      if for_test and not single_configure:
+        flag = module.isTests()
+      else: # if for_test and not single_configure
+        flag = True
+      if flag:
+        snippet = module.getAutomakeSnippet()
+        snippet = snippet.replace('lib_LIBRARIES', 'lib%_LIBRARIES')
+        snippet = snippet.replace('lib_LTLIBRARIES', 'lib%_LTLIBRARIES')
+        if LD_flags:
+          pattern = compiler('lib_LDFLAGS[\t ]*\\+=(.*?)$', re.S | re.M)
+          snippet = pattern.sub('', snippet)
+        pattern = compiler('lib_([A-Z][A-Z](?:.*?))', re.S | re.M)
+        snippet = pattern.sub('libtests_a_\\1', snippet)
+        snippet = snippet.replace('lib%_LIBRARIES', 'lib_LIBRARIES')
+        snippet = snippet.replace('lib%_LTLIBRARIES', 'lib_LTLIBRARIES')
+        snippet = snippet.replace('${gl_include_guard_prefix}',
+          include_guard_prefix)
+        if check_PROGRAMS:
+          snippet = snippet.replace('check_PROGRAMS', 'noinst_PROGRAMS')
+        # Check if module is 'alloca'.
+        if libtests and str(module) == 'alloca':
+          snippet += 'libtests_a_LIBADD += @%sALLOCA@\n' % perhapsLT
+          snippet += 'libtests_a_DEPENDENCIES += @%sALLOCA@\n' % perhapsLT
+        
+        # Skip the contents if it's entirely empty.
+        if snippet.strip():
+          # Check status of the module.
+          status = module.getStatus()
+          islongrun = False
+          for word in status:
+            if word == 'longrunning-test':
+              islongrun = True
+              break
+          if not islongrun:
+            snippet = snippet.replace('\n\nEXTRA_DIST', '\nEXTRA_DIST')
+            main_snippets += '## begin gnulib module %s\n' % str(module)
+            main_snippets += snippet
+            main_snippets += '## end   gnulib module %s\n\n' % str(module)
+          else: # if islongrunning
+            snippet = snippet.replace('\n\nEXTRA_DIST', '\nEXTRA_DIST')
+            longrun_snippets += '## begin gnulib module %s\n' % str(module)
+            longrun_snippets += snippet
+            longrun_snippets += '## end gnulib module %s\n' % str(module)
+          
+          # Test whether there are some source files in subdirectories.
+          for file in module.getFiles():
+            if file.startswith('lib/') and file.endswith('.c') and \
+            file.count('/') > 1:
+              uses_subdirs = True
+              break
+    
+    # Generate dependencies here, since it eases the debugging of test failures.
+    # If there are source files in subdirectories, prevent collision of the
+    # object files (example: hash.c and libxml/hash.c).
+    subdir_options = string()
+    if uses_subdirs:
+      subdir_options = string(' subdir-objects')
+    emit += 'AUTOMAKE_OPTIONS = 1.5 foreign%s\n\n' % subdir_options
+    if for_test and not single_configure:
+      emit += 'ACLOCAL_AMFLAGS = -I %s/%s\n\n' % (testsbase_inverse, m4base)
+    
+    # Nothing is being added to SUBDIRS; nevertheless the existence of this
+    # variable is needed to avoid an error from automake:
+    #   "AM_GNU_GETTEXT used but SUBDIRS not defined"
+    emit += 'SUBDIRS = .\n'
+    emit += 'TESTS =\n'
+    emit += 'XFAIL_TESTS =\n'
+    emit += 'TESTS_ENVIRONMENT =\n'
+    emit += 'noinst_PROGRAMS =\n'
+    if not for_test:
+      emit += 'check_PROGRAMS =\n'
+    emit += 'noinst_HEADERS =\n'
+    emit += 'noinst_LIBRARIES =\n'
+    if libtests:
+      if for_test:
+        emit += 'noinst_LIBRARIES += libtests.a\n'
+      else: # if not for_test
+        emit += 'check_LIBRARIES = libtests.a\n'
+    
+    # Automake versions < 1.11.4 create an empty pkgdatadir at
+    # installation time if you specify pkgdata_DATA to empty.
+    # See automake bugs #10997 and #11030:
+    #  * http://debbugs.gnu.org/10997
+    #  * http://debbugs.gnu.org/11030
+    # So we need this workaround.
+    pattern = compiler('^pkgdata_DATA *\\+=', re.S | re.M)
+    if bool(pattern.findall(main_snippets)) or \
+    bool(pattern.findall(longrun_snippets)):
+      emit += 'pkgdata_DATA =\n'
+    
+    emit += 'EXTRA_DIST =\n'
+    emit += 'BUILT_SOURCES =\n'
+    emit += 'SUFFIXES =\n'
+    emit += 'MOSTLYCLEANFILES = core *.stackdump\n'
+    emit += 'MOSTLYCLEANDIRS =\n'
+    emit += 'CLEANFILES =\n'
+    emit += 'DISTCLEANFILES =\n'
+    emit += 'MAINTAINERCLEANFILES =\n'
+    
+    # Execute edits that apply to the Makefile.am being generated.
+    # Execute edits that apply to the Makefile.am being generated.
+    current_edit = int()
+    makefile_am_edits = makefiletable.count()
+    while current_edit != makefile_am_edits:
+      dictionary = makefiletable[current_edit]
+      if dictionary['var']:
+        paths = list()
+        paths += [joinpath(dictionary['dir'], 'Makefile.am')]
+        paths += [os.path.normpath('./%s/Makefile.am' % dictionary['dir'])]
+        paths = sorted(set(paths))
+        if destfile in paths:
+          emit += '%s += %s\n' % (dictionary['var'], dictionary['val'])
+      current_edit += 1
+    
+    emit += '\nAM_CPPFLAGS = \\\n'
+    if for_test:
+      emit += '  -DGNULIB_STRICT_CHECKING=1 \\\n'
+    if witness_c_macro:
+      emit += '  -D%s=1 \\\n' % witness_c_macro
+    if witness_macro:
+      emit += '  -D@%s@=1 \\\n' % witness_macro
+    emit += '  -I. -I$(srcdir) \\\n'
+    emit += '  -I%s -I$(srcdir)/%s \\\n' % \
+      (testsbase_inverse, testsbase_inverse)
+    emit += '  -I%s/%s -I$(srcdir)/%s/%s\n' % \
+      (testsbase_inverse, sourcebase, testsbase_inverse, sourcebase)
+    emit += '\n'
+    
+    local_ldadd_before = string()
+    local_ldadd_after = string()
+    if libtests:
+      # All test programs need to be linked with libtests.a.
+      # It needs to be passed to the linker before ${libname}.${libext}, since
+      # the tests-related modules depend on the main modules.
+      # It also needs to be passed to the linker after ${libname}.${libext}
+      # because the latter might contain incomplete modules (such as the
+      # 'error' module whose dependency to 'progname' is voluntarily omitted).
+      # The LIBTESTS_LIBDEPS can be passed to the linker once or twice, it does
+      # not matter.
+      local_ldadd_before = ' libtests.a'
+      local_ldadd_after = ' libtests.a $(LIBTESTS_LIBDEPS)'
+    emit += 'LDADD =%s %s/%s/%s.%s%s\n\n' % \
+      (local_ldadd_before, testsbase_inverse, sourcebase, libname, libext,
+        local_ldadd_after)
+    if libtests:
+      emit += 'libtests_a_SOURCES =\n'
+      # Here we use $(LIBOBJS), not @LIBOBJS@. The value is the same. However,
+      # automake during its analysis looks for $(LIBOBJS), not for @LIBOBJS@.
+      emit += 'libtests_a_LIBADD = $(%stests_LIBOBJS)\n' % macro_prefix
+      emit += 'libtests_a_DEPENDENCIES = $(%stests_LIBOBJS)\n' % macro_prefix
+      emit += 'EXTRA_libtests_a_SOURCES =\n'
+      # The circular dependency in LDADD requires this.
+      emit += 'AM_LIBTOOLFLAGS = --preserve-dup-deps\n\n'
+    # Many test scripts use ${EXEEXT} or ${srcdir}.
+    # EXEEXT is defined by AC_PROG_CC through autoconf.
+    # srcdir is defined by autoconf and automake.
+    emit += "TESTS_ENVIRONMENT += EXEEXT='@EXEEXT@' srcdir='$(srcdir)'\n\n"
+    main_snippets = main_snippets.replace('$(top_srcdir)/build-aux/',
+      '$(top_srcdir)/%s/' % auxdir)
+    longrun_snippets = longrun_snippets.replace('$(top_srcdir)/build-aux/',
+      '$(top_srcdir)/%s/' % auxdir)
+    emit += main_snippets +longrun_snippets
+    emit += '# Clean up after Solaris cc.\n'
+    emit += 'clean-local:\n'
+    emit += '\trm -rf SunWS_cache\n\n'
+    emit += 'mostlyclean-local: mostlyclean-generic\n'
+    emit += '\t@for dir in \'\' $(MOSTLYCLEANDIRS); do \\\n'
+    emit += '\t  if test -n "$$dir" && test -d $$dir; then \\\n'
+    emit += '\t    echo "rmdir $$dir"; rmdir $$dir; \\\n'
+    emit += '\t  fi; \\\n'
+    emit += '\tdone; \\\n'
+    emit += '\t:\n'
+    emit = constants.nlconvert(emit)
+    if type(emit) is bytes:
+      emit = emit.decode(ENCS['default'])
+    result = tuple([emit, uses_subdirs])
+    return(result)
 

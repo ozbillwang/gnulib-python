@@ -31,15 +31,10 @@ Here are most of the steps we (maintainers) follow when making a release.
 
     make check syntax-check distcheck
 
-* From top_srcdir, run:
+* To (i) set the date, version number, and release type [stable/alpha/beta]
+  on line 3 of NEWS, (ii) commit that, and (iii) tag the release, run
 
-    build-aux/do-release-commit-and-tag X.Y stable
-
-  in order to (i) set the date, version number, and release type
-  [stable/alpha/beta] on line 3 of NEWS, (ii) commit that, and (iii) tag the
-  release.  See --help if you need options such as:
-
-    build-aux/do-release-commit-and-tag --branch=maint -C _build X.Y.Z stable
+    make release-commit RELEASE='X.Y stable'
 
 * Run the following to create release tarballs.  Your choice selects the
   corresponding upload-to destination in the emitted gnupload command.
@@ -72,17 +67,15 @@ Once all the builds and tests have passed,
 * Announce it on Savannah first, so you can include the savannah.org
   announcement link in the email message.
 
-  From here:
+  Go to the news-submission form:
 
-    https://savannah.gnu.org/projects/@PACKAGE@/
+    https://savannah.gnu.org/news/submit.php?group=@PACKAGE@
 
-  click on "Submit news", then write something like the following:
-  (If there is no such button, then enable "News" for the project via
-  the "Main->Select Features" menu item, or via this link:
+  If it does not work, then enable "News" for the project via this link:
 
     https://savannah.gnu.org/project/admin/editgroupfeatures.php?group=@PACKAGE@
 
-  )
+  Write something like the following:
 
     Subject: @PACKAGE@-X.Y released [stable]
     +verbatim+
@@ -95,12 +88,10 @@ Once all the builds and tests have passed,
 
 * Send the announcement email message.
 
-* After each non-alpha release, update the on-line manual accessible via
+* After each non-alpha release, run
+
+    make web-manual-update
+
+  to update the on-line manual accessible at
 
     http://www.gnu.org/software/@PACKAGE@/manual/
-
-  by running this from top_srcdir:
-
-    build-aux/gnu-web-doc-update
-
-  possibly with "-C <BUILDDIR>"

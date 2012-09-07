@@ -22,7 +22,6 @@ from .GLConfig import GLConfig
 __author__ = constants.__author__
 __license__ = constants.__license__
 __copyright__ = constants.__copyright__
-__version__ = constants.__version__
 
 
 #===============================================================================
@@ -120,27 +119,32 @@ class GLFileSystem(object):
 class GLFileAssistant(object):
   '''GLFileAssistant is used to help with file processing.'''
   
-  def __init__(self, config, filesystem, transformers):
+  def __init__(self, config, transformers=dict()):
     '''Create GLFileAssistant instance.'''
     if type(config) is not GLConfig:
       raise(TypeError('config must be a GLConfig, not %s' % \
-        type(config).__name__))
-    if type(filesystem) is not GLFileSystem:
-      raise(TypeError('filesystem must be a GLFileSystem, not %s' % \
         type(config).__name__))
     if type(transformers) is not dict:
       raise(TypeError('transformers must be a dict, not %s' % \
         type(transformers).__name__))
     for key in ['lib', 'aux', 'main', 'tests']:
       if key not in transformers:
-        raise(KeyError('transformer must contain key %s' % repr(key)))
-    self.config = config
-    self.filesystem = filesystem
-    self.transformers = transformers
+        transformers[key] = 's,x,x,'
+      else: # if key in transformers
+        value = transformers[key]
+        if type(value) is bytes or type(value) is string:
+          if type(value) is bytes:
+            transformers[key] = value.decode(ENCS['default'])
+        else: # if value has not bytes or string type
+          raise(TypeError('transformers[%s] must be a string, not %s' % \
+            (key, type(value).__name__)))
     self.original = None
     self.rewritten = None
     self.added = list()
     self.makefile = list()
+    self.config = config
+    self.transformers = transformers
+    self.filesystem = GLFileSystem(self.config)
     
   def __repr__(self):
     '''x.__repr__() <==> repr(x)'''

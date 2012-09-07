@@ -22,7 +22,6 @@ from .GLFileSystem import GLFileSystem
 from .GLFileSystem import GLFileAssistant
 from .GLMakefileTable import GLMakefileTable
 from .GLEmiter import GLEmiter
-from pprint import pprint
 
 
 #===============================================================================
@@ -31,8 +30,6 @@ from pprint import pprint
 __author__ = constants.__author__
 __license__ = constants.__license__
 __copyright__ = constants.__copyright__
-__version__ = constants.__version__
-__all__ = ['GLImport']
 
 
 #===============================================================================
@@ -112,8 +109,8 @@ class GLImport(object):
     if versions:
       version = sorted(set([float(version) for version in versions]))[-1]
       self.config.setAutoconfVersion(version)
-    if version < 2.59:
-      raise(GLError(4, version))
+      if version < 2.59:
+        raise(GLError(4, version))
     
     # Get other cached variables.
     path = joinpath(self.config['m4base'], 'gnulib-cache.m4')
@@ -266,8 +263,8 @@ class GLImport(object):
     # Define GLImport attributes.
     self.emiter = GLEmiter(self.config)
     self.filesystem = GLFileSystem(self.config)
-    self.modulesystem = GLModuleSystem(self.config, self.filesystem)
-    self.moduletable = GLModuleTable(self.config, self.filesystem, list())
+    self.modulesystem = GLModuleSystem(self.config)
+    self.moduletable = GLModuleTable(self.config, list())
     self.makefiletable = GLMakefileTable(self.config)
     
   def __repr__(self):
@@ -276,8 +273,10 @@ class GLImport(object):
     return(result)
     
   def rewrite_old_files(self, files):
-    '''Replace auxdir, docbase, sourcebase, m4base and testsbase from default
-    to their version from cache.'''
+    '''GLImport.rewrite_old_files(files) -> list
+    
+    Replace auxdir, docbase, sourcebase, m4base and testsbase from default
+    to their version from cached config.'''
     if type(files) is not list:
       raise(TypeError(
         'files argument must has list type, not %s' % type(files).__name__))
@@ -320,8 +319,10 @@ class GLImport(object):
     return(list(result))
     
   def rewrite_new_files(self, files):
-    '''Replace auxdir, docbase, sourcebase, m4base and testsbase from default
-    to their version from arguments.'''
+    '''GLImport.rewrite_new_files(files)
+    
+    Replace auxdir, docbase, sourcebase, m4base and testsbase from default
+    to their version from config.'''
     if type(files) is not list:
       raise(TypeError(
         'files argument must has list type, not %s' % type(files).__name__))
@@ -654,7 +655,7 @@ abcdefghijklmnopqrstuvwxyz ABCDEFGHIJKLMNOPQRSTUVWXYZ | LC_ALL=C sed -e \
     # created using libtool, because libtool already handles the dependencies.
     if not libtool:
       libname_upper = libname.upper().replace('-', '_')
-      emit += '%s_LIBDEPS="$gl_libdeps"\n' % libname_upper
+      emit += '  %s_LIBDEPS="$gl_libdeps"\n' % libname_upper
       emit += '  AC_SUBST([%s_LIBDEPS])\n' % libname_upper
       emit += '  %s_LTLIBDEPS="$gl_ltlibdeps"\n' % libname_upper
       emit += '  AC_SUBST([%s_LTLIBDEPS])\n' % libname_upper
@@ -673,6 +674,70 @@ AC_DEFUN([%s_FILE_LIST], [\n''' % macro_prefix
     if type(emit) is bytes:
       emit = emit.decode(ENCS['default'])
     return(emit)
+    
+  def _done_dir_(self, directory, dirs_added, dirs_removed):
+    '''GLImport._done_dir_(directory, dirs_added, dirs_removed)
+    
+    This method is used to determine ignore argument for _update_ignorelist_
+    method and then call it.'''
+    destdir = self.config['destdir']
+    if isdir(joinpath(destdir, 'CVS')) or \
+    isdir(joinpath(destdir, directory, 'CVS')) or \
+    isfile(joinpath(destdir, directory, '.cvsignore')):
+      self._update_ignorelist_(directory, '.cvsignore',
+        dirs_added, dirs_removed)
+    if isdir(joinpath(destdir, '.git')) or \
+    isfile(joinpath(destdir, directory, '.gitignore')):
+      self._update_ignorelist_(directory, '.gitignore',
+        dirs_added, dirs_removed)
+      
+    
+  def _update_ignorelist_(self, directory, ignore, dirs_added, dirs_removed):
+    '''GLImport._update_ignorelist_(directory, ignore, dirs_added, dirs_removed)
+    
+    Update .gitignore or .cvsignore files.'''
+    result = string()
+    destdir = self.config['destdir']
+    if ignore == '.gitignore':
+      anchor = '/'
+    else:
+      anchor = ''
+    srcpath = joinpath(destdir, directory, ignore)
+    backupname = '%s~' % srcpath
+    if isfile(srcpath):
+      if dirs_added or dirs_removed:
+        with codecs.open(srcpath, 'rb', 'UTF-8') as file:
+          srcdata = file.read()
+        dirs_ignore = sorted(set(srcdata.split('\n')))
+        dirs_ignore = [line for line in dirs_ignore if line.strip()]
+        srcdata = '\n'.join(sorted(set(dirs_ignore))).strip()
+        dirs_ignore += [d for d in dirs_added if d not in dirs_ignore]
+        dirs_ignore = [d for d in dirs_ignore if d in dirs_removed]
+        dirs_ignore = ['%s%s' % (anchor, d) for d in dirs_ignore]
+        dirs_ignore = sorted(set(dirs_ignore))
+        destdata = '\n'.join(sorted(set(dirs_ignore))).strip()
+        if srcdata != destdata:
+          if not self.config['dryrun']:
+            print('Updating %s (backup in %s)' % (srcpath, backupname))
+            shutil.move(srcpath, backupname)
+            result = string()
+            with codecs.open(srcpath, 'wb', 'UTF-8') as file:
+              file.write(destdata)
+          else: # if self.config['dryrun']
+            print('Updating %s (backup in %s)' % (srcpath, backupname))
+    else: # if not isfile(srcpath)
+      if dirs_added:
+        if not self.config['dryrun']:
+          print('Creating %s' % srcpath)
+          dirs_added = sorted(set(dirs_added))
+          dirs_added = ['%s%s' % (anchor, d) for d in dirs_added]
+          if ignore == '.cvsignore':
+            dirs_added = ['.deps', '.dirstamp'] +dirs_added
+          with codecs.open(srcpath, 'wb', 'UTF-8') as file:
+            file.write('\n'.join(dirs_added))
+            file.write('\n')
+        else: # if self.config['dryrun']
+          print('Create %s' % srcpath)
     
   def prepare(self):
     '''Make all preparations before the execution of the code.
@@ -708,7 +773,7 @@ AC_DEFUN([%s_FILE_LIST], [\n''' % macro_prefix
     self.moduletable.setAvoids(avoids)
     final_modules = self.moduletable.transitive_closure(base_modules)
     
-    # Show module list.
+    # Show final module list.
     if verbose >= 0:
       bold_on = ''
       bold_off = ''
@@ -716,8 +781,6 @@ AC_DEFUN([%s_FILE_LIST], [\n''' % macro_prefix
       if term == 'xterm':
         bold_on = '\x1b[1m'
         bold_off = '\x1b[0m'
-        bold_on = '' # Uncomment these lines to let diff work
-        bold_off = '' # Uncomment these lines to let diff work
       print('Module list with included dependencies (indented):')
       for module in final_modules:
         if str(module) in self.config.getModules():
@@ -785,6 +848,7 @@ AC_DEFUN([%s_FILE_LIST], [\n''' % macro_prefix
     # Print notices from modules.
     for module in main_modules:
       notice = module.getNotice()
+      notice = notice.strip()
       if notice:
         print('Notice from module %s:' % str(module))
         pattern = compiler('^(.*?)$', re.S | re.M)
@@ -945,8 +1009,7 @@ AC_DEFUN([%s_FILE_LIST], [\n''' % macro_prefix
           print('Create directory %s' % directory)
     
     # Create GLFileAssistant instance to process files.
-    self.assistant = GLFileAssistant(self.config,
-      self.filesystem, transformers)
+    self.assistant = GLFileAssistant(self.config, transformers)
     
     # Files which are in filetable['old'] and not in filetable['new'].
     # They will be removed and added to filetable['removed'] list.
@@ -1032,8 +1095,9 @@ AC_DEFUN([%s_FILE_LIST], [\n''' % macro_prefix
     # Create library makefile.
     basename = joinpath(sourcebase, makefile_am)
     tmpfile = self.assistant.tmpfilename(basename)
-    emit = self.emiter.lib_Makefile_am(basename, self.moduletable['main'],
-      self.moduletable, self.makefiletable, actioncmd, for_test)
+    emit, uses_subdirs = self.emiter.lib_Makefile_am(basename,
+      self.moduletable['main'], self.moduletable, self.makefiletable,
+      actioncmd, for_test)
     with codecs.open(tmpfile, 'wb', 'UTF-8') as file:
       file.write(emit)
     filename, backup, flag = self.assistant.super_update(basename, tmpfile)
@@ -1219,8 +1283,9 @@ AC_DEFUN([%s_FILE_LIST], [\n''' % macro_prefix
     if inctests:
       basename = joinpath(testsbase, makefile_am)
       tmpfile = self.assistant.tmpfilename(basename)
-      emit = self.emiter.lib_Makefile_am(basename, self.moduletable['tests'],
-        self.moduletable, self.makefiletable, actioncmd, for_test)
+      emit, uses_subdirs = self.emiter.lib_Makefile_am(basename,
+        self.moduletable['tests'], self.moduletable, self.makefiletable,
+        actioncmd, for_test)
       with codecs.open(tmpfile, 'wb', 'UTF-8') as file:
         file.write(emit)
       filename, backup, flag = self.assistant.super_update(basename, tmpfile)
@@ -1239,6 +1304,33 @@ AC_DEFUN([%s_FILE_LIST], [\n''' % macro_prefix
         os.remove(tmpfile)
     
     # Update the .cvsignore and .gitignore files.
+    ignorelist = list()
+    filetable['added'] = sorted(set(filetable['added']))
+    filetable['removed'] = sorted(set(filetable['added']))
+    for file in filetable['added']:
+      directory, basename = os.path.split(file)
+      ignorelist += [tuple([directory, '|A|', basename])]
+    for file in filetable['removed']:
+      directory, basename = os.path.split(file)
+      ignorelist += [tuple([directory, '|R|', basename])]
+    last_dir = string()
+    last_dirs_added = list()
+    last_dirs_removed = list()
+    for row in ignorelist:
+      next_dir = row[0]
+      operand = row[1]
+      filename = row[2]
+      if next_dir != last_dir:
+        self._done_dir_(last_dir, last_dirs_added, last_dirs_removed)
+        last_dir = next_dir
+        last_dirs_added = list()
+        last_dirs_removed = list()
+      if operand == '|A|':
+        last_dirs_added += [filename]
+      elif operand == '|R|':
+        last_dirs_removed += [filename]
+    self._done_dir_(last_dir, last_dirs_added, last_dirs_removed)
+    exit()
     
     # Finish the work.
     print('Finished.\n')
@@ -1279,4 +1371,53 @@ Use them in <program>_LDADD when linking a program, or
 in <library>_a_LDFLAGS or <library>_la_LDFLAGS when linking a library.''')
       for link in links:
         print('  %s' % link)
+    
+    # Print reminders.
+    print('')
+    print('Don\'t forget to')
+    if makefile_am == 'Makefile.am':
+      print('  - add "%s/Makefile" to AC_CONFIG_FILES in %s,' % \
+        (sourcebase, configure_ac))
+    else: # if makefile_am != 'Makefile.am'
+      print('  - "include %s" from within "%s/Makefile.am",' % \
+        (makefile, sourcebase))
+    if pobase:
+      print('  - add "%s/Makefile.in to AC_CONFIG_FILES in %s,' % \
+        (pobase, configure_ac))
+    if inctests:
+      if makefile_am == 'Makefile.am':
+        print('  - add "%s/Makefile" to AC_CONFIG_FILES in %s,' % \
+          (testsbase, configure_ac))
+      else: # if makefile_am != 'Makefile.am'
+        print('  - "include %s" from within "%s/Makefile.am",' % \
+          (makefile, testsbase))
+    # Print makefile edits.
+    current_edit = int()
+    makefile_am_edits = self.makefiletable.count()
+    while current_edit != makefile_am_edits:
+      dictionary = self.makefiletable[current_edit]
+      if dictionary['var']:
+        print('  - mention "%s" in %s in %s,' % \
+          (dictionary['val'], dictionary['var'],
+            joinpath(dictionary['dir'], 'Makefile.am')))
+      current_edit += 1
+    
+    # Detect position_early_after.
+    with codecs.open(configure_ac, 'rb', 'UTF-8') as file:
+      data = file.read()
+    match_result1 = \
+      bool(compiler('^ *AC_PROG_CC_STDC', re.S | re.M).findall(data))
+    match_result2 = \
+      bool(compiler('^ *AC_PROG_CC_C99', re.S | re.M).findall(data))
+    if match_result1:
+      position_early_after = 'AC_PROG_CC_STDC'
+    elif match_result2:
+      position_early_after = 'AC_PROG_CC_C99'
+    else: # if not any([match_result1, match_result2])
+      position_early_after = 'AC_PROG_CC'
+    print('  - invoke %s_EARLY in %s, right after %s,' % \
+      (macro_prefix, configure_ac, position_early_after))
+    print('  - invoke %s_INIT in %s.' % \
+      (macro_prefix, configure_ac))
+    sp.call(['rm', '-rf', self.config['tempdir']], shell=False)
 
